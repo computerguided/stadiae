@@ -866,23 +866,35 @@ function plantUMLImageURL(source) {
 }
 
 // ---------- PlantUML generation ----------
-function generatePlantUML(withSelection = false) {
+// opts:
+//   withSelection: color selected elements red in the VISIBLE diagram
+//   mode: "visible" (default) or "mask" — mask mode produces the selection-mask
+//         diagram with unique element colors, invisible text, thick arrows.
+//   idAssigner: in mask mode, a function (key, kind) => colorStr that also
+//               records the mapping in an external Map. See renderDiagram.
+function generatePlantUML(opts = {}) {
+  const { withSelection = false, mode = "visible", idAssigner = null } = opts;
+  const isMask = mode === "mask";
   const lines = [];
   lines.push("@startuml");
   lines.push("'== Formatting ==");
   lines.push("hide empty description");
   lines.push("skinparam Arrow {");
   lines.push("  FontSize " + Model.arrowFontSize);
+  if (isMask) lines.push("  FontColor #00000000");
   lines.push("}");
   lines.push("skinparam State {");
   lines.push("  FontSize " + Model.stateFontSize);
+  if (isMask) lines.push("  FontColor #00000000");
   lines.push("}");
-  lines.push("<style>");
-  lines.push("  .choicepoint {");
-  lines.push("    BackgroundColor #ffffff");
-  lines.push("    RoundCorner 0");
-  lines.push("  }");
-  lines.push("</style>");
+  if (!isMask) {
+    lines.push("<style>");
+    lines.push("  .choicepoint {");
+    lines.push("    BackgroundColor #ffffff");
+    lines.push("    RoundCorner 0");
+    lines.push("  }");
+    lines.push("</style>");
+  }
   lines.push("");
   lines.push("'== Default interfaces ==");
   lines.push("!$Timer = Timer");
@@ -907,17 +919,27 @@ function generatePlantUML(withSelection = false) {
   lines.push("");
   lines.push("'== Component ==");
   lines.push(`state component as "${Model.componentName}" {`);
-  const startColor = (withSelection && Selection.start) ? "#FF0000" : "#000000";
-  lines.push(`state START <<start>> ${startColor}`);
+  if (isMask) {
+    // START always has its own ID so clicking the start dot is selectable.
+    const startId = idAssigner("START", "start");
+    lines.push(`state START <<start>> #${startId}`);
+  } else {
+    const startColor = (withSelection && Selection.start) ? "#FF0000" : "#000000";
+    lines.push(`state START <<start>> ${startColor}`);
+  }
   lines.push("");
   lines.push("'== States ==");
   for (const s of Model.states) {
-    const sel = withSelection && Selection.states.has(s.name);
     let line = `state ${s.name}`;
     if (s.displayName && s.displayName.length > 0) {
       line += ` as "${s.displayName.replace(/\n/g, "\\n")}"`;
     }
-    if (sel) line += " #line:FF0000;line.bold";
+    if (isMask) {
+      const id = idAssigner("state:" + s.name, "state");
+      line += ` #${id};line:${id}`;
+    } else if (withSelection && Selection.states.has(s.name)) {
+      line += " #line:FF0000;line.bold";
+    }
     lines.push(line);
   }
   // ANY pseudostate: one synthetic declaration per transition with source "*"
@@ -927,27 +949,40 @@ function generatePlantUML(withSelection = false) {
   for (const t of Model.transitions) {
     if (t.source === "*") {
       anyCounter++;
-      const id = "ANY_" + anyCounter;
-      anyIdFor.set(t, id);
-      const sel = withSelection && isTransitionFullySelected(t);
-      let line = `state ${id} as "*"`;
-      if (sel) line += " #line:FF0000;line.bold";
+      const synthId = "ANY_" + anyCounter;
+      anyIdFor.set(t, synthId);
+      let line = `state ${synthId} as "*"`;
+      if (isMask) {
+        // Clicking the * node selects the whole ANY-transition.
+        const id = idAssigner("trans:" + transitionIdKey(t), "transition");
+        line += ` #${id};line:${id}`;
+      } else if (withSelection && isTransitionFullySelected(t)) {
+        line += " #line:FF0000;line.bold";
+      }
       lines.push(line);
     }
   }
   lines.push("");
   lines.push("'== Choice-points ==");
   for (const cp of Model.choicePoints) {
-    const sel = withSelection && Selection.choicePoints.has(cp.name);
     const q = (cp.question || "").replace(/\n/g, "\\n");
-    let line = `state CP_${cp.name} as "${q}" <<choicepoint>>`;
-    if (sel) line += " #line:FF0000;line.bold";
+    // In mask mode, skip the <<choicepoint>> stereotype so the white-rectangle
+    // <style> block doesn't override the unique mask fill color.
+    let line = isMask
+      ? `state CP_${cp.name} as "${q}"`
+      : `state CP_${cp.name} as "${q}" <<choicepoint>>`;
+    if (isMask) {
+      const id = idAssigner("cp:" + cp.name, "cp");
+      line += ` #${id};line:${id}`;
+    } else if (withSelection && Selection.choicePoints.has(cp.name)) {
+      line += " #line:FF0000;line.bold";
+    }
     lines.push(line);
   }
   lines.push("");
   lines.push("'== Transitions ==");
   for (const t of Model.transitions) {
-    const fullySelected = withSelection && isTransitionFullySelected(t);
+    const fullySelected = !isMask && withSelection && isTransitionFullySelected(t);
     let arrow;
     switch (t.connector) {
       case "Right": arrow = "->"; break;
@@ -956,8 +991,11 @@ function generatePlantUML(withSelection = false) {
       case "Down":  arrow = "-" + "-".repeat(Math.max(1, t.length||1)) + ">"; break;
       default: arrow = "-->"; break;
     }
-    if (fullySelected) {
-      // Insert color into arrow: e.g. -[#FF0000,bold]->  or -[#FF0000,bold]up-->
+    if (isMask) {
+      const id = idAssigner("trans:" + transitionIdKey(t), "transition");
+      // Keep the stroke thick (8) so the click hitbox is generous.
+      arrow = arrow.replace(/^-/, `-[#${id},thickness=8]`);
+    } else if (fullySelected) {
       arrow = arrow.replace(/^-/, "-[#FF0000,bold]");
     }
     const srcRendered = (t.source === "*") ? anyIdFor.get(t) : t.source;
@@ -965,7 +1003,7 @@ function generatePlantUML(withSelection = false) {
     if (t.messages && t.messages.length > 0) {
       const parts = t.messages.map(m => {
         const key = transRowKey(t.source, t.target, m.interface, m.name);
-        const selected = withSelection && Selection.transitions.has(key);
+        const selected = !isMask && withSelection && Selection.transitions.has(key);
         const text = `$${m.interface}_${m.name}`;
         return selected ? `<color:#FF0000>${text}</color>` : text;
       });
@@ -981,6 +1019,7 @@ function generatePlantUML(withSelection = false) {
 function transRowKey(source, target, iface, name) {
   return source + "|" + target + "|" + (iface||"") + "|" + (name||"");
 }
+function transitionIdKey(t) { return t.source + "|" + t.target; }
 
 // Turn a node identifier (state name, "CP_Foo", "START", "[H]") into a user-friendly label
 function nodeLabel(id) {
@@ -1042,39 +1081,214 @@ function scheduleRender() {
   renderTimer = setTimeout(renderDiagram, 150);
 }
 
+// ---------- Selection mask state ----------
+// maskState is populated whenever the mask PNG loads successfully.
+// It is invalidated at the start of every re-render so stale clicks don't
+// select elements that no longer exist in the current model.
+const maskState = {
+  ready: false,
+  canvas: document.createElement("canvas"),
+  ctx: null,
+  natW: 0, natH: 0,
+  idToRef: new Map(),   // colorStr (lowercase, 6 hex) -> { kind, key }
+};
+maskState.ctx = maskState.canvas.getContext("2d", { willReadFrequently: true });
+
 function renderDiagram() {
   const panel = document.getElementById("canvas-panel");
-  const src = generatePlantUML(true);
-  document.getElementById("code-panel").textContent = src;
-  const url = plantUMLImageURL(src);
-  const img = new Image();
-  img.onload = () => {
+
+  // === Build visible source (with selection highlighting) ===
+  const visibleSrc = generatePlantUML({ withSelection: true });
+  document.getElementById("code-panel").textContent = visibleSrc;
+
+  // === Build mask source (unique colors per element) ===
+  // Map key -> color; reverse map color -> {kind, key} goes into maskState.
+  // IMPORTANT: the original design used #0000NN colors, but PlantUML renders
+  // these nearly-black fills visually as black — they all come out as the
+  // same dark pixel in the PNG. Instead, spread each id over the full RGB
+  // space using prime-multiplier hashes so each element gets a visibly
+  // distinct color that the renderer preserves.
+  const idToRef = new Map();
+  let nextId = 1;
+  function idAssigner(key, kind) {
+    // If this key was already assigned, reuse the same ID.
+    for (const [c, ref] of idToRef) {
+      if (ref.key === key) return c;
+    }
+    const n = nextId;
+    // Keep each channel in [40..219] to stay away from pure white (background)
+    // and pure black (anti-aliased edges). Different prime strides per channel
+    // ensure neighbouring ids don't end up with similar colors.
+    const r = 40 + ((n * 137) % 180);
+    const g = 40 + ((n * 73)  % 180);
+    const b = 40 + ((n * 211) % 180);
+    const hex =
+      r.toString(16).padStart(2, "0") +
+      g.toString(16).padStart(2, "0") +
+      b.toString(16).padStart(2, "0");
+    idToRef.set(hex, { kind, key });
+    nextId++;
+    return hex;
+  }
+  const maskSrc = generatePlantUML({ mode: "mask", idAssigner });
+
+  const visibleUrl = plantUMLImageURL(visibleSrc);
+  const maskUrl = plantUMLImageURL(maskSrc);
+
+  // Invalidate mask while new images are fetching
+  maskState.ready = false;
+
+  panel.innerHTML = '<div class="loading">Rendering diagram...</div>';
+
+  // === Fetch both images in parallel ===
+  const visibleImg = new Image();
+  visibleImg.crossOrigin = "anonymous";
+  visibleImg.onload = () => {
     panel.innerHTML = "";
-    img.style.cursor = "crosshair";
-    img.addEventListener("click", onDiagramClick);
-    panel.appendChild(img);
+    visibleImg.style.cursor = "crosshair";
+    visibleImg.addEventListener("click", onDiagramClick);
+    panel.appendChild(visibleImg);
   };
-  img.onerror = () => {
+  visibleImg.onerror = () => {
     panel.innerHTML = '<div class="error">Could not render diagram.\nThe PlantUML server may be unreachable, or the diagram is invalid.</div>';
   };
-  panel.innerHTML = '<div class="loading">Rendering diagram...</div>';
-  img.src = url;
+  visibleImg.src = visibleUrl;
+
+  const maskImg = new Image();
+  maskImg.crossOrigin = "anonymous";
+  maskImg.onload = () => {
+    try {
+      maskState.canvas.width = maskImg.naturalWidth;
+      maskState.canvas.height = maskImg.naturalHeight;
+      maskState.natW = maskImg.naturalWidth;
+      maskState.natH = maskImg.naturalHeight;
+      maskState.ctx.clearRect(0, 0, maskState.natW, maskState.natH);
+      maskState.ctx.drawImage(maskImg, 0, 0);
+      maskState.idToRef = idToRef;
+      maskState.ready = true;
+    } catch (e) {
+      // Tainted canvas (CORS) — mask unavailable, click selection falls back.
+      maskState.ready = false;
+      console.warn("Selection mask unavailable:", e);
+    }
+  };
+  maskImg.onerror = () => {
+    // No mask — clicks will just clear selection, same as before.
+    maskState.ready = false;
+  };
+  maskImg.src = maskUrl;
+}
+
+// Read the raw RGBA at natural coordinates. Returns {r,g,b,a} or null.
+function readMaskRGBA(natX, natY) {
+  if (!maskState.ready) return null;
+  if (natX < 0 || natY < 0 || natX >= maskState.natW || natY >= maskState.natH) return null;
+  try {
+    const d = maskState.ctx.getImageData(natX | 0, natY | 0, 1, 1).data;
+    return { r: d[0], g: d[1], b: d[2], a: d[3] };
+  } catch (e) {
+    return null;
+  }
+}
+
+// Parse a 6-hex color string to {r,g,b}.
+function parseHexColor(hex) {
+  return {
+    r: parseInt(hex.slice(0, 2), 16),
+    g: parseInt(hex.slice(2, 4), 16),
+    b: parseInt(hex.slice(4, 6), 16),
+  };
+}
+
+// Look up the element at (natX, natY). Because PlantUML applies slight
+// gradient/shading to state fills and anti-aliasing blurs edges, we match
+// sampled pixels to the NEAREST known mask color (in Euclidean RGB distance)
+// rather than requiring an exact hex match. We also reject pixels that are
+// very far from any known color (likely background white or rendering chrome).
+function lookupMaskAt(natX, natY) {
+  const p = readMaskRGBA(natX, natY);
+  if (!p || p.a === 0) return { ref: null, background: false };
+  // Obvious background (white)
+  if (p.r >= 240 && p.g >= 240 && p.b >= 240) {
+    return { ref: null, background: true };
+  }
+  // Find nearest known color
+  let bestHex = null, bestDist = Infinity;
+  for (const [hex] of maskState.idToRef) {
+    const c = parseHexColor(hex);
+    const dr = c.r - p.r, dg = c.g - p.g, db = c.b - p.b;
+    const dist = dr*dr + dg*dg + db*db;
+    if (dist < bestDist) { bestDist = dist; bestHex = hex; }
+  }
+  // Our mask colors are spread widely (min pairwise distance well above
+  // this threshold), so any pixel within ~55 units total of a known color
+  // is safely "that element".
+  const ACCEPT_THRESHOLD = 3000;
+  if (bestHex !== null && bestDist <= ACCEPT_THRESHOLD) {
+    return { ref: maskState.idToRef.get(bestHex), background: false };
+  }
+  return { ref: null, background: false };
 }
 
 function onDiagramClick(e) {
-  // In a real implementation, we'd click the selection-mask image and read the color
-  // at the click coordinates. Since we don't control the server output here, we use
-  // the side lists for selection. Clicking on empty canvas area clears selection.
-  // We approximate "click outside any element" as always clearing.
-  const rect = e.target.getBoundingClientRect();
-  const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  // Heuristic: if click is near the edge (outside rendered content), clear selection
-  // Otherwise, do nothing (selection is managed via lists in this demo).
-  // We simply clear selection on click:
-  // Actually, let's make a click on the image a no-op so users use the side lists
-  // — but double-click clears. Simpler: single click on canvas clears selection.
-  Selection.clearAll();
+  const img = e.currentTarget;
+  const rect = img.getBoundingClientRect();
+  const dispX = e.clientX - rect.left;
+  const dispY = e.clientY - rect.top;
+  if (!img.naturalWidth || !img.naturalHeight) return;
+  // Map display coords to natural image coords
+  const natX = dispX * (img.naturalWidth / rect.width);
+  const natY = dispY * (img.naturalHeight / rect.height);
+
+  const hit = lookupMaskAt(natX, natY);
+
+  if (!hit.ref) {
+    // Only clear selection if the click was on genuinely-white background.
+    // Edge/chrome pixels that don't match any element are ignored, so a
+    // near-miss click doesn't blow away the user's selection.
+    if (hit.background && hasAnySelection()) {
+      Selection.clearAll();
+      refresh();
+    }
+    return;
+  }
+  toggleSelection(hit.ref);
   refresh();
+}
+
+function hasAnySelection() {
+  return Selection.states.size || Selection.choicePoints.size ||
+         Selection.interfaces.size || Selection.messages.size ||
+         Selection.transitions.size ||
+         Selection.start || Selection.history || Selection.any;
+}
+
+function toggleSelection(ref) {
+  const { kind, key } = ref;
+  if (kind === "start") {
+    Selection.start = !Selection.start;
+  } else if (kind === "state") {
+    const name = key.replace(/^state:/, "");
+    if (Selection.states.has(name)) Selection.states.delete(name);
+    else Selection.states.add(name);
+  } else if (kind === "cp") {
+    const name = key.replace(/^cp:/, "");
+    if (Selection.choicePoints.has(name)) Selection.choicePoints.delete(name);
+    else Selection.choicePoints.add(name);
+  } else if (kind === "transition") {
+    // key is "trans:source|target" — find the transition and toggle ALL its rows together
+    const tid = key.replace(/^trans:/, "");
+    const [src, tgt] = tid.split("|");
+    const t = Model.transitions.find(tt => tt.source === src && tt.target === tgt);
+    if (!t) return;
+    const rows = transRowKeys(t);
+    const allSelected = rows.every(k => Selection.transitions.has(k));
+    if (allSelected) {
+      for (const k of rows) Selection.transitions.delete(k);
+    } else {
+      for (const k of rows) Selection.transitions.add(k);
+    }
+  }
 }
 
 // ---------- UI building ----------
@@ -1698,10 +1912,11 @@ function manualContent() {
       <h2>Selection</h2>
       <p>Selection drives everything. Use it to tell Stadiæ what you are going to do next.</p>
       <ul>
-        <li><strong>Click an item in a list or table</strong> to toggle its selection. Multiple items in different lists can be selected at once.</li>
-        <li><strong>Click the diagram canvas background</strong> to clear the whole selection.</li>
+        <li><strong>Click a state, choice-point, or transition arrow in the diagram canvas</strong> to toggle its selection. Clicking an arrow toggles the whole grouped transition (all its messages).</li>
+        <li><strong>Click an item in a list or the transition table</strong> to toggle its selection. This also works for finer control — the transition table lets you pick a single message from a grouped arrow.</li>
+        <li><strong>Click empty space in the canvas</strong> to clear the whole selection.</li>
         <li><strong>Selected transitions</strong> are highlighted red on the canvas. If every message of a grouped arrow is selected, the arrow itself also turns red; if only some messages are selected, only those message labels turn red.</li>
-        <li><strong>Selecting START</strong> highlights the start dot red. <strong>Selecting H</strong> has no canvas highlight (H only exists as a target on transitions).</li>
+        <li><strong>Selecting START</strong> highlights the start dot red. <strong>H and ∗</strong> are pseudostates that exist only inside transitions — they don't have standalone highlights. Select them from the States list when you want to create a history or wildcard transition.</li>
       </ul>
       <div class="tip">Toolbar buttons are context-sensitive. If an action is disabled, the problem is almost always the current selection — check that you have the right combination of elements highlighted.</div>
     </section>
@@ -2328,7 +2543,7 @@ function exportPUML() {
   showPrompt("Export as PlantUML", "File name:", base + ".puml", null, (filename) => {
     if (!filename.endsWith(".puml")) filename += ".puml";
     // Use the unselected (clean) PlantUML source — no red selection styling
-    const src = generatePlantUML(false);
+    const src = generatePlantUML({ withSelection: false });
     const blob = new Blob([src], { type: "text/plain" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -2343,7 +2558,7 @@ function exportPNG() {
   showPrompt("Export as PNG", "File name:", base + ".png", null, (filename) => {
     if (!filename.endsWith(".png")) filename += ".png";
     // Request a fresh render without selection styling, then download
-    const src = generatePlantUML(false);
+    const src = generatePlantUML({ withSelection: false });
     const url = plantUMLImageURL(src);
     // Fetch as blob so we can save it locally
     fetch(url)
