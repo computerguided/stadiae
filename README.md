@@ -32,7 +32,7 @@ It is designed around the vocabulary engineers actually use when describing comp
 2. Open `stadiae.html` in any modern browser.
 3. That's it — start editing.
 
-Alternatively, just click the [live demo link](https://YOUR-USERNAME.github.io/stadiae/stadiae.html) above.
+Alternatively, just click the [live demo link](https://htmlpreview.github.io/?https://raw.githubusercontent.com/computerguided/stadiae/refs/heads/main/stadiae.html) mentioned already above.
 
 > Stadiæ renders diagrams by calling the public PlantUML server at `plantuml.com`, so an internet connection is required for the canvas preview. All editing, saving, and exporting works offline; only the rendered PNG needs the network. If you need fully offline rendering, export to `.puml` and run PlantUML locally.
 
