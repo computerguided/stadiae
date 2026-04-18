@@ -1145,8 +1145,10 @@ function renderDiagram() {
   visibleImg.crossOrigin = "anonymous";
   visibleImg.onload = () => {
     panel.innerHTML = "";
-    visibleImg.style.cursor = "crosshair";
+    visibleImg.style.cursor = "default";
     visibleImg.addEventListener("click", onDiagramClick);
+    visibleImg.addEventListener("mousemove", onDiagramMouseMove);
+    visibleImg.addEventListener("mouseleave", () => { visibleImg.style.cursor = "default"; });
     panel.appendChild(visibleImg);
   };
   visibleImg.onerror = () => {
@@ -1228,6 +1230,25 @@ function lookupMaskAt(natX, natY) {
     return { ref: maskState.idToRef.get(bestHex), background: false };
   }
   return { ref: null, background: false };
+}
+
+// Throttled mousemove over the canvas image — updates the cursor to 'pointer'
+// when the pixel under the cursor maps to a clickable element, 'default'
+// otherwise. Uses the same nearest-color mask lookup as click selection.
+let moveRAF = null;
+function onDiagramMouseMove(e) {
+  if (moveRAF) return;
+  const img = e.currentTarget;
+  const clientX = e.clientX, clientY = e.clientY;
+  moveRAF = requestAnimationFrame(() => {
+    moveRAF = null;
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    const rect = img.getBoundingClientRect();
+    const natX = (clientX - rect.left) * (img.naturalWidth / rect.width);
+    const natY = (clientY - rect.top)  * (img.naturalHeight / rect.height);
+    const hit = lookupMaskAt(natX, natY);
+    img.style.cursor = hit.ref ? "pointer" : "default";
+  });
 }
 
 function onDiagramClick(e) {
