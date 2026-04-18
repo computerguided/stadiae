@@ -423,6 +423,28 @@
     font-weight: 600;
   }
   .manual-content section { scroll-margin-top: 10px; }
+  /* About modal */
+  .about-modal .body {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 24px;
+    max-width: 480px;
+  }
+  .about-modal .logo {
+    flex: 0 0 auto;
+    width: 110px;
+    height: auto;
+    color: #2b2a8f;
+  }
+  .about-modal .logo svg { width: 100%; height: auto; display: block; fill: currentColor; }
+  .about-modal .text {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .about-modal .text strong { color: #3b6bb8; }
+  .about-modal .actions { justify-content: center; }
   .code-toggle {
     position: fixed;
     bottom: 8px; right: 8px;
@@ -1227,6 +1249,32 @@ function showPrompt(title, label, initial, validate, onOk) {
 function escapeHTML(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
     .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function showAbout() {
+  const logoSVG = `
+    <svg viewBox="0 0 670 490" xmlns="http://www.w3.org/2000/svg" style="fill-rule:evenodd;clip-rule:evenodd;">
+      <g transform="matrix(4.16667,0,0,4.16667,243.062,6.11042)">
+        <path d="M0,114.667C-15.314,114.667 -29.712,108.703 -40.541,97.875C-51.369,87.045 -57.333,72.648 -57.333,57.333C-57.333,42.019 -51.369,27.621 -40.541,16.792C-29.712,5.963 -15.314,0 0,0C15.314,0 29.711,5.963 40.541,16.792C42.848,19.1 42.848,22.842 40.541,25.151C38.233,27.459 34.491,27.459 32.181,25.151C23.585,16.555 12.157,11.821 0,11.821C-25.095,11.821 -45.512,32.237 -45.512,57.333C-45.512,82.429 -25.095,102.846 0,102.846C12.157,102.846 23.586,98.111 32.182,89.516C34.491,87.207 38.233,87.207 40.542,89.516C42.849,91.823 42.849,95.566 40.542,97.874C29.712,108.703 15.315,114.667 0,114.667" style="fill-rule:nonzero;"/>
+      </g>
+      <path d="M384.361,269.632C379.319,298.542 365.357,325.526 344.47,346.406C317.383,373.493 281.37,388.414 243.062,388.414C163.983,388.414 99.65,324.081 99.65,244.998C99.65,165.918 163.983,101.585 243.062,101.585C281.366,101.585 317.379,116.502 344.466,143.585C354.083,153.202 354.083,168.798 344.466,178.414C334.85,188.031 319.258,188.031 309.637,178.414C291.854,160.635 268.212,150.839 243.062,150.839C191.145,150.839 148.904,193.081 148.904,244.998C148.904,296.923 191.145,339.16 243.062,339.16C268.216,339.16 291.858,329.364 309.645,311.585C321.307,299.923 329.68,285.378 333.958,269.632L270.755,269.632C255.267,269.632 242.717,258.598 242.717,244.994C242.717,231.394 255.267,220.369 270.755,220.369L423.671,220.369C439.155,220.369 451.709,231.394 451.709,244.994C451.709,258.598 439.155,269.632 423.671,269.632L384.361,269.632Z" style="fill-rule:nonzero;"/>
+      <g transform="matrix(4.16667,0,0,4.16667,561.957,52.8446)">
+        <path d="M4.185,96.407C17.003,83.554 24.928,65.815 24.928,46.227C24.928,26.517 16.903,8.68 3.943,-4.193C1.633,-6.488 -2.098,-6.482 -4.401,-4.18L-15.92,7.338C-17.032,8.45 -17.655,9.959 -17.651,11.531C-17.648,13.103 -17.018,14.609 -15.902,15.716C-8.047,23.5 -3.183,34.295 -3.183,46.227C-3.183,55.925 -6.396,64.871 -11.816,72.061C-11.816,72.061 -15.009,68.867 -15.009,68.867C-10.381,62.514 -7.65,54.689 -7.65,46.227C-7.65,35.504 -12.034,25.806 -19.11,18.827C-21.432,16.536 -25.177,16.562 -27.468,18.885C-29.759,21.207 -29.733,24.952 -27.41,27.243C-22.508,32.078 -19.472,38.798 -19.472,46.227C-19.472,53.564 -22.434,60.209 -27.227,65.031C-29.524,67.341 -29.519,71.073 -27.216,73.377L-15.701,84.895C-14.591,86.005 -13.086,86.628 -11.516,86.626C-9.946,86.625 -8.442,86 -7.334,84.888C2.537,74.981 8.638,61.317 8.638,46.227C8.638,33.15 4.056,21.144 -3.59,11.726C-3.59,11.726 -0.414,8.551 -0.414,8.551C8.033,18.791 13.108,31.916 13.108,46.227C13.108,62.557 6.501,77.344 -4.185,88.059C-6.489,90.369 -6.483,94.115 -4.174,96.418C-1.864,98.722 1.882,98.716 4.185,96.407Z" style="fill-rule:nonzero;"/>
+      </g>
+    </svg>`;
+  modalContainer.innerHTML = `
+    <div class="title">About Stadiæ</div>
+    <div class="body">
+      <div class="logo">${logoSVG}</div>
+      <div class="text">
+        <strong>Stadiæ</strong> — State Diagram Editor.<br><br>
+        A GUI front-end for authoring PlantUML state diagrams, developed by Computerguided Systems.
+      </div>
+    </div>
+    <div class="actions"><button id="about-ok">OK</button></div>`;
+  modalContainer.className = "modal about-modal";
+  modalOverlay.classList.add("show");
+  document.getElementById("about-ok").onclick = hideModal;
 }
 
 function showManual() {
@@ -2154,7 +2202,7 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
         showManual();
         break;
       case "about":
-        showAlert("About Stadiæ", "Stadiæ — State Diagram Editor.\nA GUI front-end for authoring PlantUML state diagrams.\n\nThis is a single-file HTML implementation of the design.");
+        showAbout();
         break;
     }
   });
