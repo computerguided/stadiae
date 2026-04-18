@@ -68,6 +68,8 @@ This will render like this (using online PlantUML server):
 
 Saved `.json` files use the `stadiae-v1` format and round-trip losslessly: every property you set in the editor is preserved. The generated PlantUML is always derivable from the JSON, but not vice versa — the JSON is the canonical storage format.
 
+See the [Node.json](Node.json) for the example.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
