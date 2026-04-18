@@ -1,0 +1,2247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stadiæ - State Diagram Editor</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    background: #eceff4;
+    color: #2e3440;
+    overflow: hidden;
+  }
+  /* === Menu Bar === */
+  .menubar {
+    background: #4c7fd1;
+    color: white;
+    display: flex;
+    padding: 0;
+    user-select: none;
+    height: 32px;
+    align-items: center;
+  }
+  .menubar .menu {
+    position: relative;
+    padding: 0 14px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .menubar .menu:hover, .menubar .menu.open { background: #3b6bb8; }
+  .menubar .menu .dropdown {
+    position: absolute;
+    top: 100%; left: 0;
+    background: white;
+    color: #2e3440;
+    min-width: 200px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: 1px solid #ccc;
+    display: none;
+    z-index: 1000;
+  }
+  .menubar .menu.open .dropdown { display: block; }
+  .menubar .menu .dropdown .item {
+    padding: 6px 16px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .menubar .menu .dropdown .item:hover { background: #dbe4f3; }
+  .menubar .menu .dropdown .separator {
+    height: 1px; background: #ccc; margin: 4px 0;
+  }
+  /* === Toolbar === */
+  .toolbar {
+    background: #dbe4f3;
+    border-bottom: 1px solid #a6b4cc;
+    padding: 6px 8px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .toolbar button {
+    background: #4c7fd1;
+    color: white;
+    border: 1px solid #3b6bb8;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    width: 90px;
+    height: 42px;
+    line-height: 1.15;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .toolbar button:hover:not(:disabled) { background: #3b6bb8; }
+  .toolbar button:disabled {
+    background: #c5cfdf;
+    border-color: #adb8ca;
+    color: #6b7280;
+    cursor: not-allowed;
+  }
+  .toolbar .sep {
+    width: 1px; background: #a6b4cc;
+    align-self: stretch; margin: 0 2px;
+  }
+  /* === Main layout === */
+  .main {
+    display: flex;
+    height: calc(100vh - 32px - 49px);
+    padding: 8px;
+    gap: 8px;
+  }
+  .canvas-panel {
+    flex: 1;
+    background: white;
+    border: 1px solid #a6b4cc;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    position: relative;
+    min-width: 300px;
+  }
+  .canvas-panel img {
+    max-width: 100%;
+    max-height: 100%;
+    cursor: crosshair;
+    display: block;
+  }
+  .canvas-panel .loading {
+    color: #6b7280;
+    font-style: italic;
+  }
+  .canvas-panel .error {
+    color: #bf4040;
+    padding: 20px;
+    font-size: 12px;
+    white-space: pre-wrap;
+  }
+  .right-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 380px;
+  }
+  .lists-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    flex: 0 0 auto;
+    height: 260px;
+    min-height: 80px;
+  }
+  .list-box {
+    background: white;
+    border: 1px solid #a6b4cc;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
+  .resize-handle {
+    flex: 0 0 auto;
+    height: 6px;
+    background: transparent;
+    cursor: row-resize;
+    position: relative;
+    margin: -1px 0;
+  }
+  .resize-handle::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 3px;
+    background: #a6b4cc;
+    border-radius: 2px;
+    transition: background 0.15s;
+  }
+  .resize-handle:hover::before, .resize-handle.dragging::before {
+    background: #4c7fd1;
+  }
+  body.resizing-v {
+    cursor: row-resize;
+    user-select: none;
+  }
+  .list-box .header {
+    background: #dbe4f3;
+    padding: 5px 10px;
+    font-weight: 600;
+    font-size: 12px;
+    border-bottom: 1px solid #a6b4cc;
+  }
+  .list-box ul {
+    list-style: none;
+    margin: 0; padding: 0;
+    overflow-y: auto;
+    flex: 1;
+    font-size: 12px;
+  }
+  .list-box li {
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-bottom: 1px solid #f0f2f5;
+  }
+  .list-box li:hover { background: #f0f4fb; }
+  .list-box li.selected { background: #4c7fd1; color: white; }
+  .list-box li.default-item { font-style: italic; color: #6b7280; }
+  .list-box li.default-item.selected { color: #e0e8f5; }
+
+  /* === Transition table === */
+  .trans-panel {
+    background: white;
+    border: 1px solid #a6b4cc;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .trans-panel .header {
+    background: #dbe4f3;
+    padding: 5px 10px;
+    font-weight: 600;
+    font-size: 12px;
+    border-bottom: 1px solid #a6b4cc;
+  }
+  .trans-panel .table-wrap {
+    flex: 1;
+    overflow: auto;
+  }
+  .trans-panel table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .trans-panel th, .trans-panel td {
+    text-align: left;
+    padding: 4px 10px;
+    border-bottom: 1px solid #f0f2f5;
+    white-space: nowrap;
+  }
+  .trans-panel th {
+    background: #eaf0fa;
+    position: sticky;
+    top: 0;
+    font-weight: 600;
+  }
+  .trans-panel tr { cursor: pointer; }
+  .trans-panel tr:hover td { background: #f0f4fb; }
+  .trans-panel tr.selected td { background: #4c7fd1; color: white; }
+  /* === Modal / dialog === */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 2000;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 8px;
+    min-width: 340px;
+    max-width: 90vw;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    overflow: hidden;
+  }
+  .modal .title {
+    background: #dbe4f3;
+    padding: 10px 14px;
+    font-weight: 600;
+    border-bottom: 1px solid #a6b4cc;
+  }
+  .modal .body {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 10px 12px;
+    align-items: center;
+  }
+  .modal .body label { font-size: 12px; }
+  .modal .body input, .modal .body select {
+    padding: 5px 8px;
+    border: 1px solid #a6b4cc;
+    border-radius: 4px;
+    font-size: 13px;
+    width: 100%;
+  }
+  .modal .body .static-value {
+    font-family: monospace;
+    color: #4b5563;
+  }
+  .modal .actions {
+    padding: 10px 14px;
+    background: #f4f6fa;
+    border-top: 1px solid #a6b4cc;
+    display: flex;
+    justify-content: space-between;
+  }
+  .modal .actions button {
+    background: #4c7fd1;
+    color: white;
+    border: 1px solid #3b6bb8;
+    border-radius: 4px;
+    padding: 5px 18px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .modal .actions button:disabled {
+    background: #c5cfdf;
+    border-color: #adb8ca;
+    cursor: not-allowed;
+  }
+  .modal .actions button.cancel { background: #8a96ad; border-color: #6b7891; }
+  /* Alert modal */
+  .alert-modal .body {
+    display: block;
+    padding: 18px;
+    font-size: 13px;
+  }
+  .alert-modal .actions { justify-content: center; }
+  /* Confirm modal */
+  .confirm-modal .body {
+    display: block;
+    padding: 18px;
+    font-size: 13px;
+  }
+  /* Manual modal */
+  .manual-modal {
+    width: 900px; max-width: 95vw;
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .manual-modal .manual-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+  .manual-toc {
+    width: 230px;
+    background: #f4f6fa;
+    border-right: 1px solid #a6b4cc;
+    overflow-y: auto;
+    padding: 10px 0;
+    flex-shrink: 0;
+  }
+  .manual-toc a {
+    display: block;
+    padding: 5px 16px;
+    color: #2e3440;
+    text-decoration: none;
+    font-size: 12px;
+    border-left: 3px solid transparent;
+  }
+  .manual-toc a:hover { background: #dbe4f3; }
+  .manual-toc a.active {
+    background: #dbe4f3;
+    border-left-color: #4c7fd1;
+    font-weight: 600;
+  }
+  .manual-toc a.sub { padding-left: 30px; font-size: 11px; color: #4b5563; }
+  .manual-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 28px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #2e3440;
+  }
+  .manual-content h2 {
+    font-size: 18px;
+    color: #3b6bb8;
+    margin: 0 0 12px 0;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #dbe4f3;
+  }
+  .manual-content h3 {
+    font-size: 14px;
+    color: #2e3440;
+    margin: 22px 0 8px 0;
+  }
+  .manual-content p { margin: 0 0 10px 0; }
+  .manual-content ul, .manual-content ol { margin: 0 0 12px 0; padding-left: 22px; }
+  .manual-content li { margin-bottom: 4px; }
+  .manual-content code {
+    background: #f0f2f5;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+  }
+  .manual-content kbd {
+    background: #f0f2f5;
+    border: 1px solid #c5cfdf;
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 11px;
+    font-family: inherit;
+  }
+  .manual-content .tip {
+    background: #fff9e6;
+    border-left: 3px solid #e0b040;
+    padding: 8px 12px;
+    margin: 10px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 12px;
+  }
+  .manual-content table.rules {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 10px 0;
+    font-size: 12px;
+  }
+  .manual-content table.rules th, .manual-content table.rules td {
+    border: 1px solid #d6dce6;
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .manual-content table.rules th {
+    background: #dbe4f3;
+    font-weight: 600;
+  }
+  .manual-content section { scroll-margin-top: 10px; }
+  .code-toggle {
+    position: fixed;
+    bottom: 8px; right: 8px;
+    background: #2e3440;
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0.7;
+    z-index: 500;
+  }
+  .code-toggle:hover { opacity: 1; }
+  .code-panel {
+    position: fixed;
+    bottom: 40px; right: 8px;
+    width: 450px;
+    max-height: 400px;
+    background: #2e3440;
+    color: #d8dee9;
+    border-radius: 6px;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
+    overflow: auto;
+    display: none;
+    z-index: 500;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+  .code-panel.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="menubar" id="menubar">
+  <div class="menu" data-menu="file">File
+    <div class="dropdown">
+      <div class="item" data-action="new">New</div>
+      <div class="item" data-action="open">Open...</div>
+      <div class="separator"></div>
+      <div class="item" data-action="save">Save</div>
+      <div class="item" data-action="saveas">Save As...</div>
+      <div class="separator"></div>
+      <div class="item" data-action="export-puml">Export as PlantUML (.puml)...</div>
+      <div class="item" data-action="export-png">Export as PNG image...</div>
+      <div class="separator"></div>
+      <div class="item" data-action="exit">Exit</div>
+    </div>
+  </div>
+  <div class="menu" data-menu="component">Component
+    <div class="dropdown">
+      <div class="item" data-action="change-name">Change name...</div>
+      <div class="item" data-action="change-tfont">Change transition font size...</div>
+      <div class="item" data-action="change-sfont">Change state font size...</div>
+    </div>
+  </div>
+  <div class="menu" data-menu="help">Help
+    <div class="dropdown">
+      <div class="item" data-action="manual">User Manual</div>
+      <div class="item" data-action="about">About</div>
+    </div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <button id="btn-save" title="Save">Save</button>
+  <button id="btn-undo" title="Undo">Undo</button>
+  <button id="btn-redo" title="Redo">Redo</button>
+  <div class="sep"></div>
+  <button id="btn-delete" title="Delete selected">Delete</button>
+  <div class="sep"></div>
+  <button id="btn-add-state" title="Add state">Add<br>State</button>
+  <button id="btn-add-cp" title="Add choice-point">Add<br>Choice-point</button>
+  <button id="btn-add-trans" title="Add transition">Add<br>Transition</button>
+  <div class="sep"></div>
+  <button id="btn-add-iface" title="Add interface">Add<br>Interface</button>
+  <button id="btn-add-msg" title="Add message">Add<br>Message</button>
+  <div class="sep"></div>
+  <button id="btn-edit" title="Edit selected">Edit</button>
+</div>
+
+<div class="main">
+  <div class="canvas-panel" id="canvas-panel">
+    <div class="loading">Rendering diagram...</div>
+  </div>
+  <div class="right-panel">
+    <div class="lists-grid" id="lists-grid">
+      <div class="list-box">
+        <div class="header">States</div>
+        <ul id="list-states"></ul>
+      </div>
+      <div class="list-box">
+        <div class="header">Choice-points</div>
+        <ul id="list-cps"></ul>
+      </div>
+      <div class="list-box">
+        <div class="header">Interfaces</div>
+        <ul id="list-ifaces"></ul>
+      </div>
+      <div class="list-box">
+        <div class="header">Messages</div>
+        <ul id="list-msgs"></ul>
+      </div>
+    </div>
+    <div class="resize-handle" id="resize-handle" title="Drag to resize"></div>
+    <div class="trans-panel">
+      <div class="header">Transitions</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Source</th><th>Target</th><th>Interface</th><th>Message</th>
+            </tr>
+          </thead>
+          <tbody id="trans-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal-container"></div>
+</div>
+
+<button class="code-toggle" id="code-toggle">Show PlantUML</button>
+<pre class="code-panel" id="code-panel"></pre>
+
+<input type="file" id="file-input" accept=".json,.puml,.txt" style="display:none">
+
+<script>
+/* =============================================================
+ * Stadiæ - State Diagram Editor
+ * Single-file implementation of the design.
+ * ============================================================= */
+
+// ---------- Model ----------
+const Model = {
+  componentName: "Component Name",
+  arrowFontSize: 9,
+  stateFontSize: 12,
+  // START is implicit. Default interfaces: Timer, Logical. Default messages: Timeout, Yes, No
+  interfaces: [
+    { name: "Timer", isDefault: true },
+    { name: "Logical", isDefault: true }
+  ],
+  messages: [
+    { interface: "Timer", name: "Timeout", isDefault: true },
+    { interface: "Logical", name: "Yes", isDefault: true },
+    { interface: "Logical", name: "No", isDefault: true }
+  ],
+  states: [],     // {name, displayName}
+  choicePoints: [], // {name, question}  name excludes "CP_" prefix
+  // transitions: {source, target, messages: [{interface,name}], connector: "Right"|"Left"|"Up"|"Down", length: int>=1}
+  // Source/target are state/cp names. "START" is a special source.
+  transitions: [],
+  dirty: false,
+  savedFilename: null
+};
+
+// Selection: arrays of identifiers
+const Selection = {
+  states: new Set(),       // state names
+  choicePoints: new Set(), // CP names (without CP_)
+  interfaces: new Set(),   // interface names
+  messages: new Set(),     // keys "Interface:Message"
+  // transitions: keys "source|target|interface|name" for each individual message on a transition,
+  // or "source|target||" for the initial (no-message) transition.
+  transitions: new Set(),
+  start: false,            // START icon selected
+  history: false,          // H (history) pseudostate selected
+  clearAll() {
+    this.states.clear(); this.choicePoints.clear(); this.interfaces.clear();
+    this.messages.clear(); this.transitions.clear();
+    this.start = false; this.history = false;
+  }
+};
+
+// Undo/redo stacks
+const History = { past: [], future: [] };
+
+function snapshot() {
+  return JSON.stringify({
+    componentName: Model.componentName,
+    arrowFontSize: Model.arrowFontSize,
+    stateFontSize: Model.stateFontSize,
+    interfaces: Model.interfaces,
+    messages: Model.messages,
+    states: Model.states,
+    choicePoints: Model.choicePoints,
+    transitions: Model.transitions
+  });
+}
+function restore(str) {
+  const d = JSON.parse(str);
+  Object.assign(Model, d);
+}
+function pushHistory() {
+  History.past.push(snapshot());
+  if (History.past.length > 100) History.past.shift();
+  History.future = [];
+  Model.dirty = true;
+}
+function undo() {
+  if (History.past.length === 0) return;
+  History.future.push(snapshot());
+  restore(History.past.pop());
+  Selection.clearAll();
+  refresh();
+}
+function redo() {
+  if (History.future.length === 0) return;
+  History.past.push(snapshot());
+  restore(History.future.pop());
+  Selection.clearAll();
+  refresh();
+}
+
+// ---------- PlantUML encoding (for public server URL) ----------
+// Standard PlantUML hex encoding using deflate + custom base64
+function encodePlantUML(text) {
+  // Use pako-style deflate via a small implementation — but to keep this self-contained
+  // we use the hex encoding which the public server also accepts: ~h prefix + hex
+  const bytes = new TextEncoder().encode(text);
+  let hex = "";
+  for (const b of bytes) hex += b.toString(16).padStart(2, "0");
+  return "~h" + hex;
+}
+
+function plantUMLImageURL(source) {
+  const encoded = encodePlantUML(source);
+  return "https://www.plantuml.com/plantuml/png/" + encoded;
+}
+
+// ---------- PlantUML generation ----------
+function generatePlantUML(withSelection = false) {
+  const lines = [];
+  lines.push("@startuml");
+  lines.push("'== Formatting ==");
+  lines.push("hide empty description");
+  lines.push("skinparam Arrow {");
+  lines.push("  FontSize " + Model.arrowFontSize);
+  lines.push("}");
+  lines.push("skinparam State {");
+  lines.push("  FontSize " + Model.stateFontSize);
+  lines.push("}");
+  lines.push("<style>");
+  lines.push("  .choicepoint {");
+  lines.push("    BackgroundColor #ffffff");
+  lines.push("    RoundCorner 0");
+  lines.push("  }");
+  lines.push("</style>");
+  lines.push("");
+  lines.push("'== Default interfaces ==");
+  lines.push("!$Timer = Timer");
+  lines.push("!$Logical = Logical");
+  lines.push("");
+  lines.push("'== Default messages ==");
+  lines.push("!$Timer_Timeout = Timeout");
+  lines.push("!$Logical_No = No");
+  lines.push("!$Logical_Yes = Yes");
+  lines.push("");
+  lines.push("'== Interfaces ==");
+  for (const iface of Model.interfaces) {
+    if (iface.isDefault) continue;
+    lines.push(`!$${iface.name} = ${iface.name}`);
+  }
+  lines.push("");
+  lines.push("'== Messages ==");
+  for (const msg of Model.messages) {
+    if (msg.isDefault) continue;
+    lines.push(`!$${msg.interface}_${msg.name} = $${msg.interface} + ":" + ${msg.name}`);
+  }
+  lines.push("");
+  lines.push("'== Component ==");
+  lines.push(`state component as "${Model.componentName}" {`);
+  const startColor = (withSelection && Selection.start) ? "#FF0000" : "#000000";
+  lines.push(`state START <<start>> ${startColor}`);
+  lines.push("");
+  lines.push("'== States ==");
+  for (const s of Model.states) {
+    const sel = withSelection && Selection.states.has(s.name);
+    let line = `state ${s.name}`;
+    if (s.displayName && s.displayName.length > 0) {
+      line += ` as "${s.displayName.replace(/\n/g, "\\n")}"`;
+    }
+    if (sel) line += " #line:FF0000;line.bold";
+    lines.push(line);
+  }
+  lines.push("");
+  lines.push("'== Choice-points ==");
+  for (const cp of Model.choicePoints) {
+    const sel = withSelection && Selection.choicePoints.has(cp.name);
+    const q = (cp.question || "").replace(/\n/g, "\\n");
+    let line = `state CP_${cp.name} as "${q}" <<choicepoint>>`;
+    if (sel) line += " #line:FF0000;line.bold";
+    lines.push(line);
+  }
+  lines.push("");
+  lines.push("'== Transitions ==");
+  for (const t of Model.transitions) {
+    const fullySelected = withSelection && isTransitionFullySelected(t);
+    let arrow;
+    switch (t.connector) {
+      case "Right": arrow = "->"; break;
+      case "Left":  arrow = "-left->"; break;
+      case "Up":    arrow = "-up" + "-".repeat(Math.max(1, t.length||1)) + ">"; break;
+      case "Down":  arrow = "-" + "-".repeat(Math.max(1, t.length||1)) + ">"; break;
+      default: arrow = "-->"; break;
+    }
+    if (fullySelected) {
+      // Insert color into arrow: e.g. -[#FF0000,bold]->  or -[#FF0000,bold]up-->
+      arrow = arrow.replace(/^-/, "-[#FF0000,bold]");
+    }
+    let line = `${t.source} ${arrow} ${t.target}`;
+    if (t.messages && t.messages.length > 0) {
+      const parts = t.messages.map(m => {
+        const key = transRowKey(t.source, t.target, m.interface, m.name);
+        const selected = withSelection && Selection.transitions.has(key);
+        const text = `$${m.interface}_${m.name}`;
+        return selected ? `<color:#FF0000>${text}</color>` : text;
+      });
+      line += ` : ${parts.join("\\n")}`;
+    }
+    lines.push(line);
+  }
+  lines.push("}");
+  lines.push("@enduml");
+  return lines.join("\n");
+}
+
+function transRowKey(source, target, iface, name) {
+  return source + "|" + target + "|" + (iface||"") + "|" + (name||"");
+}
+// All message-rows that belong to transition t
+function transRowKeys(t) {
+  if (!t.messages || t.messages.length === 0) {
+    return [transRowKey(t.source, t.target, "", "")];
+  }
+  return t.messages.map(m => transRowKey(t.source, t.target, m.interface, m.name));
+}
+// True if every row of t is selected
+function isTransitionFullySelected(t) {
+  return transRowKeys(t).every(k => Selection.transitions.has(k));
+}
+// True if at least one row of t is selected
+function isTransitionPartiallySelected(t) {
+  return transRowKeys(t).some(k => Selection.transitions.has(k));
+}
+
+// ---------- Validation helpers ----------
+function isUniqueStateName(name, excludeName=null) {
+  if (Model.states.some(s => s.name === name && s.name !== excludeName)) return false;
+  // also can't collide with CP names
+  if (Model.choicePoints.some(c => ("CP_"+c.name) === name)) return false;
+  if (name === "START" || name === "component") return false;
+  return true;
+}
+function isUniqueCPName(name, excludeName=null) {
+  if (Model.choicePoints.some(c => c.name === name && c.name !== excludeName)) return false;
+  if (Model.states.some(s => s.name === ("CP_"+name))) return false;
+  return true;
+}
+function isUniqueInterfaceName(name, excludeName=null) {
+  return !Model.interfaces.some(i => i.name === name && i.name !== excludeName);
+}
+function isUniqueMessageName(iface, name, excludeName=null) {
+  return !Model.messages.some(m => m.interface === iface && m.name === name && m.name !== excludeName);
+}
+function isValidIdentifier(name) {
+  return /^[A-Za-z][A-Za-z0-9_]*$/.test(name);
+}
+
+// ---------- Rendering ----------
+let renderTimer = null;
+function scheduleRender() {
+  if (renderTimer) clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderDiagram, 150);
+}
+
+function renderDiagram() {
+  const panel = document.getElementById("canvas-panel");
+  const src = generatePlantUML(true);
+  document.getElementById("code-panel").textContent = src;
+  const url = plantUMLImageURL(src);
+  const img = new Image();
+  img.onload = () => {
+    panel.innerHTML = "";
+    img.style.cursor = "crosshair";
+    img.addEventListener("click", onDiagramClick);
+    panel.appendChild(img);
+  };
+  img.onerror = () => {
+    panel.innerHTML = '<div class="error">Could not render diagram.\nThe PlantUML server may be unreachable, or the diagram is invalid.</div>';
+  };
+  panel.innerHTML = '<div class="loading">Rendering diagram...</div>';
+  img.src = url;
+}
+
+function onDiagramClick(e) {
+  // In a real implementation, we'd click the selection-mask image and read the color
+  // at the click coordinates. Since we don't control the server output here, we use
+  // the side lists for selection. Clicking on empty canvas area clears selection.
+  // We approximate "click outside any element" as always clearing.
+  const rect = e.target.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  // Heuristic: if click is near the edge (outside rendered content), clear selection
+  // Otherwise, do nothing (selection is managed via lists in this demo).
+  // We simply clear selection on click:
+  // Actually, let's make a click on the image a no-op so users use the side lists
+  // — but double-click clears. Simpler: single click on canvas clears selection.
+  Selection.clearAll();
+  refresh();
+}
+
+// ---------- UI building ----------
+function refresh() {
+  buildStateList();
+  buildCPList();
+  buildInterfaceList();
+  buildMessageList();
+  buildTransitionTable();
+  updateToolbar();
+  scheduleRender();
+}
+
+function buildStateList() {
+  const ul = document.getElementById("list-states");
+  ul.innerHTML = "";
+
+  // START pseudo-state: always present at the top, non-removable
+  const startLi = document.createElement("li");
+  startLi.textContent = "● START";
+  startLi.classList.add("default-item");
+  if (Selection.start) startLi.classList.add("selected");
+  startLi.addEventListener("click", () => {
+    Selection.start = !Selection.start;
+    refresh();
+  });
+  ul.appendChild(startLi);
+
+  // H (history) pseudo-state: always present, can only be a transition target
+  const hLi = document.createElement("li");
+  hLi.textContent = "H (history)";
+  hLi.classList.add("default-item");
+  if (Selection.history) hLi.classList.add("selected");
+  hLi.addEventListener("click", () => {
+    Selection.history = !Selection.history;
+    refresh();
+  });
+  ul.appendChild(hLi);
+
+  const sorted = [...Model.states].sort((a,b) => {
+    const an = a.displayName || a.name, bn = b.displayName || b.name;
+    return an.localeCompare(bn);
+  });
+  for (const s of sorted) {
+    const li = document.createElement("li");
+    li.textContent = (s.displayName && s.displayName.length > 0) ? s.displayName.replace(/\n/g, " ") : s.name;
+    if (Selection.states.has(s.name)) li.classList.add("selected");
+    li.addEventListener("click", () => {
+      if (Selection.states.has(s.name)) Selection.states.delete(s.name);
+      else Selection.states.add(s.name);
+      refresh();
+    });
+    ul.appendChild(li);
+  }
+}
+function buildCPList() {
+  const ul = document.getElementById("list-cps");
+  ul.innerHTML = "";
+  const sorted = [...Model.choicePoints].sort((a,b) => (a.question||a.name).localeCompare(b.question||b.name));
+  for (const c of sorted) {
+    const li = document.createElement("li");
+    li.textContent = (c.question || c.name).replace(/\n/g, " ");
+    if (Selection.choicePoints.has(c.name)) li.classList.add("selected");
+    li.addEventListener("click", () => {
+      if (Selection.choicePoints.has(c.name)) Selection.choicePoints.delete(c.name);
+      else Selection.choicePoints.add(c.name);
+      refresh();
+    });
+    ul.appendChild(li);
+  }
+}
+function buildInterfaceList() {
+  const ul = document.getElementById("list-ifaces");
+  ul.innerHTML = "";
+  const sorted = [...Model.interfaces].sort((a,b) => a.name.localeCompare(b.name));
+  for (const i of sorted) {
+    const li = document.createElement("li");
+    li.textContent = i.name;
+    if (i.isDefault) li.classList.add("default-item");
+    if (Selection.interfaces.has(i.name)) li.classList.add("selected");
+    li.addEventListener("click", () => {
+      if (Selection.interfaces.has(i.name)) {
+        Selection.interfaces.delete(i.name);
+        // Also deselect any messages belonging to this interface
+        for (const key of [...Selection.messages]) {
+          if (key.startsWith(i.name + ":")) Selection.messages.delete(key);
+        }
+      } else {
+        Selection.interfaces.add(i.name);
+      }
+      // message list depends on iface selection
+      refresh();
+    });
+    ul.appendChild(li);
+  }
+}
+function buildMessageList() {
+  const ul = document.getElementById("list-msgs");
+  ul.innerHTML = "";
+  const selectedIfaces = [...Selection.interfaces];
+  let msgs;
+  if (selectedIfaces.length === 0) {
+    msgs = [];
+  } else {
+    msgs = Model.messages.filter(m => selectedIfaces.includes(m.interface));
+  }
+  msgs.sort((a,b) => a.name.localeCompare(b.name));
+  for (const m of msgs) {
+    const li = document.createElement("li");
+    li.textContent = m.name + "  ("+m.interface+")";
+    if (m.isDefault) li.classList.add("default-item");
+    const key = m.interface+":"+m.name;
+    if (Selection.messages.has(key)) li.classList.add("selected");
+    li.addEventListener("click", () => {
+      if (Selection.messages.has(key)) Selection.messages.delete(key);
+      else Selection.messages.add(key);
+      refresh();
+    });
+    ul.appendChild(li);
+  }
+}
+function buildTransitionTable() {
+  const tb = document.getElementById("trans-tbody");
+  tb.innerHTML = "";
+  // Each transition may have multiple messages — expand to one row per message
+  const rows = [];
+  for (const t of Model.transitions) {
+    if (!t.messages || t.messages.length === 0) {
+      rows.push({ t, iface: "", msg: "" });
+    } else {
+      for (const m of t.messages) {
+        rows.push({ t, iface: m.interface, msg: m.name });
+      }
+    }
+  }
+  rows.sort((a,b) => {
+    const srcA = a.t.source, srcB = b.t.source;
+    if (srcA !== srcB) return srcA.localeCompare(srcB);
+    if (a.iface !== b.iface) return a.iface.localeCompare(b.iface);
+    return a.msg.localeCompare(b.msg);
+  });
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    const key = transRowKey(r.t.source, r.t.target, r.iface, r.msg);
+    if (Selection.transitions.has(key)) tr.classList.add("selected");
+    tr.innerHTML = `<td>${r.t.source === "START" ? "●" : r.t.source}</td>
+                    <td>${r.t.target}</td>
+                    <td>${r.iface}</td>
+                    <td>${r.msg}</td>`;
+    tr.addEventListener("click", () => {
+      if (Selection.transitions.has(key)) Selection.transitions.delete(key);
+      else Selection.transitions.add(key);
+      refresh();
+    });
+    tb.appendChild(tr);
+  }
+}
+
+function updateToolbar() {
+  // Save: only if saved before AND dirty
+  document.getElementById("btn-save").disabled = !(Model.savedFilename && Model.dirty);
+  document.getElementById("btn-undo").disabled = History.past.length === 0;
+  document.getElementById("btn-redo").disabled = History.future.length === 0;
+
+  // Delete: some selection that is not just START/default iface/default msg
+  const anySel = Selection.states.size || Selection.choicePoints.size ||
+                 [...Selection.interfaces].some(n => !isDefaultInterface(n)) ||
+                 [...Selection.messages].some(k => {
+                    const [i,n] = k.split(":");
+                    return !isDefaultMessage(i, n);
+                 }) ||
+                 Selection.transitions.size;
+  const includesProtected = Selection.start ||
+                 [...Selection.interfaces].some(isDefaultInterface) ||
+                 [...Selection.messages].some(k => {
+                    const [i,n] = k.split(":");
+                    return isDefaultMessage(i, n);
+                 });
+  document.getElementById("btn-delete").disabled = !anySel || includesProtected;
+
+  // Add state / cp / interface: always
+  document.getElementById("btn-add-state").disabled = false;
+  document.getElementById("btn-add-cp").disabled = false;
+  document.getElementById("btn-add-iface").disabled = false;
+
+  // Add message: exactly one interface selected
+  document.getElementById("btn-add-msg").disabled = Selection.interfaces.size !== 1;
+
+  // Add transition:
+  document.getElementById("btn-add-trans").disabled = !canAddTransition();
+
+  // Edit: depends on single selected element of editable type
+  document.getElementById("btn-edit").disabled = !canEdit();
+}
+
+function isDefaultInterface(name) {
+  return name === "Timer" || name === "Logical";
+}
+function isDefaultMessage(iface, name) {
+  return (iface === "Timer" && name === "Timeout") ||
+         (iface === "Logical" && (name === "Yes" || name === "No"));
+}
+
+function canAddTransition() {
+  const selStates = [...Selection.states];
+  const selCPs = [...Selection.choicePoints];
+  const selMsgs = [...Selection.messages];
+  const selStart = Selection.start;
+  const selHistory = Selection.history;
+  const totalNodes = selStates.length + selCPs.length + (selStart?1:0) + (selHistory?1:0);
+  const msgs = selMsgs.map(k => k.split(":"));
+  const hasYesNo = msgs.some(([i,n]) => i==="Logical" && (n==="Yes"||n==="No"));
+  const onlyYesNo = msgs.length > 0 && msgs.every(([i,n]) => i==="Logical" && (n==="Yes"||n==="No"));
+
+  // Initial transition: START + 1 state, and START has no transition yet
+  if (selStart && selStates.length === 1 && selCPs.length === 0 && !selHistory && selMsgs.length === 0) {
+    return !Model.transitions.some(t => t.source === "START");
+  }
+  // History-target transition: H + exactly one state OR choice-point + >=1 message
+  if (selHistory && !selStart && (selStates.length + selCPs.length) === 1 && selMsgs.length >= 1) {
+    const source = selStates.length === 1 ? selStates[0] : ("CP_" + selCPs[0]);
+    if (selCPs.length === 1) {
+      // CP as source: messages must all be Yes/No
+      if (!onlyYesNo) return false;
+    } else {
+      // State as source: messages must not include Yes/No
+      if (hasYesNo) return false;
+    }
+    return !sourceAlreadyHandlesAnyOf(source, msgs);
+  }
+  // Self-transition: 1 state + 1+ messages (not Yes/No)
+  if (selStates.length === 1 && selCPs.length === 0 && !selStart && !selHistory && selMsgs.length >= 1) {
+    if (hasYesNo) return false;
+    return !sourceAlreadyHandlesAnyOf(selStates[0], msgs);
+  }
+  // Choice-point source with Yes/No message: 1 CP + 1 other node, only Yes/No messages
+  if (selCPs.length === 1 && !selStart && !selHistory && (selStates.length + selCPs.length) === 2 && selMsgs.length >= 1) {
+    if (!onlyYesNo) return false;
+    // The CP is the source; source must not already handle these messages
+    const source = "CP_" + selCPs[0];
+    return !sourceAlreadyHandlesAnyOf(source, msgs);
+  }
+  // Two states (or state + cp) with non-Yes/No messages
+  if (totalNodes === 2 && !selStart && !selHistory && selMsgs.length >= 1) {
+    if (hasYesNo) return false;
+    // At least one of the two nodes must be a valid source (not already handling these messages)
+    const candidates = [
+      ...selStates,
+      ...selCPs.map(n => "CP_" + n)
+    ];
+    return candidates.some(s => !sourceAlreadyHandlesAnyOf(s, msgs));
+  }
+  return false;
+}
+
+function transitionExistsWithAnyOf(source, target, msgs) {
+  const t = Model.transitions.find(tt => tt.source === source && tt.target === target);
+  if (!t) return false;
+  return msgs.some(([i,n]) => t.messages.some(m => m.interface===i && m.name===n));
+}
+
+// True if the source state/CP already handles any of the given messages in ANY outgoing transition.
+function sourceAlreadyHandlesAnyOf(source, msgs) {
+  for (const t of Model.transitions) {
+    if (t.source !== source) continue;
+    for (const [i, n] of msgs) {
+      if (t.messages.some(m => m.interface === i && m.name === n)) return true;
+    }
+  }
+  return false;
+}
+
+function canEdit() {
+  // single state (not START) OR single CP OR single non-default iface OR single non-default msg
+  // OR all rows of exactly one transition are selected
+  const s = Selection.states.size;
+  const c = Selection.choicePoints.size;
+  const i = Selection.interfaces.size;
+  const m = Selection.messages.size;
+  const t = Selection.transitions.size;
+  const otherTotal = s + c + i + m + (Selection.start?1:0);
+  if (Selection.start) return false;
+  if (s === 1 && otherTotal === 1 && t === 0) return true;
+  if (c === 1 && otherTotal === 1 && t === 0) return true;
+  if (i === 1 && otherTotal === 1 && t === 0) {
+    const name = [...Selection.interfaces][0];
+    return !isDefaultInterface(name);
+  }
+  if (m === 1 && otherTotal === 1 && t === 0) {
+    const [iface,name] = [...Selection.messages][0].split(":");
+    return !isDefaultMessage(iface, name);
+  }
+  // Transitions: exactly one transition has all its rows selected, and no other transition has any row selected
+  if (t >= 1 && otherTotal === 0) {
+    const fullySelected = Model.transitions.filter(isTransitionFullySelected);
+    const partiallySelected = Model.transitions.filter(tt => !isTransitionFullySelected(tt) && isTransitionPartiallySelected(tt));
+    if (fullySelected.length === 1 && partiallySelected.length === 0) {
+      // also: selection set size must equal that transition's row count
+      const rows = transRowKeys(fullySelected[0]);
+      if (rows.length === t) return true;
+    }
+  }
+  return false;
+}
+
+// ---------- Modal dialogs ----------
+const modalOverlay = document.getElementById("modal-overlay");
+const modalContainer = document.getElementById("modal-container");
+
+function showModal(html) {
+  modalContainer.innerHTML = html;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+}
+function hideModal() {
+  modalOverlay.classList.remove("show");
+  modalContainer.innerHTML = "";
+}
+
+function showAlert(title, message, cb) {
+  modalContainer.innerHTML = `
+    <div class="title">${escapeHTML(title)}</div>
+    <div class="body">${escapeHTML(message)}</div>
+    <div class="actions"><button id="alert-ok">OK</button></div>`;
+  modalContainer.className = "modal alert-modal";
+  modalOverlay.classList.add("show");
+  document.getElementById("alert-ok").onclick = () => { hideModal(); cb && cb(); };
+}
+
+function showConfirm(title, message, onYes, onNo) {
+  modalContainer.innerHTML = `
+    <div class="title">${escapeHTML(title)}</div>
+    <div class="body">${escapeHTML(message)}</div>
+    <div class="actions">
+      <button id="cf-yes">Yes</button>
+      <button id="cf-no" class="cancel">No</button>
+    </div>`;
+  modalContainer.className = "modal confirm-modal";
+  modalOverlay.classList.add("show");
+  document.getElementById("cf-yes").onclick = () => { hideModal(); onYes && onYes(); };
+  document.getElementById("cf-no").onclick = () => { hideModal(); onNo && onNo(); };
+}
+
+function showPrompt(title, label, initial, validate, onOk) {
+  modalContainer.innerHTML = `
+    <div class="title">${escapeHTML(title)}</div>
+    <div class="body">
+      <label>${escapeHTML(label)}</label>
+      <input type="text" id="prompt-input" value="${escapeHTML(initial||"")}">
+    </div>
+    <div class="actions">
+      <button id="prompt-ok">OK</button>
+      <button id="prompt-cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const input = document.getElementById("prompt-input");
+  const okBtn = document.getElementById("prompt-ok");
+  const update = () => { okBtn.disabled = !input.value.trim(); };
+  input.addEventListener("input", update); update();
+  input.focus(); input.select();
+  okBtn.onclick = () => {
+    const val = input.value.trim();
+    const err = validate ? validate(val) : null;
+    if (err) { showAlert("Error", err); return; }
+    hideModal();
+    onOk && onOk(val);
+  };
+  document.getElementById("prompt-cancel").onclick = hideModal;
+  input.addEventListener("keydown", e => { if (e.key === "Enter" && !okBtn.disabled) okBtn.click(); });
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function showManual() {
+  const sections = [
+    {id: "intro", title: "Introduction"},
+    {id: "concepts", title: "Core Concepts"},
+    {id: "interface", title: "The Interface"},
+    {id: "workflow", title: "Typical Workflow"},
+    {id: "states", title: "States"},
+    {id: "choicepoints", title: "Choice-points"},
+    {id: "interfaces-msgs", title: "Interfaces & Messages"},
+    {id: "transitions", title: "Transitions"},
+    {id: "history", title: "History State"},
+    {id: "selection", title: "Selection"},
+    {id: "editing", title: "Editing & Deleting"},
+    {id: "files", title: "Saving, Opening & Exporting"},
+    {id: "rules", title: "Rules Reference"},
+    {id: "shortcuts", title: "Keyboard Shortcuts"},
+    {id: "troubleshooting", title: "Troubleshooting"}
+  ];
+
+  const toc = sections.map(s =>
+    `<a href="#m-${s.id}" data-target="m-${s.id}">${s.title}</a>`
+  ).join("");
+
+  modalContainer.innerHTML = `
+    <div class="title">Stadiæ — User Manual</div>
+    <div class="manual-body">
+      <nav class="manual-toc">${toc}</nav>
+      <div class="manual-content" id="manual-content">${manualContent()}</div>
+    </div>
+    <div class="actions"><button id="manual-close">Close</button></div>`;
+  modalContainer.className = "modal manual-modal";
+  modalOverlay.classList.add("show");
+
+  const content = document.getElementById("manual-content");
+  const tocLinks = modalContainer.querySelectorAll(".manual-toc a");
+  tocLinks.forEach(a => {
+    a.addEventListener("click", e => {
+      e.preventDefault();
+      const el = document.getElementById(a.dataset.target);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      tocLinks.forEach(x => x.classList.remove("active"));
+      a.classList.add("active");
+    });
+  });
+  tocLinks[0].classList.add("active");
+  content.addEventListener("scroll", () => {
+    const top = content.scrollTop + 20;
+    let activeId = sections[0].id;
+    for (const s of sections) {
+      const el = document.getElementById("m-" + s.id);
+      if (el && el.offsetTop <= top) activeId = s.id;
+    }
+    tocLinks.forEach(a => {
+      a.classList.toggle("active", a.dataset.target === "m-" + activeId);
+    });
+  });
+
+  document.getElementById("manual-close").onclick = hideModal;
+
+  // In-content cross-reference links with data-target
+  content.querySelectorAll("a[data-target]").forEach(a => {
+    a.addEventListener("click", e => {
+      e.preventDefault();
+      const el = document.getElementById(a.dataset.target);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
+function manualContent() {
+  return `
+    <section id="m-intro">
+      <h2>Introduction</h2>
+      <p>Stadiæ is a graphical editor for <strong>state diagrams</strong> of functional components. It is a front-end for <a href="https://plantuml.com" target="_blank">PlantUML</a>: every edit you make is translated to PlantUML source code and rendered by a PlantUML server. You get the convenience of a GUI plus a clean, version-controllable <code>.puml</code> file you can export at any time.</p>
+      <p>State diagrams in Stadiæ describe a component's <em>behaviour</em> — the states it can be in, the messages it handles, the choices it makes, and how it transitions between states.</p>
+    </section>
+
+    <section id="m-concepts">
+      <h2>Core Concepts</h2>
+      <h3>Component</h3>
+      <p>The entire diagram describes a single <strong>component</strong>. Its name shows at the top of the rendered diagram. Change it via <em>Component → Change name…</em>.</p>
+      <h3>States</h3>
+      <p>A <strong>state</strong> is a distinct situation the component can be in (e.g. <code>Advertising</code>, <code>Connecting</code>). Each state has a <em>name</em> (single word, unique, used in PlantUML) and an optional <em>display name</em> (free text, can use <code>\\n</code> for line breaks) shown on the rendered diagram.</p>
+      <h3>Choice-points</h3>
+      <p>A <strong>choice-point</strong> is a decision node. It asks a question (e.g. <em>"Is Server Whitelisted?"</em>) and branches on <code>Yes</code> or <code>No</code>. Choice-points are drawn as white rectangles to distinguish them from regular states.</p>
+      <h3>Interfaces and messages</h3>
+      <p>A <strong>message</strong> triggers a transition. Messages belong to an <strong>interface</strong> that groups related messages together (e.g. the <code>RTx</code> interface owns <code>ConnectReq</code>, <code>ConnectedInd</code>, etc.). Two interfaces are always present:</p>
+      <ul>
+        <li><strong>Timer</strong> — contains the <code>Timeout</code> message for time-based transitions.</li>
+        <li><strong>Logical</strong> — contains <code>Yes</code> and <code>No</code>, used exclusively on transitions out of choice-points.</li>
+      </ul>
+      <p>These defaults cannot be renamed or deleted.</p>
+      <h3>Transitions</h3>
+      <p>A <strong>transition</strong> describes how the component moves from a <em>source</em> state to a <em>target</em> state when one or more messages are received. Transitions that share a source and target can be grouped — multiple messages on one arrow declutter the diagram.</p>
+      <h3>Pseudo-states</h3>
+      <p>Two special non-editable entries appear at the top of the States list:</p>
+      <ul>
+        <li><strong>● START</strong> — marks the initial state of the component. Exactly one transition may leave START, and it carries no message.</li>
+        <li><strong>H (history)</strong> — targets a "history" pseudostate. See <a href="#m-history" data-target="m-history">History State</a>.</li>
+      </ul>
+    </section>
+
+    <section id="m-interface">
+      <h2>The Interface</h2>
+      <h3>Menu bar</h3>
+      <p><strong>File</strong> manages diagrams (new, open, save, save as, export). <strong>Component</strong> changes the component name and font sizes. <strong>Help</strong> opens this manual and the About box.</p>
+      <h3>Toolbar</h3>
+      <p>All common actions are one click away. A button is greyed out when the current selection does not make the action meaningful. Hover the Add Transition or Edit button when it is disabled and check your selection — the rules in <a href="#m-rules" data-target="m-rules">Rules Reference</a> explain each enablement condition.</p>
+      <h3>Diagram canvas (left)</h3>
+      <p>Shows the rendered PNG from the PlantUML server. Clicking the empty canvas clears the current selection. Selection of elements themselves is made via the lists and transition table on the right.</p>
+      <h3>Element lists (top right)</h3>
+      <p>Four lists show the diagram's elements: <em>States</em>, <em>Choice-points</em>, <em>Interfaces</em>, <em>Messages</em>. Click an entry to toggle its selection. The Messages list only shows messages of the currently selected interface(s). Deselecting an interface also deselects its messages.</p>
+      <h3>Transition table (bottom right)</h3>
+      <p>Lists every transition, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. The split between the lists and the table is adjustable: drag the thin bar between them, or double-click it to restore the default.</p>
+      <div class="tip">A "Show PlantUML" button at the bottom-right opens a live view of the generated source. Useful for sanity-checking or for learning PlantUML.</div>
+    </section>
+
+    <section id="m-workflow">
+      <h2>Typical Workflow</h2>
+      <ol>
+        <li><strong>Set the component name</strong>: <em>Component → Change name</em>, or start a fresh diagram via <em>File → New</em>.</li>
+        <li><strong>Define the vocabulary</strong>: add interfaces, then messages per interface.</li>
+        <li><strong>Lay out the structure</strong>: add states and choice-points.</li>
+        <li><strong>Wire it up</strong>: select a source state, a target, and a message, then click Add Transition.</li>
+        <li><strong>Pick the initial state</strong>: select START and the intended first state, then Add Transition.</li>
+        <li><strong>Refine</strong>: select elements and click Edit to change properties; adjust connector direction on transitions for a cleaner layout.</li>
+        <li><strong>Save</strong>: <em>File → Save As</em> (JSON, reloadable) and export to <code>.puml</code> or <code>.png</code> when you want to share outside the tool.</li>
+      </ol>
+    </section>
+
+    <section id="m-states">
+      <h2>States</h2>
+      <p>Click <strong>Add State</strong>, fill in a <em>Name</em> and optionally a <em>Display name</em>, then OK. The name must be a single identifier-safe word (letters, digits, underscores; must start with a letter) and must not collide with any other state, choice-point, or the reserved <code>START</code>/<code>component</code> names.</p>
+      <p>The display name can span multiple lines using <code>\\n</code>. Example: <code>Server\\nConnected</code> renders as two lines.</p>
+      <p>To rename or change the display name of a state, select it and click <strong>Edit</strong>.</p>
+    </section>
+
+    <section id="m-choicepoints">
+      <h2>Choice-points</h2>
+      <p>Click <strong>Add Choice-point</strong>, provide a <em>Name</em> (unique, single word — the <code>CP_</code> prefix is added automatically in the PlantUML code) and a <em>Question</em>. Both fields are required.</p>
+      <p>The question is what readers will see in the diagram — phrase it so that <em>Yes</em> and <em>No</em> are natural answers. Multi-line questions with <code>\\n</code> keep the box compact.</p>
+      <div class="tip">A choice-point may have at most one <code>Yes</code> outgoing transition and at most one <code>No</code> outgoing transition — exactly two branches.</div>
+    </section>
+
+    <section id="m-interfaces-msgs">
+      <h2>Interfaces &amp; Messages</h2>
+      <p>Click <strong>Add Interface</strong> for a new interface (single-word name, unique). A newly added interface is automatically selected, so you can immediately click <strong>Add Message</strong> to define its first message.</p>
+      <p><strong>Add Message</strong> is enabled only when exactly one interface is selected — the new message is attached to that interface. Message names are single-word and unique <em>within their interface</em>.</p>
+      <p>The <code>Timer</code> and <code>Logical</code> interfaces and their default messages (<code>Timeout</code>, <code>Yes</code>, <code>No</code>) are built in and cannot be renamed or removed.</p>
+    </section>
+
+    <section id="m-transitions">
+      <h2>Transitions</h2>
+      <p>A transition always needs a source, a target, and — unless it is the initial START transition — at least one message. To add one:</p>
+      <ol>
+        <li>Select the source and target in the element lists. This can be:
+          <ul>
+            <li>two states,</li>
+            <li>a state and a choice-point,</li>
+            <li>a single state (for a self-transition),</li>
+            <li>START plus one state (initial transition — no messages needed),</li>
+            <li>H plus one state or choice-point (history transition — see next section).</li>
+          </ul>
+        </li>
+        <li>Select one or more messages. A source can handle a given message at most once total, regardless of target — this keeps the behaviour deterministic.</li>
+        <li>Click <strong>Add Transition</strong>. For two distinct nodes you will be asked to confirm which is the source.</li>
+      </ol>
+      <h3>Grouping messages on one arrow</h3>
+      <p>Add more messages to an existing transition by selecting the same source and target plus the extra messages, then clicking Add Transition again. The messages stack on the same arrow with <code>\\n</code> separators, decluttering the diagram.</p>
+      <h3>Connector direction and length</h3>
+      <p>Select a transition (all its rows) and click Edit. The Transition Properties dialog lets you pick <em>Right</em>, <em>Left</em>, <em>Up</em>, or <em>Down</em>. For Up and Down you can also set a length (number of dashes) to spread the arrow further — useful when PlantUML's auto-layout overlaps arrows.</p>
+    </section>
+
+    <section id="m-history">
+      <h2>History State</h2>
+      <p>In UML, a <strong>history pseudostate</strong> (drawn as a circled <em>H</em>) means "re-enter the state that was last active". Stadiæ supports this as a transition target.</p>
+      <p>To create a history transition:</p>
+      <ol>
+        <li>Select <strong>H (history)</strong> in the States list.</li>
+        <li>Select exactly one source state <em>or</em> choice-point.</li>
+        <li>Select one or more messages.</li>
+        <li>Click Add Transition.</li>
+      </ol>
+      <p>H only ever appears as a target. You cannot make H a source, and you cannot use H in self-transitions. The PlantUML syntax <code>StateX --&gt; [H]</code> is generated automatically — no explicit declaration is needed, and you can have as many H-targeted transitions as you like.</p>
+    </section>
+
+    <section id="m-selection">
+      <h2>Selection</h2>
+      <p>Selection drives everything. Use it to tell Stadiæ what you are going to do next.</p>
+      <ul>
+        <li><strong>Click an item in a list or table</strong> to toggle its selection. Multiple items in different lists can be selected at once.</li>
+        <li><strong>Click the diagram canvas background</strong> to clear the whole selection.</li>
+        <li><strong>Selected transitions</strong> are highlighted red on the canvas. If every message of a grouped arrow is selected, the arrow itself also turns red; if only some messages are selected, only those message labels turn red.</li>
+        <li><strong>Selecting START</strong> highlights the start dot red. <strong>Selecting H</strong> has no canvas highlight (H only exists as a target on transitions).</li>
+      </ul>
+      <div class="tip">Toolbar buttons are context-sensitive. If an action is disabled, the problem is almost always the current selection — check that you have the right combination of elements highlighted.</div>
+    </section>
+
+    <section id="m-editing">
+      <h2>Editing &amp; Deleting</h2>
+      <h3>Edit</h3>
+      <p>Edit is enabled when the selection uniquely identifies a single editable thing:</p>
+      <ul>
+        <li>one state (not START),</li>
+        <li>one choice-point,</li>
+        <li>one non-default interface,</li>
+        <li>one non-default message,</li>
+        <li>or every message row of exactly one transition.</li>
+      </ul>
+      <p>For transitions, only connector type and length are editable — the source, target, and message set are read-only in the dialog.</p>
+      <h3>Delete</h3>
+      <p>Deletes every selected element. Cascading effects:</p>
+      <ul>
+        <li>Deleting a state or choice-point also removes every transition that has it as source or target.</li>
+        <li>Deleting an interface removes its messages, and any message from that interface is removed from transitions (transitions left empty are dropped, except the initial transition).</li>
+        <li>Deleting a single message row removes only that message from its arrow — the other messages on the arrow remain.</li>
+      </ul>
+      <p>Default interfaces, default messages, and START cannot be deleted.</p>
+      <h3>Undo / Redo</h3>
+      <p>Every mutating action pushes onto the undo stack. Use the Undo/Redo buttons or <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd>.</p>
+    </section>
+
+    <section id="m-files">
+      <h2>Saving, Opening &amp; Exporting</h2>
+      <h3>Save / Save As</h3>
+      <p>Stadiæ saves your diagram as a compact <code>.json</code> file that preserves all editor state and can be re-opened with full fidelity. Use <em>File → Save As</em> the first time; after that, <em>File → Save</em> writes to the same filename.</p>
+      <h3>Open</h3>
+      <p><em>File → Open</em> loads a previously saved <code>.json</code> file. If the current diagram has unsaved edits you'll be asked whether to discard them first.</p>
+      <h3>Export as PlantUML (.puml)</h3>
+      <p>Writes the clean PlantUML source (no selection highlighting) to a <code>.puml</code> file. Feed this to any PlantUML tool, check it into source control, or paste it into an online PlantUML renderer.</p>
+      <h3>Export as PNG</h3>
+      <p>Downloads the currently rendered diagram as a PNG image. Useful for embedding in reports and slides.</p>
+      <div class="tip">Exports always use the unselected (clean) version of the diagram — the red highlighting you may have on screen is not baked into the output.</div>
+    </section>
+
+    <section id="m-rules">
+      <h2>Rules Reference</h2>
+      <h3>Naming</h3>
+      <table class="rules">
+        <tr><th>Element</th><th>Name rule</th><th>Uniqueness</th></tr>
+        <tr><td>State</td><td>Single identifier (letter then letters/digits/_)</td><td>Unique among states and choice-points</td></tr>
+        <tr><td>Choice-point</td><td>Single identifier</td><td>Unique among states and choice-points</td></tr>
+        <tr><td>Interface</td><td>Single identifier</td><td>Unique among all interfaces</td></tr>
+        <tr><td>Message</td><td>Single identifier</td><td>Unique within its interface</td></tr>
+      </table>
+      <h3>Transitions</h3>
+      <ul>
+        <li>A source can handle any given message at most once in total.</li>
+        <li>A choice-point's outgoing transitions may only carry the <code>Yes</code> and/or <code>No</code> messages, and each of those at most once.</li>
+        <li>A non-choice-point source's outgoing transitions cannot carry <code>Yes</code> or <code>No</code>.</li>
+        <li>The initial (START) transition carries no message; there is at most one.</li>
+        <li>H is only ever a target, never a source.</li>
+      </ul>
+      <h3>Add Transition enablement (quick check)</h3>
+      <table class="rules">
+        <tr><th>Selection</th><th>Creates</th></tr>
+        <tr><td>START + 1 state, no message</td><td>Initial transition</td></tr>
+        <tr><td>1 state + 1+ non-Yes/No messages</td><td>Self-transition</td></tr>
+        <tr><td>2 states, or state + CP, + 1+ non-Yes/No messages</td><td>State-to-state or state-to-CP transition</td></tr>
+        <tr><td>1 CP + 1 other node + Yes/No messages</td><td>Choice-point outgoing branch</td></tr>
+        <tr><td>H + 1 state or CP + 1+ messages</td><td>History transition (to [H])</td></tr>
+      </table>
+    </section>
+
+    <section id="m-shortcuts">
+      <h2>Keyboard Shortcuts</h2>
+      <table class="rules">
+        <tr><th>Shortcut</th><th>Action</th></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd></td><td>New diagram</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>Open</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Save</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Redo</td></tr>
+        <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>Delete selected</td></tr>
+      </table>
+      <p>Shortcuts are suspended while you are typing in a dialog field so they don't interfere with editing.</p>
+    </section>
+
+    <section id="m-troubleshooting">
+      <h2>Troubleshooting</h2>
+      <h3>The canvas shows "Could not render diagram"</h3>
+      <p>Stadiæ renders diagrams by sending the PlantUML source to a public PlantUML server. If your network blocks the server, or the server is down, rendering fails. The rest of the editor still works — you can continue editing and the canvas will retry on every change.</p>
+      <h3>Add Transition is greyed out</h3>
+      <p>The current selection doesn't match any of the valid patterns. Common causes: you haven't selected a message; you picked Yes/No from a non-choice-point source; the source already handles the message you picked; you have too many nodes selected.</p>
+      <h3>Edit is greyed out</h3>
+      <p>You have either no selection, a mixed selection, or a selection that includes a default item (Timer, Logical, Timeout, Yes, No, START). Narrow the selection to a single editable element.</p>
+      <h3>Choice-point renders with rounded corners instead of a rectangle</h3>
+      <p>This should not happen. If the rendered diagram on the canvas shows rounded choice-points, your PlantUML server may not support the modern <code>&lt;style&gt;</code> block. Exporting to <code>.puml</code> and rendering with an up-to-date PlantUML installation gives the intended appearance.</p>
+      <h3>My browser warns about leaving the page</h3>
+      <p>The warning appears whenever there are unsaved edits in the current diagram. Save the diagram (or discard the edits) to close the page without a warning.</p>
+    </section>
+  `;
+}
+
+// ---------- Add/Edit dialogs for each element type ----------
+function openStateDialog(existing=null) {
+  const title = existing ? "State properties" : "Add state";
+  modalContainer.innerHTML = `
+    <div class="title">${title}</div>
+    <div class="body">
+      <label>Name:</label>
+      <input type="text" id="st-name" value="${escapeHTML(existing?.name||'')}">
+      <label>Display name:</label>
+      <input type="text" id="st-dn" value="${escapeHTML(existing?.displayName||'')}">
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const nameI = document.getElementById("st-name");
+  const dnI = document.getElementById("st-dn");
+  const ok = document.getElementById("ok");
+  const update = () => { ok.disabled = !nameI.value.trim(); };
+  nameI.addEventListener("input", update); update();
+  nameI.focus();
+  ok.onclick = () => {
+    const name = nameI.value.trim();
+    if (!isValidIdentifier(name)) {
+      showAlert("Error", "State name must be a single word (letters, digits, underscore)."); return;
+    }
+    if (!isUniqueStateName(name, existing?.name)) {
+      showAlert("Error", "State name already in use"); return;
+    }
+    pushHistory();
+    const dn = dnI.value;
+    if (existing) {
+      existing.name = name; existing.displayName = dn;
+      // update transitions referencing old name
+    } else {
+      Model.states.push({name, displayName: dn});
+    }
+    hideModal();
+    refresh();
+  };
+  document.getElementById("cancel").onclick = hideModal;
+}
+
+function openCPDialog(existing=null) {
+  const title = existing ? "Choice-point properties" : "Add choice-point";
+  modalContainer.innerHTML = `
+    <div class="title">${title}</div>
+    <div class="body">
+      <label>Name:</label>
+      <input type="text" id="cp-name" value="${escapeHTML(existing?.name||'')}">
+      <label>Question:</label>
+      <input type="text" id="cp-q" value="${escapeHTML(existing?.question||'')}">
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const nameI = document.getElementById("cp-name");
+  const qI = document.getElementById("cp-q");
+  const ok = document.getElementById("ok");
+  const update = () => { ok.disabled = !nameI.value.trim() || !qI.value.trim(); };
+  nameI.addEventListener("input", update);
+  qI.addEventListener("input", update);
+  update();
+  nameI.focus();
+  ok.onclick = () => {
+    const name = nameI.value.trim();
+    if (!isValidIdentifier(name)) {
+      showAlert("Error", "Choice-point name must be a single word."); return;
+    }
+    if (!isUniqueCPName(name, existing?.name)) {
+      showAlert("Error", "Choice-point name already in use"); return;
+    }
+    pushHistory();
+    const q = qI.value;
+    if (existing) { existing.name = name; existing.question = q; }
+    else { Model.choicePoints.push({name, question: q}); Selection.choicePoints.add(name); }
+    hideModal();
+    refresh();
+  };
+  document.getElementById("cancel").onclick = hideModal;
+}
+
+function openInterfaceDialog(existing=null) {
+  const title = existing ? "Interface properties" : "Add interface";
+  modalContainer.innerHTML = `
+    <div class="title">${title}</div>
+    <div class="body">
+      <label>Name:</label>
+      <input type="text" id="if-name" value="${escapeHTML(existing?.name||'')}">
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const nameI = document.getElementById("if-name");
+  const ok = document.getElementById("ok");
+  const update = () => { ok.disabled = !nameI.value.trim(); };
+  nameI.addEventListener("input", update); update();
+  nameI.focus();
+  ok.onclick = () => {
+    const name = nameI.value.trim();
+    if (!isValidIdentifier(name)) {
+      showAlert("Error", "Interface name must be a single word."); return;
+    }
+    if (!isUniqueInterfaceName(name, existing?.name)) {
+      showAlert("Error", "Interface name already in use"); return;
+    }
+    pushHistory();
+    if (existing) {
+      const old = existing.name;
+      existing.name = name;
+      // update messages
+      Model.messages.forEach(m => { if (m.interface === old) m.interface = name; });
+      // update transitions' message refs
+      Model.transitions.forEach(t => t.messages.forEach(m => { if (m.interface === old) m.interface = name; }));
+    } else {
+      Model.interfaces.push({name, isDefault: false});
+      Selection.interfaces.clear();
+      Selection.interfaces.add(name);
+    }
+    hideModal();
+    refresh();
+  };
+  document.getElementById("cancel").onclick = hideModal;
+}
+
+function openMessageDialog(existing=null) {
+  // When adding: use the single selected interface
+  let iface;
+  if (existing) iface = existing.interface;
+  else iface = [...Selection.interfaces][0];
+  const title = existing ? "Message properties" : "Add message";
+  modalContainer.innerHTML = `
+    <div class="title">${title}</div>
+    <div class="body">
+      <label>Interface:</label>
+      <span class="static-value">${escapeHTML(iface)}</span>
+      <label>Name:</label>
+      <input type="text" id="msg-name" value="${escapeHTML(existing?.name||'')}">
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const nameI = document.getElementById("msg-name");
+  const ok = document.getElementById("ok");
+  const update = () => { ok.disabled = !nameI.value.trim(); };
+  nameI.addEventListener("input", update); update();
+  nameI.focus();
+  ok.onclick = () => {
+    const name = nameI.value.trim();
+    if (!isValidIdentifier(name)) {
+      showAlert("Error", "Message name must be a single word."); return;
+    }
+    if (!isUniqueMessageName(iface, name, existing?.name)) {
+      showAlert("Error", "Message name already in use for this interface"); return;
+    }
+    pushHistory();
+    if (existing) {
+      const oldName = existing.name;
+      existing.name = name;
+      // update transitions
+      Model.transitions.forEach(t => t.messages.forEach(m => {
+        if (m.interface===iface && m.name===oldName) m.name = name;
+      }));
+    } else {
+      Model.messages.push({interface: iface, name, isDefault: false});
+    }
+    hideModal();
+    refresh();
+  };
+  document.getElementById("cancel").onclick = hideModal;
+}
+
+function openTransitionDialog(existing) {
+  // Transition props: show source/target/iface/msg static; edit connector type + length
+  // For "all transitions with same src/tgt selected" — edit the group's connector
+  const t = existing;
+  const msgsStr = (t.messages||[]).map(m => `${m.interface}:${m.name}`).join(", ") || "(none)";
+  modalContainer.innerHTML = `
+    <div class="title">Transition properties</div>
+    <div class="body">
+      <label>Source state:</label><span class="static-value">${escapeHTML(t.source)}</span>
+      <label>Target state:</label><span class="static-value">${escapeHTML(t.target)}</span>
+      <label>Messages:</label><span class="static-value">${escapeHTML(msgsStr)}</span>
+      <label>Connector type:</label>
+      <select id="tr-type">
+        <option value="Right">Right</option>
+        <option value="Left">Left</option>
+        <option value="Down">Down</option>
+        <option value="Up">Up</option>
+      </select>
+      <label id="lenLabel">Connector length:</label>
+      <input type="number" id="tr-len" min="1" max="20" value="${t.length||2}">
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const typeI = document.getElementById("tr-type");
+  const lenI = document.getElementById("tr-len");
+  const lenLabel = document.getElementById("lenLabel");
+  typeI.value = t.connector || "Down";
+  const updateLenVisible = () => {
+    const show = (typeI.value === "Up" || typeI.value === "Down");
+    lenLabel.style.display = show ? "" : "none";
+    lenI.style.display = show ? "" : "none";
+  };
+  typeI.addEventListener("change", updateLenVisible); updateLenVisible();
+  document.getElementById("ok").onclick = () => {
+    pushHistory();
+    t.connector = typeI.value;
+    if (t.connector === "Up" || t.connector === "Down") {
+      t.length = Math.max(1, parseInt(lenI.value,10)||1);
+    } else {
+      t.length = 1;
+    }
+    hideModal();
+    refresh();
+  };
+  document.getElementById("cancel").onclick = hideModal;
+}
+
+// ---------- Actions ----------
+function actionAddState() { openStateDialog(); }
+function actionAddCP() { openCPDialog(); }
+function actionAddInterface() { openInterfaceDialog(); }
+function actionAddMessage() {
+  if (Selection.interfaces.size !== 1) return;
+  openMessageDialog();
+}
+
+function actionAddTransition() {
+  if (!canAddTransition()) return;
+  const selStates = [...Selection.states];
+  const selCPs = [...Selection.choicePoints];
+  const selMsgs = [...Selection.messages].map(k => { const [i,n]=k.split(":"); return {interface:i, name:n}; });
+
+  // Initial transition (START + state)
+  if (Selection.start && selStates.length === 1 && selCPs.length === 0 && !Selection.history && selMsgs.length === 0) {
+    pushHistory();
+    Model.transitions.push({ source: "START", target: selStates[0], messages: [], connector: "Down", length: 1 });
+    Selection.clearAll();
+    Selection.transitions.add(transRowKey("START", selStates[0], "", ""));
+    refresh();
+    return;
+  }
+
+  // History-target transition: H + 1 state or CP + messages
+  if (Selection.history && !Selection.start && (selStates.length + selCPs.length) === 1 && selMsgs.length >= 1) {
+    pushHistory();
+    const source = selStates.length === 1 ? selStates[0] : ("CP_" + selCPs[0]);
+    addMessagesToTransition(source, "[H]", selMsgs, "Down");
+    Selection.clearAll();
+    for (const m of selMsgs) Selection.transitions.add(transRowKey(source, "[H]", m.interface, m.name));
+    refresh();
+    return;
+  }
+
+  // Self-transition: 1 state + messages
+  if (selStates.length === 1 && selCPs.length === 0 && !Selection.start && !Selection.history && selMsgs.length >= 1) {
+    pushHistory();
+    const state = selStates[0];
+    addMessagesToTransition(state, state, selMsgs, "Right");
+    Selection.clearAll();
+    for (const m of selMsgs) Selection.transitions.add(transRowKey(state, state, m.interface, m.name));
+    refresh();
+    return;
+  }
+
+  // Otherwise: two nodes (states and/or CPs)
+  const allNodes = [...selStates, ...selCPs.map(n => "CP_"+n)];
+  if (allNodes.length === 2 && selMsgs.length >= 1) {
+    // Ask user for source/target assignment via a small dialog
+    openTransitionSourceDialog(allNodes, selMsgs);
+    return;
+  }
+}
+
+function openTransitionSourceDialog(nodes, msgs) {
+  modalContainer.innerHTML = `
+    <div class="title">Add transition</div>
+    <div class="body">
+      <label>Source state:</label>
+      <select id="tr-src">
+        <option value="${nodes[0]}">${nodes[0]}</option>
+        <option value="${nodes[1]}">${nodes[1]}</option>
+      </select>
+      <label>Target state:</label>
+      <select id="tr-tgt">
+        <option value="${nodes[1]}">${nodes[1]}</option>
+        <option value="${nodes[0]}">${nodes[0]}</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const srcS = document.getElementById("tr-src");
+  const tgtS = document.getElementById("tr-tgt");
+  srcS.addEventListener("change", () => {
+    // auto-flip target
+    tgtS.value = (srcS.value === nodes[0]) ? nodes[1] : nodes[0];
+  });
+  // Default to a valid source if one of the two already handles the messages
+  const msgsAsPairs = msgs.map(m => [m.interface, m.name]);
+  if (sourceAlreadyHandlesAnyOf(nodes[0], msgsAsPairs) && !sourceAlreadyHandlesAnyOf(nodes[1], msgsAsPairs)) {
+    srcS.value = nodes[1];
+    tgtS.value = nodes[0];
+  }
+  document.getElementById("ok").onclick = () => {
+    const src = srcS.value, tgt = tgtS.value;
+    if (src === tgt) { showAlert("Error", "Source and target must differ for non-self-transitions."); return; }
+    const msgsAsPairs = msgs.map(m => [m.interface, m.name]);
+    if (sourceAlreadyHandlesAnyOf(src, msgsAsPairs)) {
+      showAlert("Error", `The source "${src}" already handles one of the selected messages.`);
+      return;
+    }
+    pushHistory();
+    addMessagesToTransition(src, tgt, msgs, "Down");
+    Selection.clearAll();
+    for (const m of msgs) Selection.transitions.add(transRowKey(src, tgt, m.interface, m.name));
+    hideModal();
+    refresh();
+  };
+  document.getElementById("cancel").onclick = hideModal;
+}
+
+function addMessagesToTransition(source, target, msgs, defaultConnector) {
+  let t = Model.transitions.find(tt => tt.source === source && tt.target === target);
+  if (!t) {
+    t = { source, target, messages: [], connector: defaultConnector, length: 1 };
+    Model.transitions.push(t);
+  }
+  for (const m of msgs) {
+    if (!t.messages.some(mm => mm.interface===m.interface && mm.name===m.name)) {
+      t.messages.push({interface: m.interface, name: m.name});
+    }
+  }
+}
+
+function actionDelete() {
+  pushHistory();
+
+  // Delete transition rows: each key is source|target|iface|name
+  for (const key of Selection.transitions) {
+    const parts = key.split("|");
+    const src = parts[0], tgt = parts[1], iface = parts[2], name = parts[3];
+    const t = Model.transitions.find(tt => tt.source===src && tt.target===tgt);
+    if (!t) continue;
+    if (iface === "" && name === "") {
+      // initial transition (START with no messages) — remove the whole transition
+      Model.transitions = Model.transitions.filter(tt => tt !== t);
+    } else {
+      t.messages = t.messages.filter(m => !(m.interface===iface && m.name===name));
+    }
+  }
+  // Drop transitions that ended up with no messages (except START, which never has messages)
+  Model.transitions = Model.transitions.filter(t => t.source==="START" || (t.messages && t.messages.length > 0));
+
+  // Delete messages
+  for (const key of Selection.messages) {
+    const [iface, name] = key.split(":");
+    Model.messages = Model.messages.filter(m => !(m.interface===iface && m.name===name));
+    // remove from any transitions
+    Model.transitions.forEach(t => {
+      t.messages = t.messages.filter(mm => !(mm.interface===iface && mm.name===name));
+    });
+    // drop empty non-initial transitions
+    Model.transitions = Model.transitions.filter(t => t.source==="START" || t.messages.length>0);
+  }
+
+  // Delete interfaces (removes all their messages and transition refs)
+  for (const iname of Selection.interfaces) {
+    if (isDefaultInterface(iname)) continue;
+    Model.interfaces = Model.interfaces.filter(i => i.name !== iname);
+    Model.messages = Model.messages.filter(m => m.interface !== iname);
+    Model.transitions.forEach(t => {
+      t.messages = t.messages.filter(mm => mm.interface !== iname);
+    });
+    Model.transitions = Model.transitions.filter(t => t.source==="START" || t.messages.length>0);
+  }
+
+  // Delete states
+  for (const sname of Selection.states) {
+    Model.states = Model.states.filter(s => s.name !== sname);
+    Model.transitions = Model.transitions.filter(t => t.source !== sname && t.target !== sname);
+  }
+
+  // Delete choice-points
+  for (const cname of Selection.choicePoints) {
+    const prefixed = "CP_" + cname;
+    Model.choicePoints = Model.choicePoints.filter(c => c.name !== cname);
+    Model.transitions = Model.transitions.filter(t => t.source !== prefixed && t.target !== prefixed);
+  }
+
+  Selection.clearAll();
+  refresh();
+}
+
+function actionEdit() {
+  if (!canEdit()) return;
+  if (Selection.states.size === 1) {
+    const name = [...Selection.states][0];
+    openStateDialog(Model.states.find(s => s.name === name));
+  } else if (Selection.choicePoints.size === 1) {
+    const name = [...Selection.choicePoints][0];
+    openCPDialog(Model.choicePoints.find(c => c.name === name));
+  } else if (Selection.interfaces.size === 1) {
+    const name = [...Selection.interfaces][0];
+    openInterfaceDialog(Model.interfaces.find(i => i.name === name));
+  } else if (Selection.messages.size === 1) {
+    const [iface, name] = [...Selection.messages][0].split(":");
+    openMessageDialog(Model.messages.find(m => m.interface===iface && m.name===name));
+  } else if (Selection.transitions.size >= 1) {
+    const target = Model.transitions.find(isTransitionFullySelected);
+    if (target) openTransitionDialog(target);
+  }
+}
+
+// ---------- File operations ----------
+function newDiagram() {
+  const doNew = () => {
+    showPrompt("New diagram", "Component name:", "Component Name", null, (name) => {
+      resetModel(name);
+      Selection.clearAll();
+      History.past = []; History.future = [];
+      Model.dirty = false;
+      Model.savedFilename = null;
+      refresh();
+    });
+  };
+  if (Model.dirty) {
+    showConfirm("Unsaved edits", "The current diagram has unsaved edits. Discard them?",
+      doNew, () => {});
+  } else {
+    doNew();
+  }
+}
+
+function resetModel(componentName) {
+  Model.componentName = componentName || "Component Name";
+  Model.arrowFontSize = 9;
+  Model.stateFontSize = 12;
+  Model.interfaces = [
+    { name: "Timer", isDefault: true },
+    { name: "Logical", isDefault: true }
+  ];
+  Model.messages = [
+    { interface: "Timer", name: "Timeout", isDefault: true },
+    { interface: "Logical", name: "Yes", isDefault: true },
+    { interface: "Logical", name: "No", isDefault: true }
+  ];
+  Model.states = [];
+  Model.choicePoints = [];
+  Model.transitions = [];
+}
+
+function saveAs() {
+  showPrompt("Save As", "File name:", (Model.savedFilename || Model.componentName || "diagram") + ".json", null, (filename) => {
+    downloadJSON(filename);
+    Model.savedFilename = filename;
+    Model.dirty = false;
+    refresh();
+  });
+}
+function save() {
+  if (!Model.savedFilename) { saveAs(); return; }
+  downloadJSON(Model.savedFilename);
+  Model.dirty = false;
+  refresh();
+}
+function downloadJSON(filename) {
+  const data = {
+    format: "stadiae-v1",
+    componentName: Model.componentName,
+    arrowFontSize: Model.arrowFontSize,
+    stateFontSize: Model.stateFontSize,
+    interfaces: Model.interfaces.filter(i => !i.isDefault),
+    messages: Model.messages.filter(m => !m.isDefault),
+    states: Model.states,
+    choicePoints: Model.choicePoints,
+    transitions: Model.transitions
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename.endsWith(".json") ? filename : filename + ".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportPUML() {
+  const base = (Model.componentName || "diagram").replace(/\s+/g, "_");
+  showPrompt("Export as PlantUML", "File name:", base + ".puml", null, (filename) => {
+    if (!filename.endsWith(".puml")) filename += ".puml";
+    // Use the unselected (clean) PlantUML source — no red selection styling
+    const src = generatePlantUML(false);
+    const blob = new Blob([src], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+}
+
+function exportPNG() {
+  const base = (Model.componentName || "diagram").replace(/\s+/g, "_");
+  showPrompt("Export as PNG", "File name:", base + ".png", null, (filename) => {
+    if (!filename.endsWith(".png")) filename += ".png";
+    // Request a fresh render without selection styling, then download
+    const src = generatePlantUML(false);
+    const url = plantUMLImageURL(src);
+    // Fetch as blob so we can save it locally
+    fetch(url)
+      .then(r => {
+        if (!r.ok) throw new Error("Server returned " + r.status);
+        return r.blob();
+      })
+      .then(blob => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(err => {
+        showAlert("Export failed", "Could not download the PNG: " + err.message +
+          "\n\nThe PlantUML server may be unreachable.");
+      });
+  });
+}
+
+function openFile() {
+  const doOpen = () => document.getElementById("file-input").click();
+  if (Model.dirty) {
+    showConfirm("Unsaved edits", "Discard unsaved edits and open another file?",
+      doOpen, () => {});
+  } else doOpen();
+}
+document.getElementById("file-input").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (data.format !== "stadiae-v1") throw new Error("Invalid diagram format");
+      resetModel(data.componentName);
+      Model.arrowFontSize = data.arrowFontSize || 9;
+      Model.stateFontSize = data.stateFontSize || 12;
+      for (const i of (data.interfaces||[])) Model.interfaces.push({name:i.name, isDefault:false});
+      for (const m of (data.messages||[])) Model.messages.push({interface:m.interface, name:m.name, isDefault:false});
+      Model.states = data.states || [];
+      Model.choicePoints = data.choicePoints || [];
+      Model.transitions = data.transitions || [];
+      Selection.clearAll();
+      History.past = []; History.future = [];
+      Model.dirty = false;
+      Model.savedFilename = file.name;
+      refresh();
+    } catch (err) {
+      showAlert("Error", "The selected diagram is faulty: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+});
+
+// ---------- Menu wiring ----------
+document.querySelectorAll(".menubar .menu").forEach(menu => {
+  menu.addEventListener("click", e => {
+    e.stopPropagation();
+    const isOpen = menu.classList.contains("open");
+    document.querySelectorAll(".menubar .menu.open").forEach(m => m.classList.remove("open"));
+    if (!isOpen) menu.classList.add("open");
+  });
+});
+document.addEventListener("click", () => {
+  document.querySelectorAll(".menubar .menu.open").forEach(m => m.classList.remove("open"));
+});
+
+document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
+  item.addEventListener("click", e => {
+    e.stopPropagation();
+    const a = item.dataset.action;
+    document.querySelectorAll(".menubar .menu.open").forEach(m => m.classList.remove("open"));
+    switch (a) {
+      case "new": newDiagram(); break;
+      case "open": openFile(); break;
+      case "save": save(); break;
+      case "saveas": saveAs(); break;
+      case "export-puml": exportPUML(); break;
+      case "export-png": exportPNG(); break;
+      case "exit": showAlert("Exit", "In a desktop app this would close the application. Close the browser tab to exit."); break;
+      case "change-name":
+        showPrompt("Change component name", "Name:", Model.componentName, null, (name) => {
+          pushHistory(); Model.componentName = name; refresh();
+        });
+        break;
+      case "change-tfont":
+        showPrompt("Transition font size", "Size (pt):", String(Model.arrowFontSize),
+          v => (/^\d+$/.test(v) && +v>=6 && +v<=40) ? null : "Enter a number between 6 and 40",
+          v => { pushHistory(); Model.arrowFontSize = parseInt(v,10); refresh(); });
+        break;
+      case "change-sfont":
+        showPrompt("State font size", "Size (pt):", String(Model.stateFontSize),
+          v => (/^\d+$/.test(v) && +v>=6 && +v<=40) ? null : "Enter a number between 6 and 40",
+          v => { pushHistory(); Model.stateFontSize = parseInt(v,10); refresh(); });
+        break;
+      case "manual":
+        showManual();
+        break;
+      case "about":
+        showAlert("About Stadiæ", "Stadiæ — State Diagram Editor.\nA GUI front-end for authoring PlantUML state diagrams.\n\nThis is a single-file HTML implementation of the design.");
+        break;
+    }
+  });
+});
+
+// ---------- Toolbar wiring ----------
+document.getElementById("btn-save").onclick = save;
+document.getElementById("btn-undo").onclick = undo;
+document.getElementById("btn-redo").onclick = redo;
+document.getElementById("btn-delete").onclick = actionDelete;
+document.getElementById("btn-add-state").onclick = actionAddState;
+document.getElementById("btn-add-cp").onclick = actionAddCP;
+document.getElementById("btn-add-trans").onclick = actionAddTransition;
+document.getElementById("btn-add-iface").onclick = actionAddInterface;
+document.getElementById("btn-add-msg").onclick = actionAddMessage;
+document.getElementById("btn-edit").onclick = actionEdit;
+
+// Code panel toggle
+document.getElementById("code-toggle").onclick = () => {
+  const p = document.getElementById("code-panel");
+  p.classList.toggle("show");
+  document.getElementById("code-toggle").textContent =
+    p.classList.contains("show") ? "Hide PlantUML" : "Show PlantUML";
+};
+
+// Vertical resize handle: drag to change lists-grid height
+(function() {
+  const handle = document.getElementById("resize-handle");
+  const grid = document.getElementById("lists-grid");
+  let dragging = false;
+  let startY = 0, startH = 0;
+
+  handle.addEventListener("mousedown", e => {
+    dragging = true;
+    startY = e.clientY;
+    startH = grid.getBoundingClientRect().height;
+    handle.classList.add("dragging");
+    document.body.classList.add("resizing-v");
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const rightPanel = grid.parentElement;
+    const available = rightPanel.getBoundingClientRect().height;
+    const min = 80;
+    const max = Math.max(min, available - 120); // leave at least ~120px for transitions
+    let h = startH + (e.clientY - startY);
+    h = Math.max(min, Math.min(max, h));
+    grid.style.height = h + "px";
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("dragging");
+    document.body.classList.remove("resizing-v");
+  });
+  // Double-click resets to default
+  handle.addEventListener("dblclick", () => { grid.style.height = "260px"; });
+})();
+
+// Warn on close if dirty
+window.addEventListener("beforeunload", e => {
+  if (Model.dirty) { e.preventDefault(); e.returnValue = ""; }
+});
+
+// Keyboard shortcuts
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === "z") { e.preventDefault(); undo(); }
+    else if (e.key === "y" || (e.shiftKey && e.key === "Z")) { e.preventDefault(); redo(); }
+    else if (e.key === "s") { e.preventDefault(); save(); }
+    else if (e.key === "n") { e.preventDefault(); newDiagram(); }
+    else if (e.key === "o") { e.preventDefault(); openFile(); }
+  } else if (e.key === "Delete" || e.key === "Backspace") {
+    if (!document.getElementById("btn-delete").disabled) actionDelete();
+  }
+});
+
+// ---------- Bootstrap: load example Node diagram for demonstration ----------
+function loadExample() {
+  Model.componentName = "Node";
+  Model.interfaces.push({name: "RTx", isDefault: false});
+  Model.messages.push({interface:"RTx", name:"ConnectReq", isDefault:false});
+  Model.messages.push({interface:"RTx", name:"ConnectedInd", isDefault:false});
+  Model.messages.push({interface:"RTx", name:"DisconnectInd", isDefault:false});
+  Model.states.push({name:"Advertising", displayName:""});
+  Model.states.push({name:"Connecting", displayName:""});
+  Model.states.push({name:"ServerConnected", displayName:"Server\nConnected"});
+  Model.choicePoints.push({name:"Whitelisted", question:"Is Server\nWhitelisted?"});
+  Model.transitions = [
+    { source:"START", target:"Advertising", messages:[], connector:"Down", length:1 },
+    { source:"Advertising", target:"Advertising", messages:[{interface:"Timer",name:"Timeout"}], connector:"Right", length:1 },
+    { source:"Advertising", target:"CP_Whitelisted", messages:[{interface:"RTx",name:"ConnectReq"},{interface:"RTx",name:"ConnectedInd"}], connector:"Down", length:1 },
+    { source:"CP_Whitelisted", target:"Connecting", messages:[{interface:"Logical",name:"Yes"}], connector:"Down", length:1 },
+    { source:"CP_Whitelisted", target:"Advertising", messages:[{interface:"Logical",name:"No"}], connector:"Up", length:2 },
+    { source:"Connecting", target:"Advertising", messages:[{interface:"Timer",name:"Timeout"}], connector:"Up", length:2 },
+    { source:"Connecting", target:"ServerConnected", messages:[{interface:"RTx",name:"ConnectedInd"}], connector:"Right", length:1 },
+    { source:"ServerConnected", target:"Advertising", messages:[{interface:"RTx",name:"DisconnectInd"},{interface:"Timer",name:"Timeout"}], connector:"Up", length:2 },
+    { source:"ServerConnected", target:"ServerConnected", messages:[{interface:"RTx",name:"ConnectedInd"}], connector:"Right", length:1 }
+  ];
+}
+loadExample();
+refresh();
+</script>
+</body>
+</html>
