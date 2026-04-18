@@ -58,7 +58,7 @@ The **complete manual** is available inside the app under `Help → User Manual`
 
 ## Generated PlantUML
 
-Stadiæ produces well-structured PlantUML that you can reasonably read and hand-edit. See the example Node.puml file as an example.
+Stadiæ produces well-structured PlantUML that you can reasonably read and hand-edit. See the example [Node.puml](Node.puml) file as an example.
 
 This will render like this (using online PlantUML server):
 
