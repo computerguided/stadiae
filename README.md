@@ -11,16 +11,18 @@ https://htmlpreview.github.io/?https://raw.githubusercontent.com/computerguided/
 
 Stadiæ is a visual front-end for writing PlantUML state diagrams of functional components. You draw the state machine with point-and-click, and Stadiæ generates clean, structured PlantUML source that you can export, commit to source control, or render with any other PlantUML-compatible tool.
 
-It is designed around the vocabulary engineers actually use when describing component behaviour: **states**, **choice-points** (decision nodes), **interfaces**, **messages**, **transitions**, plus the usual **START** and **history** pseudostates.
+It is designed around the vocabulary engineers actually use when describing component behaviour: **states**, **choice-points** (decision nodes), **interfaces**, **messages**, **transitions**, plus the usual **START**, **history**, and **ANY** pseudostates.
 
 ## Features
 
 - **Live rendering** — every edit re-generates the PlantUML and re-renders the diagram instantly.
 - **Full element model** — states, choice-points, interfaces, messages, and transitions are first-class, each with its own properties dialog.
+- **Click to select on the canvas** — states, choice-points, and transition arrows are clickable directly on the rendered diagram. The cursor changes to a pointer over clickable elements.
 - **Grouped transitions** — multiple messages can share a single arrow for a cleaner diagram; each message row is individually selectable so you can edit or delete them one by one.
-- **History pseudostate** — drop a `[H]` target onto any transition without declaring it anywhere.
+- **History and ANY pseudostates** — drop a `[H]` target or a wildcard `*` source onto any transition without declaring anything.
 - **Choice-points rendered distinctly** — drawn as sharp white rectangles so they never get confused with regular states.
 - **Selection highlighting** — the selected transition (or a single message on a grouped arrow) is drawn in red on the canvas so you always know what you're editing.
+- **Transition action notes** — document what each transition does in a free-text Action panel. Actions round-trip in the saved `.json` but stay out of the generated PlantUML to keep the diagram uncluttered.
 - **Undo / redo** for every mutating action.
 - **Save and open** `.json` project files; **export** to `.puml` or `.png`.
 - **Built-in user manual** under Help — the full reference is one click away.
@@ -43,16 +45,17 @@ Open Stadiæ and you'll see:
 - A **menu bar** (File / Component / Help)
 - A **toolbar** with Save, Undo/Redo, Delete, Add State / Choice-point / Transition / Interface / Message, and Edit
 - A **diagram canvas** on the left showing the live render
-- Four **lists** (States, Choice-points, Interfaces, Messages) and a **transition table** on the right
+- Four **lists** (States, Choice-points, Interfaces, Messages), a **transition table**, and an **Action panel** on the right
 
 **Basic flow:**
 
-1. Set the component name via `Component → Change name…` (or `File → New`).
+1. Stadiæ opens with an empty diagram. Set the component name via `Component → Change name…` (or start fresh any time with `File → New`).
 2. Add an interface, then messages under it.
 3. Add states and choice-points.
 4. Select a source state, a target, and a message, then click `Add Transition`.
 5. Mark the initial state: select `● START` + a state, click `Add Transition`.
-6. Save (`.json`) or export (`.puml` / `.png`).
+6. Optionally document what each transition does in the Action panel below the transitions table.
+7. Save (`.json`) or export (`.puml` / `.png`).
 
 The **complete manual** is available inside the app under `Help → User Manual` — including the full selection rules, keyboard shortcuts, and a troubleshooting guide.
 
@@ -66,7 +69,7 @@ This will render like this (using online PlantUML server):
 
 ## File format
 
-Saved `.json` files use the `stadiae-v1` format and round-trip losslessly: every property you set in the editor is preserved. The generated PlantUML is always derivable from the JSON, but not vice versa — the JSON is the canonical storage format.
+Saved `.json` files use the `stadiae-v1` format and round-trip losslessly: every property you set in the editor is preserved, including transition action notes. The generated PlantUML is always derivable from the JSON, but not vice versa — the JSON is the canonical storage format.
 
 See the [Node.json](Node.json) for the example.
 
@@ -83,8 +86,8 @@ See the [Node.json](Node.json) for the example.
 
 ## Limitations
 
-- **Canvas selection via click** — selecting elements by clicking them in the rendered canvas is not implemented. Use the element lists and transition table to build your selection. Clicking the canvas background clears the selection.
 - **Requires the public PlantUML server** for preview rendering. Exports to `.puml` work fully offline.
+- **Canvas click selection depends on CORS** — it uses a pixel-mask technique that needs the PlantUML server to send cross-origin headers. If this ever fails, list-based selection continues to work.
 - **No composite states** — Stadiæ covers flat state machines with choice-points and history. Nested/composite states are not supported by the current UI.
 
 ## Contributing

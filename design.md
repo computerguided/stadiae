@@ -68,6 +68,8 @@ Model = {
 }
 ```
 
+The `messages` array inside each transition holds `{interface, name, action?}` objects. The optional `action` field is a free-text description documenting what the component does when that specific (source, target, message) transition fires — see §9 on the Action panel.
+
 Some subtleties worth noting:
 
 - **Default interfaces and messages are explicit in the list.** `Timer`, `Logical`, `Timeout`, `Yes`, `No` all appear as entries with `isDefault: true`. This keeps list-building and message-lookup code uniform (no special cases) and makes it easy to render them in italics/grey in the UI. The PlantUML emitter filters them out when writing the `Interfaces` / `Messages` sections, because defaults are hard-coded in the PlantUML output.
@@ -132,6 +134,7 @@ refresh()
   ├── buildInterfaceList()     — repopulate <ul> for Interfaces
   ├── buildMessageList()       — show messages of currently selected iface(s)
   ├── buildTransitionTable()   — one <tr> per (transition × message)
+  ├── buildActionPanel()       — show/hide the action textarea based on selection
   ├── updateToolbar()          — compute enablement of every button
   └── scheduleRender()         — debounced call to renderDiagram()
 ```
@@ -372,7 +375,51 @@ Together these behaviours let grouped arrows behave like a unit when convenient 
 
 ---
 
-## 9. Dialogs and validation
+## 9. The Action panel
+
+The Action panel is a free-text editor below the transitions table that lets developers document what the component does when a specific transition fires. Actions are stored per transition message row — one per `(source, target, interface, name)` tuple — and are persisted only in the saved JSON; they are intentionally **not** written into the generated PlantUML so the diagram itself stays uncluttered.
+
+### 9.1 Storage
+
+The optional `action` string lives on each message object inside a transition's `messages` array:
+
+```js
+t.messages = [
+  { interface: "RTx", name: "ConnectReq", action: "Start the whitelist lookup." },
+  { interface: "RTx", name: "ConnectedInd" }     // no action
+];
+```
+
+Because message objects are compared by `interface` + `name` everywhere in the codebase, adding this optional field is fully backward-compatible — equality checks, delete cascades, transition lookups, and undo snapshots all continue to work unchanged.
+
+### 9.2 Visibility and editing
+
+The Action panel has three display states, driven by the current selection:
+
+| Selection                              | Panel shows                                  |
+| -------------------------------------- | -------------------------------------------- |
+| Exactly one transition row, nothing else | Editable textarea with the row's action     |
+| Exactly one row, but it's the initial transition (no message) | Placeholder explaining that initial transitions have no action |
+| Anything else (multiple rows, zero rows, a row plus other elements) | Placeholder prompting for a single-row selection |
+
+Editing rules mirror the rest of the editor:
+
+- **Live save.** Every keystroke writes `textarea.value` into the model directly (`msg.action = newVal`). There is no explicit "commit" — the transition table is rebuilt on each input event so the "has action" indicator dot appears and disappears as the user types.
+- **One history entry per edit session.** A module-level `actionEditSession` tracks whether `pushHistory()` has already been called for the current (row key, focus period). The first `input` event in a session pushes history; subsequent events just mutate. The session ends on `blur` or when the selection changes to a different row. Undo therefore reverts a whole typing session rather than a single keystroke.
+- **No diagram re-render.** Actions don't change the PlantUML output, so the input handler calls `buildTransitionTable()` + `updateToolbar()` but *not* `scheduleRender()`, avoiding a network round-trip per keystroke.
+- **Keyboard shortcuts suspended.** The global shortcut handler checks `e.target.tagName === "TEXTAREA"` alongside `INPUT` and `SELECT` and bails out, so Ctrl+S / Ctrl+Z while typing don't trigger Save or Undo.
+
+### 9.3 Indicator dot
+
+The transitions table has a narrow first column that is otherwise empty. A row whose message has a non-empty `action` shows a small accent-coloured dot there, styled via a CSS `::before` pseudo-element on a `.action-dot.has-action` cell. This gives a cheap at-a-glance overview of which transitions are documented without cluttering the table with an extra visible column.
+
+### 9.4 Layout
+
+The panel has a fixed default height of 140 px and lives at the bottom of the right-panel flex column. A second resize handle (`#resize-handle-action`) sits between the transitions table and the Action panel, mirroring the existing lists/table handle. Dragging changes the Action panel's height; the transitions table consumes the remaining space via its existing `flex: 1 1 auto`. Double-click resets to 140 px.
+
+---
+
+## 10. Dialogs and validation
 
 The dialog system is a minimal home-grown modal built on one overlay `<div>` that gets populated with HTML templates by helper functions:
 
@@ -391,9 +438,9 @@ Name uniqueness is enforced for states (globally, including against choice-point
 
 ---
 
-## 10. File operations
+## 11. File operations
 
-### 10.1 Save/Open — JSON
+### 11.1 Save/Open — JSON
 
 Files are saved as JSON with a top-level `format: "stadiae-v1"` tag. The emitter writes a clean subset — user-defined interfaces and messages only, no defaults — so files are smaller and human-readable. The loader restores the model from this subset and re-synthesises the default interfaces and messages.
 
@@ -401,7 +448,7 @@ Save/Save-As uses a `showPrompt` for filenames rather than the native `<input ty
 
 The "unsaved edits" dialog gates both New and Open — if `Model.dirty`, the user is asked to confirm discarding.
 
-### 10.2 Export — PlantUML and PNG
+### 11.2 Export — PlantUML and PNG
 
 Export as `.puml` writes the clean (unselected) PlantUML source to a text file — suitable for committing to source control or pasting into any PlantUML renderer.
 
@@ -409,7 +456,7 @@ Export as `.png` re-renders the clean PlantUML source via the public server, fet
 
 ---
 
-## 11. UI layout and styling
+## 12. UI layout and styling
 
 The layout is a standard CSS flex/grid arrangement; no layout framework is used. Structure:
 
@@ -423,11 +470,15 @@ The layout is a standard CSS flex/grid arrangement; no layout framework is used.
 │                                │ │ States       │  Choice-points   │ │
 │                                │ ├──────────────┼──────────────────┤ │
 │                                │ │ Interfaces   │  Messages        │ │
-│ Canvas panel                   │ └──────────────┴──────────────────┘ │
-│ (rendered PlantUML PNG)        │ ──── resize handle ────             │
-│                                │ ┌── Transitions table ────────────┐ │
-│                                │ │ Source │ Target │ Iface │ Msg   │ │
+│                                │ └──────────────┴──────────────────┘ │
+│                                │ ──── resize handle ────             │
+│ Canvas panel                   │ ┌── Transitions table ────────────┐ │
+│ (rendered PlantUML PNG)        │ │ • │ Source │ Target │ Iface │…  │ │
 │                                │ │   ...                           │ │
+│                                │ └─────────────────────────────────┘ │
+│                                │ ──── resize handle ────             │
+│                                │ ┌── Action panel ─────────────────┐ │
+│                                │ │ [ free-text textarea ]          │ │
 │                                │ └─────────────────────────────────┘ │
 └────────────────────────────────┴─────────────────────────────────────┘
 ```
@@ -437,14 +488,14 @@ Design decisions worth noting:
 - **Dark chrome, light workspace.** The menu bar and toolbar sit on a deep slate background (`--chrome: #1e2230`), contrasting with the white workspace beneath. This pattern (used by Linear, Figma, VS Code) anchors the canvas visually.
 - **One accent colour.** The Computerguided Systems indigo (`#2b2a8f`) from the logo is the only accent, used for primary buttons, hover states, selection highlights, and the logo in the About dialog.
 - **Section headers with subtle fills.** The four right-panel list headers and the transition-table header use small-caps uppercase labels on a light grey fill — restrained, but enough to read as "sections".
-- **User-adjustable split.** The horizontal bar between the four lists and the transition table is draggable. Double-clicking it resets to the 260 px default.
+- **User-adjustable split.** The horizontal bar between the four lists and the transition table is draggable, as is the bar between the transition table and the Action panel. Double-clicking either resets to the default height.
 - **Inter font.** Loaded from Google Fonts. All typography uses Inter in various weights, which reads cleaner than the default system fonts at small sizes.
 
 The CSS uses custom properties extensively (`--bg`, `--surface`, `--accent`, etc.), which makes future re-theming straightforward.
 
 ---
 
-## 12. Known limitations
+## 13. Known limitations
 
 - **Public PlantUML server dependency.** Rendering requires the server at `plantuml.com` to be reachable. The export-as-`.puml` path works fully offline.
 - **Canvas selection depends on CORS.** If the PlantUML server ever stops sending `Access-Control-Allow-Origin: *`, the mask pixel read becomes impossible in the browser and canvas-click selection silently fails (list-based selection continues to work).
@@ -454,11 +505,13 @@ The CSS uses custom properties extensively (`--bg`, `--surface`, `--accent`, etc
 
 ---
 
-## 13. Pointers for extension
+## 14. Pointers for extension
 
 If you want to:
 
 - **Add a new element type** (e.g. an "end" pseudostate): add a flag to `Selection`, a row to the States list in `buildStateList`, emission logic in `generatePlantUML` (both modes — visible with styling, mask with id assignment), a case in `canAddTransition` if it participates in transitions, and a manual section.
+
+- **Add a new per-transition-row field** (like the `action` field): extend the message objects in `Model.transitions[*].messages`, add UI for viewing/editing it below the transitions table (following the Action panel pattern — live save with per-session history via `pushHistory`, suppressed diagram re-renders since it doesn't affect PlantUML), and surface presence in the table via an indicator column or cell.
 
 - **Change visual theming**: edit the CSS custom properties block at the top of `<style>`. The accent colour threads through toolbar hover, selection, primary buttons, and the logo — one variable.
 

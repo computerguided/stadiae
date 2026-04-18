@@ -351,6 +351,76 @@
   .trans-panel tbody tr.selected td:first-child {
     box-shadow: inset 2px 0 0 var(--accent);
   }
+  /* Transition row "has action" indicator dot (first column) */
+  .trans-panel td.action-dot {
+    width: 18px;
+    padding: 0;
+    text-align: center;
+  }
+  .trans-panel td.action-dot::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    vertical-align: middle;
+    opacity: 0;
+  }
+  .trans-panel td.action-dot.has-action::before { opacity: 0.75; }
+  .trans-panel th:first-child { width: 18px; padding-left: 6px; padding-right: 0; }
+
+  /* === Action panel === */
+  .action-panel {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    height: 140px;
+    min-height: 60px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .action-panel .header {
+    background: var(--surface-3);
+    padding: 8px 14px;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .action-panel .action-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+  .action-panel .action-placeholder {
+    flex: 1;
+    padding: 14px 16px;
+    color: var(--text-faint);
+    font-style: italic;
+    font-size: 12.5px;
+  }
+  .action-panel textarea {
+    flex: 1;
+    border: none;
+    outline: none;
+    resize: none;
+    padding: 10px 14px;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--surface);
+  }
+  .action-panel textarea:focus {
+    background: var(--surface);
+    box-shadow: inset 0 0 0 2px var(--accent-soft);
+  }
 
   /* === Modal / dialog === */
   .modal-overlay {
@@ -741,11 +811,21 @@
         <table>
           <thead>
             <tr>
-              <th>Source</th><th>Target</th><th>Interface</th><th>Message</th>
+              <th></th><th>Source</th><th>Target</th><th>Interface</th><th>Message</th>
             </tr>
           </thead>
           <tbody id="trans-tbody"></tbody>
         </table>
+      </div>
+    </div>
+    <div class="resize-handle" id="resize-handle-action" title="Drag to resize"></div>
+    <div class="action-panel" id="action-panel">
+      <div class="header">Action</div>
+      <div class="action-body">
+        <div class="action-placeholder" id="action-placeholder">
+          Select a single transition row to view or edit its action.
+        </div>
+        <textarea id="action-textarea" placeholder="Describe the action performed when this transition fires…" style="display:none;"></textarea>
       </div>
     </div>
   </div>
@@ -783,8 +863,11 @@ const Model = {
   ],
   states: [],     // {name, displayName}
   choicePoints: [], // {name, question}  name excludes "CP_" prefix
-  // transitions: {source, target, messages: [{interface,name}], connector: "Right"|"Left"|"Up"|"Down", length: int>=1}
-  // Source/target are state/cp names. "START" is a special source.
+  // transitions: {source, target, messages: [{interface,name,action?}], connector: "Right"|"Left"|"Up"|"Down", length: int>=1}
+  // Source/target are state/cp names. "START" is a special source, "[H]" special target, "*" special source.
+  // Each message may optionally carry a free-text "action" describing what happens when that specific
+  // (source, target, message) row fires. Actions do NOT appear in the generated PlantUML — they are
+  // internal developer documentation, persisted only in the saved JSON.
   transitions: [],
   dirty: false,
   savedFilename: null
@@ -1020,6 +1103,21 @@ function transRowKey(source, target, iface, name) {
   return source + "|" + target + "|" + (iface||"") + "|" + (name||"");
 }
 function transitionIdKey(t) { return t.source + "|" + t.target; }
+
+// Parse a per-row selection key back into its components
+function parseTransRowKey(key) {
+  const parts = key.split("|");
+  return { source: parts[0], target: parts[1], iface: parts[2], name: parts[3] };
+}
+// Find the message object on a transition for a given row key, or null
+function findMessageForRow(key) {
+  const { source, target, iface, name } = parseTransRowKey(key);
+  const t = Model.transitions.find(tt => tt.source === source && tt.target === target);
+  if (!t) return null;
+  if (iface === "" && name === "") return null; // initial transition, no message
+  const m = t.messages.find(mm => mm.interface === iface && mm.name === name);
+  return m || null;
+}
 
 // Turn a node identifier (state name, "CP_Foo", "START", "[H]") into a user-friendly label
 function nodeLabel(id) {
@@ -1319,8 +1417,85 @@ function refresh() {
   buildInterfaceList();
   buildMessageList();
   buildTransitionTable();
+  buildActionPanel();
   updateToolbar();
   scheduleRender();
+}
+
+function buildActionPanel() {
+  const placeholder = document.getElementById("action-placeholder");
+  const textarea = document.getElementById("action-textarea");
+
+  // Show the action only when exactly one transition ROW (with a message) is selected
+  // and nothing else.
+  const otherSel = Selection.states.size + Selection.choicePoints.size +
+                   Selection.interfaces.size + Selection.messages.size +
+                   (Selection.start?1:0) + (Selection.history?1:0) + (Selection.any?1:0);
+
+  if (Selection.transitions.size === 1 && otherSel === 0) {
+    const key = [...Selection.transitions][0];
+    const msg = findMessageForRow(key);
+    if (msg) {
+      placeholder.style.display = "none";
+      textarea.style.display = "";
+      // Only set .value if it differs, to avoid resetting cursor position while typing
+      const current = msg.action || "";
+      if (textarea.value !== current) textarea.value = current;
+      textarea.dataset.key = key;
+      textarea.disabled = false;
+      return;
+    }
+    // An initial transition (no message) has no action
+    placeholder.textContent = "The initial transition has no action.";
+    placeholder.style.display = "";
+    textarea.style.display = "none";
+    textarea.dataset.key = "";
+    return;
+  }
+
+  if (Selection.transitions.size > 1) {
+    placeholder.textContent = "Multiple transition rows selected — select a single row to view or edit its action.";
+  } else {
+    placeholder.textContent = "Select a single transition row to view or edit its action.";
+  }
+  placeholder.style.display = "";
+  textarea.style.display = "none";
+  textarea.dataset.key = "";
+}
+
+// Wire the action textarea once, at startup.
+// Behaviour:
+//   - On first input of an edit session, push history (so undo reverts the whole typing session).
+//   - On every input, update the model live and re-render the table so the
+//     action-indicator dot appears/disappears as you type.
+//   - An "edit session" ends when focus leaves the textarea (blur) or when
+//     the selection changes to a different row.
+let actionEditSession = { key: null, pushed: false };
+function initActionPanel() {
+  const textarea = document.getElementById("action-textarea");
+  textarea.addEventListener("input", () => {
+    const key = textarea.dataset.key;
+    if (!key) return;
+    const msg = findMessageForRow(key);
+    if (!msg) return;
+    // Start of a new edit session?
+    if (actionEditSession.key !== key || !actionEditSession.pushed) {
+      pushHistory();
+      actionEditSession = { key, pushed: true };
+    }
+    const newVal = textarea.value;
+    if ((msg.action || "") !== newVal) {
+      msg.action = newVal;
+      // Rebuild the table to update the indicator dot; keep focus on the
+      // textarea so the user's typing isn't interrupted.
+      buildTransitionTable();
+      // Diagram doesn't change (actions aren't in PlantUML), so skip render.
+      updateToolbar();
+    }
+  });
+  textarea.addEventListener("blur", () => {
+    actionEditSession = { key: null, pushed: false };
+  });
 }
 
 function buildStateList() {
@@ -1466,7 +1641,14 @@ function buildTransitionTable() {
     const tr = document.createElement("tr");
     const key = transRowKey(r.t.source, r.t.target, r.iface, r.msg);
     if (Selection.transitions.has(key)) tr.classList.add("selected");
-    tr.innerHTML = `<td>${escapeHTML(nodeLabel(r.t.source))}</td>
+    // Does this row have an action?
+    let hasAction = false;
+    if (r.iface !== "" || r.msg !== "") {
+      const m = r.t.messages.find(mm => mm.interface === r.iface && mm.name === r.msg);
+      if (m && m.action && m.action.trim().length > 0) hasAction = true;
+    }
+    tr.innerHTML = `<td class="action-dot${hasAction ? " has-action" : ""}" title="${hasAction ? "Has action" : ""}"></td>
+                    <td>${escapeHTML(nodeLabel(r.t.source))}</td>
                     <td>${escapeHTML(nodeLabel(r.t.target))}</td>
                     <td>${escapeHTML(r.iface)}</td>
                     <td>${escapeHTML(r.msg)}</td>`;
@@ -1841,7 +2023,9 @@ function manualContent() {
       <h3>Element lists (top right)</h3>
       <p>Four lists show the diagram's elements: <em>States</em>, <em>Choice-points</em>, <em>Interfaces</em>, <em>Messages</em>. Click an entry to toggle its selection. The Messages list only shows messages of the currently selected interface(s). Deselecting an interface also deselects its messages.</p>
       <h3>Transition table (bottom right)</h3>
-      <p>Lists every transition, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. The split between the lists and the table is adjustable: drag the thin bar between them, or double-click it to restore the default.</p>
+      <p>Lists every transition, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. The split between the lists and the table is adjustable: drag the thin bar between them, or double-click it to restore the default. A small dot in the first column marks rows that have an action description.</p>
+      <h3>Action panel</h3>
+      <p>Below the transitions table, a free-text area shows the <em>action</em> of the currently selected transition row. Actions are developer documentation that is saved with the diagram but not rendered into the PlantUML — see <a href="#m-transitions" data-target="m-transitions">Transitions</a>. The panel height is adjustable via the handle above it.</p>
       <div class="tip">A "Show PlantUML" button at the bottom-right opens a live view of the generated source. Useful for sanity-checking or for learning PlantUML.</div>
     </section>
 
@@ -1899,6 +2083,10 @@ function manualContent() {
       <p>Add more messages to an existing transition by selecting the same source and target plus the extra messages, then clicking Add Transition again. The messages stack on the same arrow with <code>\\n</code> separators, decluttering the diagram.</p>
       <h3>Connector direction and length</h3>
       <p>Select a transition (all its rows) and click Edit. The Transition Properties dialog lets you pick <em>Right</em>, <em>Left</em>, <em>Up</em>, or <em>Down</em>. For Up and Down you can also set a length (number of dashes) to spread the arrow further — useful when PlantUML's auto-layout overlaps arrows.</p>
+      <h3>Documenting the action</h3>
+      <p>Each transition row can carry a free-text <strong>action</strong> describing what the component does when that specific (source, target, message) transition fires. This is developer documentation — actions are stored in the saved <code>.json</code> file and visible in the editor's <em>Action</em> panel, but they are intentionally <em>not</em> included in the generated PlantUML so the diagram stays uncluttered.</p>
+      <p>To document a transition's action: select a single row in the transitions table. The Action panel below the table switches from a placeholder to an editable text area. Type the description; it is saved to the model as you type. Rows that have a non-empty action show a small indicator dot in the leftmost column of the transitions table.</p>
+      <p>The Action panel height is adjustable via the thin handle between the transitions table and the panel — drag to resize, double-click to reset.</p>
     </section>
 
     <section id="m-history">
@@ -2743,6 +2931,42 @@ document.getElementById("code-toggle").onclick = () => {
   handle.addEventListener("dblclick", () => { grid.style.height = "260px"; });
 })();
 
+// Vertical resize handle between transitions and action panel
+(function() {
+  const handle = document.getElementById("resize-handle-action");
+  const panel = document.getElementById("action-panel");
+  let dragging = false;
+  let startY = 0, startH = 0;
+
+  handle.addEventListener("mousedown", e => {
+    dragging = true;
+    startY = e.clientY;
+    startH = panel.getBoundingClientRect().height;
+    handle.classList.add("dragging");
+    document.body.classList.add("resizing-v");
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const rightPanel = panel.parentElement;
+    const available = rightPanel.getBoundingClientRect().height;
+    const min = 60;
+    const max = Math.max(min, available - 200); // leave at least ~200px for trans-panel
+    // Dragging the handle down increases the transitions area and shrinks the action panel.
+    let h = startH - (e.clientY - startY);
+    h = Math.max(min, Math.min(max, h));
+    panel.style.height = h + "px";
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("dragging");
+    document.body.classList.remove("resizing-v");
+  });
+  // Double-click resets to default
+  handle.addEventListener("dblclick", () => { panel.style.height = "140px"; });
+})();
+
 // Warn on close if dirty
 window.addEventListener("beforeunload", e => {
   if (Model.dirty) { e.preventDefault(); e.returnValue = ""; }
@@ -2750,7 +2974,7 @@ window.addEventListener("beforeunload", e => {
 
 // Keyboard shortcuts
 document.addEventListener("keydown", e => {
-  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
   if (e.ctrlKey || e.metaKey) {
     if (e.key === "z") { e.preventDefault(); undo(); }
     else if (e.key === "y" || (e.shiftKey && e.key === "Z")) { e.preventDefault(); redo(); }
@@ -2763,6 +2987,7 @@ document.addEventListener("keydown", e => {
 });
 
 // ---------- Bootstrap ----------
+initActionPanel();
 resetModel("Component Name");
 refresh();
 </script>
