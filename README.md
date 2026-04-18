@@ -132,7 +132,7 @@ Issues and pull requests are welcome. Since the whole tool is a single HTML file
 
 ## License
 
-Add a license of your choice here (e.g. MIT). Pick one before inviting contributions.
+Released under the [MIT License](LICENSE.txt). See the `LICENSE` file for details.
 
 ## Credits
 
