@@ -1,0 +1,162 @@
+{
+  "format": "stadiae-v1",
+  "componentName": "Node",
+  "arrowFontSize": 9,
+  "stateFontSize": 12,
+  "interfaces": [
+    {
+      "name": "RTx",
+      "isDefault": false
+    }
+  ],
+  "messages": [
+    {
+      "interface": "RTx",
+      "name": "ConnectReq",
+      "isDefault": false
+    },
+    {
+      "interface": "RTx",
+      "name": "ConnectedInd",
+      "isDefault": false
+    },
+    {
+      "interface": "RTx",
+      "name": "DisconnectInd",
+      "isDefault": false
+    }
+  ],
+  "states": [
+    {
+      "name": "Advertising",
+      "displayName": ""
+    },
+    {
+      "name": "Connecting",
+      "displayName": ""
+    },
+    {
+      "name": "ServerConnected",
+      "displayName": "Server\nConnected"
+    }
+  ],
+  "choicePoints": [
+    {
+      "name": "Whitelisted",
+      "question": "Is Server\nWhitelisted?"
+    }
+  ],
+  "transitions": [
+    {
+      "source": "START",
+      "target": "Advertising",
+      "messages": [],
+      "connector": "Down",
+      "length": 1
+    },
+    {
+      "source": "Advertising",
+      "target": "Advertising",
+      "messages": [
+        {
+          "interface": "Timer",
+          "name": "Timeout"
+        }
+      ],
+      "connector": "Right",
+      "length": 1
+    },
+    {
+      "source": "Advertising",
+      "target": "CP_Whitelisted",
+      "messages": [
+        {
+          "interface": "RTx",
+          "name": "ConnectReq"
+        },
+        {
+          "interface": "RTx",
+          "name": "ConnectedInd"
+        }
+      ],
+      "connector": "Down",
+      "length": 1
+    },
+    {
+      "source": "CP_Whitelisted",
+      "target": "Connecting",
+      "messages": [
+        {
+          "interface": "Logical",
+          "name": "Yes"
+        }
+      ],
+      "connector": "Left",
+      "length": 1
+    },
+    {
+      "source": "CP_Whitelisted",
+      "target": "Advertising",
+      "messages": [
+        {
+          "interface": "Logical",
+          "name": "No"
+        }
+      ],
+      "connector": "Up",
+      "length": 2
+    },
+    {
+      "source": "Connecting",
+      "target": "Advertising",
+      "messages": [
+        {
+          "interface": "Timer",
+          "name": "Timeout"
+        }
+      ],
+      "connector": "Up",
+      "length": 2
+    },
+    {
+      "source": "Connecting",
+      "target": "ServerConnected",
+      "messages": [
+        {
+          "interface": "RTx",
+          "name": "ConnectedInd"
+        }
+      ],
+      "connector": "Up",
+      "length": 1
+    },
+    {
+      "source": "ServerConnected",
+      "target": "Advertising",
+      "messages": [
+        {
+          "interface": "RTx",
+          "name": "DisconnectInd"
+        },
+        {
+          "interface": "Timer",
+          "name": "Timeout"
+        }
+      ],
+      "connector": "Up",
+      "length": 2
+    },
+    {
+      "source": "ServerConnected",
+      "target": "ServerConnected",
+      "messages": [
+        {
+          "interface": "RTx",
+          "name": "ConnectedInd"
+        }
+      ],
+      "connector": "Right",
+      "length": 1
+    }
+  ]
+}

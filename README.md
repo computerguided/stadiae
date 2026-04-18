@@ -58,52 +58,11 @@ The **complete manual** is available inside the app under `Help → User Manual`
 
 ## Generated PlantUML
 
-Stadiæ produces well-structured PlantUML that you can reasonably read and hand-edit. A minimal generated file looks like:
+Stadiæ produces well-structured PlantUML that you can reasonably read and hand-edit. See the example Node.puml file as an example.
 
-```plantuml
-@startuml
-'== Formatting ==
-hide empty description
-skinparam Arrow { FontSize 9 }
-skinparam State { FontSize 12 }
-<style>
-  .choicepoint {
-    BackgroundColor #ffffff
-    RoundCorner 0
-  }
-</style>
+This will render like this (using online PlantUML server):
 
-'== Default interfaces ==
-!$Timer = Timer
-!$Logical = Logical
-
-'== Default messages ==
-!$Timer_Timeout = Timeout
-!$Logical_No = No
-!$Logical_Yes = Yes
-
-'== Interfaces ==
-!$RTx = RTx
-
-'== Messages ==
-!$RTx_ConnectReq = $RTx + ":" + ConnectReq
-
-'== Component ==
-state component as "Node" {
-  state START <<start>> #000000
-
-  '== States ==
-  state Advertising
-
-  '== Choice-points ==
-  state CP_Whitelisted as "Is Server\nWhitelisted?" <<choicepoint>>
-
-  '== Transitions ==
-  START -> Advertising
-  Advertising -> CP_Whitelisted : $RTx_ConnectReq
-}
-@enduml
-```
+![](https://www.plantuml.com/plantuml/img///www.plantuml.com/plantuml/png/ZLB1ZjCm4BtdAuOi4WTKMBXHDM5BLqYLe49j98HKgRAIQMjjOWTx0Yoh_NScZhU9apsGW-k-z-RDZFnkB0b3JLL6hv84FcjJ2IAfJf0aqLaM25ZLT0y5sjp8cgHMaRsJgXP6LB0qHl-6XmYuKD5E_aNu43qE13iIXA7WtNjMB2pTbvWo_YO_QvbZhQKY9mJu9FAxaz6DAbQwr0QkZkvptBQ3ZK83ruomrLllvHQunQDeIW9sGtCKETfsaHSlCrbnHGBkb_z_qIUPYv8HVmlBAxHMd8BYGtlgXfo9k_KsXurcUAC7o8-s6FZiZDUZURRP7wRvxEYlGJ-63okj5EQqnP-iS_BN4CzZFdicb6AnLiLKt7DUVYjjtg7Fw0FIpSOMLQqLAcg7i-v1ymiaBCGRNM0C3vxRPSjj1ek5orMQmjMr-vnNbmVR6osBNsX8MWwSH_p0FR13mvhB7gvZX-tL1Otzg2vBCnUcGPVLjyFtioGifNroM5juCXbG7sCUV138rASgCq9PsORVkNOhpcPfCF_W3Y45SmWp56fP74x8-b46zchoqj6ePbRYaTZAQtpRGHmd1KqTh10MS9XxfwbskjDOdavURWxJ9KQQvnjDOxjNOVE9pt-sVunkK1LDLVu3)
 
 ## File format
 

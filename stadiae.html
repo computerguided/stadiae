@@ -759,6 +759,20 @@ function generatePlantUML(withSelection = false) {
 function transRowKey(source, target, iface, name) {
   return source + "|" + target + "|" + (iface||"") + "|" + (name||"");
 }
+
+// Turn a node identifier (state name, "CP_Foo", "START", "[H]") into a user-friendly label
+function nodeLabel(id) {
+  if (id === "START") return "●";
+  if (id === "[H]") return "H";
+  if (id.startsWith("CP_")) {
+    const cp = Model.choicePoints.find(c => c.name === id.slice(3));
+    if (cp && cp.question) return cp.question.replace(/\\n|\n/g, " ");
+    return id;
+  }
+  const s = Model.states.find(ss => ss.name === id);
+  if (s && s.displayName) return s.displayName.replace(/\\n|\n/g, " ");
+  return id;
+}
 // All message-rows that belong to transition t
 function transRowKeys(t) {
   if (!t.messages || t.messages.length === 0) {
@@ -974,7 +988,7 @@ function buildTransitionTable() {
     }
   }
   rows.sort((a,b) => {
-    const srcA = a.t.source, srcB = b.t.source;
+    const srcA = nodeLabel(a.t.source), srcB = nodeLabel(b.t.source);
     if (srcA !== srcB) return srcA.localeCompare(srcB);
     if (a.iface !== b.iface) return a.iface.localeCompare(b.iface);
     return a.msg.localeCompare(b.msg);
@@ -983,10 +997,10 @@ function buildTransitionTable() {
     const tr = document.createElement("tr");
     const key = transRowKey(r.t.source, r.t.target, r.iface, r.msg);
     if (Selection.transitions.has(key)) tr.classList.add("selected");
-    tr.innerHTML = `<td>${r.t.source === "START" ? "●" : r.t.source}</td>
-                    <td>${r.t.target}</td>
-                    <td>${r.iface}</td>
-                    <td>${r.msg}</td>`;
+    tr.innerHTML = `<td>${escapeHTML(nodeLabel(r.t.source))}</td>
+                    <td>${escapeHTML(nodeLabel(r.t.target))}</td>
+                    <td>${escapeHTML(r.iface)}</td>
+                    <td>${escapeHTML(r.msg)}</td>`;
     tr.addEventListener("click", () => {
       if (Selection.transitions.has(key)) Selection.transitions.delete(key);
       else Selection.transitions.add(key);
@@ -1981,9 +1995,12 @@ function resetModel(componentName) {
 }
 
 function saveAs() {
-  showPrompt("Save As", "File name:", (Model.savedFilename || Model.componentName || "diagram") + ".json", null, (filename) => {
+  const base = Model.savedFilename
+    ? (Model.savedFilename.endsWith(".json") ? Model.savedFilename : Model.savedFilename + ".json")
+    : (Model.componentName || "diagram") + ".json";
+  showPrompt("Save As", "File name:", base, null, (filename) => {
     downloadJSON(filename);
-    Model.savedFilename = filename;
+    Model.savedFilename = filename.endsWith(".json") ? filename : filename + ".json";
     Model.dirty = false;
     refresh();
   });
@@ -2217,30 +2234,8 @@ document.addEventListener("keydown", e => {
   }
 });
 
-// ---------- Bootstrap: load example Node diagram for demonstration ----------
-function loadExample() {
-  Model.componentName = "Node";
-  Model.interfaces.push({name: "RTx", isDefault: false});
-  Model.messages.push({interface:"RTx", name:"ConnectReq", isDefault:false});
-  Model.messages.push({interface:"RTx", name:"ConnectedInd", isDefault:false});
-  Model.messages.push({interface:"RTx", name:"DisconnectInd", isDefault:false});
-  Model.states.push({name:"Advertising", displayName:""});
-  Model.states.push({name:"Connecting", displayName:""});
-  Model.states.push({name:"ServerConnected", displayName:"Server\nConnected"});
-  Model.choicePoints.push({name:"Whitelisted", question:"Is Server\nWhitelisted?"});
-  Model.transitions = [
-    { source:"START", target:"Advertising", messages:[], connector:"Down", length:1 },
-    { source:"Advertising", target:"Advertising", messages:[{interface:"Timer",name:"Timeout"}], connector:"Right", length:1 },
-    { source:"Advertising", target:"CP_Whitelisted", messages:[{interface:"RTx",name:"ConnectReq"},{interface:"RTx",name:"ConnectedInd"}], connector:"Down", length:1 },
-    { source:"CP_Whitelisted", target:"Connecting", messages:[{interface:"Logical",name:"Yes"}], connector:"Down", length:1 },
-    { source:"CP_Whitelisted", target:"Advertising", messages:[{interface:"Logical",name:"No"}], connector:"Up", length:2 },
-    { source:"Connecting", target:"Advertising", messages:[{interface:"Timer",name:"Timeout"}], connector:"Up", length:2 },
-    { source:"Connecting", target:"ServerConnected", messages:[{interface:"RTx",name:"ConnectedInd"}], connector:"Right", length:1 },
-    { source:"ServerConnected", target:"Advertising", messages:[{interface:"RTx",name:"DisconnectInd"},{interface:"Timer",name:"Timeout"}], connector:"Up", length:2 },
-    { source:"ServerConnected", target:"ServerConnected", messages:[{interface:"RTx",name:"ConnectedInd"}], connector:"Right", length:1 }
-  ];
-}
-loadExample();
+// ---------- Bootstrap ----------
+resetModel("Component Name");
 refresh();
 </script>
 </body>
