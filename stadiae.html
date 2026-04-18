@@ -4,112 +4,185 @@
 <meta charset="UTF-8">
 <title>Stadiæ - State Diagram Editor</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    /* Palette */
+    --bg: #f3f4f6;
+    --surface: #ffffff;
+    --surface-2: #f9fafb;          /* subtle off-white for headers */
+    --surface-3: #f3f4f6;          /* slightly stronger off-white */
+    --border: #e5e7eb;             /* hairline divider */
+    --border-strong: #d1d5db;      /* slightly stronger divider */
+    --text: #111827;
+    --text-muted: #6b7280;
+    --text-faint: #9ca3af;
+
+    /* Dark chrome (menu bar + toolbar) */
+    --chrome: #1e2230;
+    --chrome-2: #262b3c;
+    --chrome-3: #323849;
+    --chrome-border: #353c52;
+    --chrome-text: #e5e7eb;
+    --chrome-text-muted: #9ca3af;
+
+    /* Accent (Computerguided indigo from the logo) */
+    --accent: #2b2a8f;
+    --accent-hover: #23227a;
+    --accent-light: #5c5bc3;       /* lighter for use on dark chrome */
+    --accent-soft: #eef0f9;        /* tinted fill for hover/selection */
+    --accent-soft-hover: #dfe2f1;
+
+    /* Sizing */
+    --radius: 8px;
+    --radius-sm: 6px;
+    --shadow-sm: 0 1px 2px rgba(16,24,40,0.04);
+    --shadow-md: 0 1px 3px rgba(16,24,40,0.06), 0 4px 12px rgba(16,24,40,0.04);
+    --shadow-lg: 0 10px 30px rgba(16,24,40,0.08), 0 4px 8px rgba(16,24,40,0.04);
+    --shadow-dialog: 0 20px 50px rgba(16,24,40,0.25), 0 8px 20px rgba(16,24,40,0.12);
+  }
+
   * { box-sizing: border-box; }
   html, body {
     margin: 0; padding: 0; height: 100%;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 13px;
-    background: #eceff4;
-    color: #2e3440;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background: var(--bg);
+    color: var(--text);
     overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+
   /* === Menu Bar === */
   .menubar {
-    background: #4c7fd1;
-    color: white;
+    background: var(--chrome);
+    border-bottom: 1px solid var(--chrome-border);
+    color: var(--chrome-text);
     display: flex;
-    padding: 0;
+    padding: 0 4px;
     user-select: none;
-    height: 32px;
+    height: 40px;
     align-items: center;
   }
   .menubar .menu {
     position: relative;
-    padding: 0 14px;
-    height: 100%;
+    padding: 0 12px;
+    height: 28px;
+    margin: 0 2px;
     display: flex;
     align-items: center;
     cursor: pointer;
     font-size: 13px;
+    font-weight: 500;
+    color: var(--chrome-text);
+    border-radius: 5px;
+    transition: background 0.12s, color 0.12s;
   }
-  .menubar .menu:hover, .menubar .menu.open { background: #3b6bb8; }
+  .menubar .menu:hover, .menubar .menu.open {
+    background: var(--chrome-3);
+    color: #ffffff;
+  }
   .menubar .menu .dropdown {
     position: absolute;
     top: 100%; left: 0;
-    background: white;
-    color: #2e3440;
-    min-width: 200px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    border: 1px solid #ccc;
+    background: var(--surface);
+    color: var(--text);
+    min-width: 230px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 5px;
+    margin-top: 6px;
     display: none;
     z-index: 1000;
   }
   .menubar .menu.open .dropdown { display: block; }
   .menubar .menu .dropdown .item {
-    padding: 6px 16px;
+    padding: 7px 12px;
     cursor: pointer;
     white-space: nowrap;
+    border-radius: 4px;
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--text);
   }
-  .menubar .menu .dropdown .item:hover { background: #dbe4f3; }
+  .menubar .menu .dropdown .item:hover { background: var(--accent-soft); color: var(--accent); }
   .menubar .menu .dropdown .separator {
-    height: 1px; background: #ccc; margin: 4px 0;
+    height: 1px; background: var(--border); margin: 4px 0;
   }
+
   /* === Toolbar === */
   .toolbar {
-    background: #dbe4f3;
-    border-bottom: 1px solid #a6b4cc;
-    padding: 6px 8px;
+    background: var(--chrome-2);
+    border-bottom: 1px solid var(--chrome-border);
+    padding: 10px 12px;
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
     align-items: center;
   }
   .toolbar button {
-    background: #4c7fd1;
-    color: white;
-    border: 1px solid #3b6bb8;
-    border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 12px;
+    background: var(--chrome-3);
+    color: var(--chrome-text);
+    border: 1px solid var(--chrome-border);
+    border-radius: var(--radius-sm);
+    padding: 0 14px;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
     cursor: pointer;
-    width: 90px;
-    height: 42px;
-    line-height: 1.15;
+    height: 34px;
+    line-height: 1;
     text-align: center;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
+    white-space: nowrap;
+    transition: all 0.12s ease;
   }
-  .toolbar button:hover:not(:disabled) { background: #3b6bb8; }
+  .toolbar button:hover:not(:disabled) {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+  }
+  .toolbar button:active:not(:disabled) {
+    background: var(--accent-hover);
+    transform: translateY(0.5px);
+  }
   .toolbar button:disabled {
-    background: #c5cfdf;
-    border-color: #adb8ca;
-    color: #6b7280;
+    background: var(--chrome-2);
+    border-color: var(--chrome-border);
+    color: var(--chrome-text-muted);
+    opacity: 0.5;
     cursor: not-allowed;
   }
   .toolbar .sep {
-    width: 1px; background: #a6b4cc;
-    align-self: stretch; margin: 0 2px;
+    width: 1px; background: var(--chrome-border);
+    align-self: stretch; margin: 4px 4px;
   }
+
   /* === Main layout === */
   .main {
     display: flex;
-    height: calc(100vh - 32px - 49px);
-    padding: 8px;
-    gap: 8px;
+    height: calc(100vh - 40px - 55px);
+    padding: 12px;
+    gap: 12px;
   }
   .canvas-panel {
     flex: 1;
-    background: white;
-    border: 1px solid #a6b4cc;
-    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: auto;
     position: relative;
     min-width: 300px;
+    box-shadow: var(--shadow-sm);
   }
   .canvas-panel img {
     max-width: 100%;
@@ -118,11 +191,12 @@
     display: block;
   }
   .canvas-panel .loading {
-    color: #6b7280;
+    color: var(--text-faint);
     font-style: italic;
+    font-size: 12px;
   }
   .canvas-panel .error {
-    color: #bf4040;
+    color: #b91c1c;
     padding: 20px;
     font-size: 12px;
     white-space: pre-wrap;
@@ -131,33 +205,35 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
     min-width: 380px;
   }
   .lists-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 12px;
     flex: 0 0 auto;
     height: 260px;
     min-height: 80px;
   }
   .list-box {
-    background: white;
-    border: 1px solid #a6b4cc;
-    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     min-height: 0;
+    box-shadow: var(--shadow-sm);
   }
   .resize-handle {
     flex: 0 0 auto;
-    height: 6px;
+    height: 10px;
+    margin: -5px 0;
     background: transparent;
     cursor: row-resize;
     position: relative;
-    margin: -1px 0;
+    z-index: 5;
   }
   .resize-handle::before {
     content: "";
@@ -165,63 +241,79 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
-    width: 40px;
-    height: 3px;
-    background: #a6b4cc;
+    width: 36px;
+    height: 4px;
+    background: var(--border-strong);
     border-radius: 2px;
-    transition: background 0.15s;
+    transition: background 0.15s, width 0.15s;
   }
   .resize-handle:hover::before, .resize-handle.dragging::before {
-    background: #4c7fd1;
+    background: var(--accent);
+    width: 48px;
   }
   body.resizing-v {
     cursor: row-resize;
     user-select: none;
   }
   .list-box .header {
-    background: #dbe4f3;
-    padding: 5px 10px;
+    background: var(--surface-3);
+    padding: 8px 14px;
     font-weight: 600;
-    font-size: 12px;
-    border-bottom: 1px solid #a6b4cc;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
   }
   .list-box ul {
     list-style: none;
-    margin: 0; padding: 0;
+    margin: 0; padding: 4px;
     overflow-y: auto;
     flex: 1;
-    font-size: 12px;
+    font-size: 12.5px;
   }
   .list-box li {
-    padding: 4px 10px;
+    padding: 6px 10px;
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    border-bottom: 1px solid #f0f2f5;
+    border-radius: 4px;
+    color: var(--text);
+    transition: background 0.1s;
   }
-  .list-box li:hover { background: #f0f4fb; }
-  .list-box li.selected { background: #4c7fd1; color: white; }
-  .list-box li.default-item { font-style: italic; color: #6b7280; }
-  .list-box li.default-item.selected { color: #e0e8f5; }
+  .list-box li + li { margin-top: 1px; }
+  .list-box li:hover { background: var(--accent-soft); }
+  .list-box li.selected {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .list-box li.default-item { color: var(--text-muted); font-style: italic; }
+  .list-box li.default-item.selected { color: var(--accent); }
 
   /* === Transition table === */
   .trans-panel {
-    background: white;
-    border: 1px solid #a6b4cc;
-    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
+    box-shadow: var(--shadow-sm);
   }
   .trans-panel .header {
-    background: #dbe4f3;
-    padding: 5px 10px;
+    background: var(--surface-3);
+    padding: 8px 14px;
     font-weight: 600;
-    font-size: 12px;
-    border-bottom: 1px solid #a6b4cc;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
   }
   .trans-panel .table-wrap {
     flex: 1;
@@ -230,104 +322,155 @@
   .trans-panel table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: 12.5px;
   }
   .trans-panel th, .trans-panel td {
     text-align: left;
-    padding: 4px 10px;
-    border-bottom: 1px solid #f0f2f5;
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--border);
     white-space: nowrap;
   }
   .trans-panel th {
-    background: #eaf0fa;
+    background: var(--surface-2);
     position: sticky;
     top: 0;
     font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
   }
-  .trans-panel tr { cursor: pointer; }
-  .trans-panel tr:hover td { background: #f0f4fb; }
-  .trans-panel tr.selected td { background: #4c7fd1; color: white; }
+  .trans-panel tbody tr { cursor: pointer; transition: background 0.1s; }
+  .trans-panel tbody tr:hover td { background: var(--accent-soft); }
+  .trans-panel tbody tr.selected td {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .trans-panel tbody tr.selected td:first-child {
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+
   /* === Modal / dialog === */
   .modal-overlay {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.35);
+    background: rgba(17,24,39,0.45);
+    backdrop-filter: blur(2px);
     display: none;
     align-items: center; justify-content: center;
     z-index: 2000;
   }
   .modal-overlay.show { display: flex; }
   .modal {
-    background: white;
-    border-radius: 8px;
-    min-width: 340px;
+    background: var(--surface);
+    border-radius: 12px;
+    min-width: 380px;
     max-width: 90vw;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    box-shadow: var(--shadow-dialog);
     overflow: hidden;
+    animation: modal-in 0.15s ease-out;
+  }
+  @keyframes modal-in {
+    from { opacity: 0; transform: translateY(6px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
   }
   .modal .title {
-    background: #dbe4f3;
-    padding: 10px 14px;
+    background: var(--surface);
+    padding: 16px 20px 12px 20px;
     font-weight: 600;
-    border-bottom: 1px solid #a6b4cc;
+    font-size: 15px;
+    color: var(--text);
   }
   .modal .body {
-    padding: 16px;
+    padding: 4px 20px 20px 20px;
     display: grid;
     grid-template-columns: 120px 1fr;
-    gap: 10px 12px;
+    gap: 12px 14px;
     align-items: center;
   }
-  .modal .body label { font-size: 12px; }
+  .modal .body label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
   .modal .body input, .modal .body select {
-    padding: 5px 8px;
-    border: 1px solid #a6b4cc;
-    border-radius: 4px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
     font-size: 13px;
+    font-family: inherit;
     width: 100%;
+    background: var(--surface);
+    color: var(--text);
+    transition: border-color 0.1s, box-shadow 0.1s;
+  }
+  .modal .body input:focus, .modal .body select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
   .modal .body .static-value {
-    font-family: monospace;
-    color: #4b5563;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    color: var(--text-muted);
+    font-size: 12.5px;
   }
   .modal .actions {
-    padding: 10px 14px;
-    background: #f4f6fa;
-    border-top: 1px solid #a6b4cc;
+    padding: 12px 20px;
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
+    gap: 8px;
   }
   .modal .actions button {
-    background: #4c7fd1;
+    background: var(--accent);
     color: white;
-    border: 1px solid #3b6bb8;
-    border-radius: 4px;
-    padding: 5px 18px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 7px 18px;
+    font-family: inherit;
     font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
+    transition: background 0.12s;
   }
+  .modal .actions button:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
   .modal .actions button:disabled {
-    background: #c5cfdf;
-    border-color: #adb8ca;
+    background: var(--border);
+    border-color: var(--border);
+    color: var(--text-faint);
     cursor: not-allowed;
   }
-  .modal .actions button.cancel { background: #8a96ad; border-color: #6b7891; }
+  .modal .actions button.cancel {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .modal .actions button.cancel:hover { background: var(--surface-2); }
+
   /* Alert modal */
   .alert-modal .body {
     display: block;
-    padding: 18px;
+    padding: 4px 20px 20px 20px;
     font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
   }
-  .alert-modal .actions { justify-content: center; }
+  .alert-modal .actions { justify-content: flex-end; }
   /* Confirm modal */
   .confirm-modal .body {
     display: block;
-    padding: 18px;
+    padding: 4px 20px 20px 20px;
     font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
   }
+
   /* Manual modal */
   .manual-modal {
-    width: 900px; max-width: 95vw;
-    height: 80vh;
+    width: 960px; max-width: 95vw;
+    height: 82vh;
     display: flex;
     flex-direction: column;
   }
@@ -337,146 +480,186 @@
     overflow: hidden;
   }
   .manual-toc {
-    width: 230px;
-    background: #f4f6fa;
-    border-right: 1px solid #a6b4cc;
+    width: 240px;
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
     overflow-y: auto;
-    padding: 10px 0;
+    padding: 12px 8px;
     flex-shrink: 0;
   }
   .manual-toc a {
     display: block;
-    padding: 5px 16px;
-    color: #2e3440;
+    padding: 7px 12px;
+    color: var(--text);
     text-decoration: none;
-    font-size: 12px;
-    border-left: 3px solid transparent;
+    font-size: 12.5px;
+    border-radius: 5px;
+    margin-bottom: 1px;
+    transition: background 0.1s, color 0.1s;
   }
-  .manual-toc a:hover { background: #dbe4f3; }
+  .manual-toc a:hover { background: var(--accent-soft); color: var(--accent); }
   .manual-toc a.active {
-    background: #dbe4f3;
-    border-left-color: #4c7fd1;
+    background: var(--accent-soft);
+    color: var(--accent);
     font-weight: 600;
   }
-  .manual-toc a.sub { padding-left: 30px; font-size: 11px; color: #4b5563; }
+  .manual-toc a.sub { padding-left: 24px; font-size: 11.5px; color: var(--text-muted); }
   .manual-content {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 28px;
-    font-size: 13px;
-    line-height: 1.55;
-    color: #2e3440;
+    padding: 28px 36px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text);
   }
   .manual-content h2 {
-    font-size: 18px;
-    color: #3b6bb8;
-    margin: 0 0 12px 0;
-    padding-bottom: 6px;
-    border-bottom: 2px solid #dbe4f3;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 16px 0;
+    letter-spacing: -0.01em;
   }
   .manual-content h3 {
-    font-size: 14px;
-    color: #2e3440;
-    margin: 22px 0 8px 0;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 26px 0 8px 0;
   }
-  .manual-content p { margin: 0 0 10px 0; }
-  .manual-content ul, .manual-content ol { margin: 0 0 12px 0; padding-left: 22px; }
+  .manual-content p { margin: 0 0 12px 0; }
+  .manual-content ul, .manual-content ol { margin: 0 0 14px 0; padding-left: 22px; }
   .manual-content li { margin-bottom: 4px; }
+  .manual-content a { color: var(--accent); text-decoration: none; }
+  .manual-content a:hover { text-decoration: underline; }
   .manual-content code {
-    background: #f0f2f5;
-    padding: 1px 5px;
-    border-radius: 3px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
     font-size: 12px;
     font-family: "SF Mono", Menlo, Consolas, monospace;
+    color: #4338ca;
   }
   .manual-content kbd {
-    background: #f0f2f5;
-    border: 1px solid #c5cfdf;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
     border-bottom-width: 2px;
-    border-radius: 3px;
-    padding: 1px 6px;
+    border-radius: 4px;
+    padding: 1px 7px;
     font-size: 11px;
     font-family: inherit;
+    font-weight: 500;
+    color: var(--text);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.03);
   }
   .manual-content .tip {
-    background: #fff9e6;
-    border-left: 3px solid #e0b040;
-    padding: 8px 12px;
-    margin: 10px 0;
-    border-radius: 0 4px 4px 0;
-    font-size: 12px;
+    background: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    padding: 10px 14px;
+    margin: 14px 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 12.5px;
+    color: #78350f;
   }
   .manual-content table.rules {
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     width: 100%;
-    margin: 10px 0;
-    font-size: 12px;
+    margin: 12px 0;
+    font-size: 12.5px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
   }
   .manual-content table.rules th, .manual-content table.rules td {
-    border: 1px solid #d6dce6;
-    padding: 6px 10px;
+    padding: 9px 14px;
     text-align: left;
     vertical-align: top;
+    border-bottom: 1px solid var(--border);
   }
+  .manual-content table.rules tr:last-child td { border-bottom: none; }
   .manual-content table.rules th {
-    background: #dbe4f3;
+    background: var(--surface-2);
     font-weight: 600;
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
   }
   .manual-content section { scroll-margin-top: 10px; }
+
   /* About modal */
   .about-modal .body {
     display: flex;
     align-items: center;
-    gap: 20px;
-    padding: 24px;
-    max-width: 480px;
+    gap: 24px;
+    padding: 4px 24px 28px 24px;
+    max-width: 500px;
   }
   .about-modal .logo {
     flex: 0 0 auto;
     width: 110px;
     height: auto;
-    color: #2b2a8f;
+    color: var(--accent);
   }
   .about-modal .logo svg { width: 100%; height: auto; display: block; fill: currentColor; }
   .about-modal .text {
     flex: 1;
     font-size: 13px;
-    line-height: 1.5;
+    line-height: 1.55;
+    color: var(--text);
   }
-  .about-modal .text strong { color: #3b6bb8; }
+  .about-modal .text strong { color: var(--accent); font-weight: 600; }
   .about-modal .actions { justify-content: center; }
+
+  /* PlantUML source panel toggle */
   .code-toggle {
     position: fixed;
-    bottom: 8px; right: 8px;
-    background: #2e3440;
-    color: white;
-    border: none;
-    padding: 6px 10px;
-    border-radius: 4px;
+    bottom: 12px; right: 12px;
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-family: inherit;
     font-size: 11px;
+    font-weight: 500;
     cursor: pointer;
-    opacity: 0.7;
     z-index: 500;
+    box-shadow: var(--shadow-md);
+    transition: all 0.12s;
   }
-  .code-toggle:hover { opacity: 1; }
+  .code-toggle:hover { color: var(--accent); border-color: var(--accent-soft-hover); }
   .code-panel {
     position: fixed;
-    bottom: 40px; right: 8px;
-    width: 450px;
-    max-height: 400px;
-    background: #2e3440;
-    color: #d8dee9;
-    border-radius: 6px;
-    padding: 10px;
-    font-family: monospace;
-    font-size: 11px;
+    bottom: 48px; right: 12px;
+    width: 480px;
+    max-height: 420px;
+    background: #0f172a;
+    color: #cbd5e1;
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    line-height: 1.55;
     white-space: pre-wrap;
     overflow: auto;
     display: none;
     z-index: 500;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(255,255,255,0.08);
   }
   .code-panel.show { display: block; }
+
+  /* Scrollbars (WebKit) - subtle, modern */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: #9ca3af; background-clip: padding-box; border: 2px solid transparent; }
 </style>
 </head>
 <body>
@@ -518,12 +701,12 @@
   <div class="sep"></div>
   <button id="btn-delete" title="Delete selected">Delete</button>
   <div class="sep"></div>
-  <button id="btn-add-state" title="Add state">Add<br>State</button>
-  <button id="btn-add-cp" title="Add choice-point">Add<br>Choice-point</button>
-  <button id="btn-add-trans" title="Add transition">Add<br>Transition</button>
+  <button id="btn-add-state" title="Add state">Add State</button>
+  <button id="btn-add-cp" title="Add choice-point">Add Choice-point</button>
+  <button id="btn-add-trans" title="Add transition">Add Transition</button>
   <div class="sep"></div>
-  <button id="btn-add-iface" title="Add interface">Add<br>Interface</button>
-  <button id="btn-add-msg" title="Add message">Add<br>Message</button>
+  <button id="btn-add-iface" title="Add interface">Add Interface</button>
+  <button id="btn-add-msg" title="Add message">Add Message</button>
   <div class="sep"></div>
   <button id="btn-edit" title="Edit selected">Edit</button>
 </div>
@@ -618,10 +801,11 @@ const Selection = {
   transitions: new Set(),
   start: false,            // START icon selected
   history: false,          // H (history) pseudostate selected
+  any: false,              // * (any) pseudostate selected (wildcard source)
   clearAll() {
     this.states.clear(); this.choicePoints.clear(); this.interfaces.clear();
     this.messages.clear(); this.transitions.clear();
-    this.start = false; this.history = false;
+    this.start = false; this.history = false; this.any = false;
   }
 };
 
@@ -736,6 +920,21 @@ function generatePlantUML(withSelection = false) {
     if (sel) line += " #line:FF0000;line.bold";
     lines.push(line);
   }
+  // ANY pseudostate: one synthetic declaration per transition with source "*"
+  // So that each rendered "*" is distinct in the diagram.
+  const anyIdFor = new Map(); // transition -> synthetic id like "ANY_1"
+  let anyCounter = 0;
+  for (const t of Model.transitions) {
+    if (t.source === "*") {
+      anyCounter++;
+      const id = "ANY_" + anyCounter;
+      anyIdFor.set(t, id);
+      const sel = withSelection && isTransitionFullySelected(t);
+      let line = `state ${id} as "*"`;
+      if (sel) line += " #line:FF0000;line.bold";
+      lines.push(line);
+    }
+  }
   lines.push("");
   lines.push("'== Choice-points ==");
   for (const cp of Model.choicePoints) {
@@ -761,7 +960,8 @@ function generatePlantUML(withSelection = false) {
       // Insert color into arrow: e.g. -[#FF0000,bold]->  or -[#FF0000,bold]up-->
       arrow = arrow.replace(/^-/, "-[#FF0000,bold]");
     }
-    let line = `${t.source} ${arrow} ${t.target}`;
+    const srcRendered = (t.source === "*") ? anyIdFor.get(t) : t.source;
+    let line = `${srcRendered} ${arrow} ${t.target}`;
     if (t.messages && t.messages.length > 0) {
       const parts = t.messages.map(m => {
         const key = transRowKey(t.source, t.target, m.interface, m.name);
@@ -786,6 +986,7 @@ function transRowKey(source, target, iface, name) {
 function nodeLabel(id) {
   if (id === "START") return "●";
   if (id === "[H]") return "H";
+  if (id === "*") return "∗";
   if (id.startsWith("CP_")) {
     const cp = Model.choicePoints.find(c => c.name === id.slice(3));
     if (cp && cp.question) return cp.question.replace(/\\n|\n/g, " ");
@@ -912,6 +1113,17 @@ function buildStateList() {
     refresh();
   });
   ul.appendChild(hLi);
+
+  // * (any) pseudo-state: always present, can only be a transition source (wildcard)
+  const anyLi = document.createElement("li");
+  anyLi.textContent = "∗ (any)";
+  anyLi.classList.add("default-item");
+  if (Selection.any) anyLi.classList.add("selected");
+  anyLi.addEventListener("click", () => {
+    Selection.any = !Selection.any;
+    refresh();
+  });
+  ul.appendChild(anyLi);
 
   const sorted = [...Model.states].sort((a,b) => {
     const an = a.displayName || a.name, bn = b.displayName || b.name;
@@ -1083,43 +1295,45 @@ function canAddTransition() {
   const selMsgs = [...Selection.messages];
   const selStart = Selection.start;
   const selHistory = Selection.history;
-  const totalNodes = selStates.length + selCPs.length + (selStart?1:0) + (selHistory?1:0);
+  const selAny = Selection.any;
+  const totalNodes = selStates.length + selCPs.length + (selStart?1:0) + (selHistory?1:0) + (selAny?1:0);
   const msgs = selMsgs.map(k => k.split(":"));
   const hasYesNo = msgs.some(([i,n]) => i==="Logical" && (n==="Yes"||n==="No"));
   const onlyYesNo = msgs.length > 0 && msgs.every(([i,n]) => i==="Logical" && (n==="Yes"||n==="No"));
 
   // Initial transition: START + 1 state, and START has no transition yet
-  if (selStart && selStates.length === 1 && selCPs.length === 0 && !selHistory && selMsgs.length === 0) {
+  if (selStart && selStates.length === 1 && selCPs.length === 0 && !selHistory && !selAny && selMsgs.length === 0) {
     return !Model.transitions.some(t => t.source === "START");
   }
   // History-target transition: H + exactly one state OR choice-point + >=1 message
-  if (selHistory && !selStart && (selStates.length + selCPs.length) === 1 && selMsgs.length >= 1) {
+  if (selHistory && !selStart && !selAny && (selStates.length + selCPs.length) === 1 && selMsgs.length >= 1) {
     const source = selStates.length === 1 ? selStates[0] : ("CP_" + selCPs[0]);
     if (selCPs.length === 1) {
-      // CP as source: messages must all be Yes/No
       if (!onlyYesNo) return false;
     } else {
-      // State as source: messages must not include Yes/No
       if (hasYesNo) return false;
     }
     return !sourceAlreadyHandlesAnyOf(source, msgs);
   }
+  // ANY-source transition: * + exactly one state OR choice-point + >=1 non-Yes/No message
+  if (selAny && !selStart && !selHistory && (selStates.length + selCPs.length) === 1 && selMsgs.length >= 1) {
+    if (hasYesNo) return false;
+    return !sourceAlreadyHandlesAnyOf("*", msgs);
+  }
   // Self-transition: 1 state + 1+ messages (not Yes/No)
-  if (selStates.length === 1 && selCPs.length === 0 && !selStart && !selHistory && selMsgs.length >= 1) {
+  if (selStates.length === 1 && selCPs.length === 0 && !selStart && !selHistory && !selAny && selMsgs.length >= 1) {
     if (hasYesNo) return false;
     return !sourceAlreadyHandlesAnyOf(selStates[0], msgs);
   }
   // Choice-point source with Yes/No message: 1 CP + 1 other node, only Yes/No messages
-  if (selCPs.length === 1 && !selStart && !selHistory && (selStates.length + selCPs.length) === 2 && selMsgs.length >= 1) {
+  if (selCPs.length === 1 && !selStart && !selHistory && !selAny && (selStates.length + selCPs.length) === 2 && selMsgs.length >= 1) {
     if (!onlyYesNo) return false;
-    // The CP is the source; source must not already handle these messages
     const source = "CP_" + selCPs[0];
     return !sourceAlreadyHandlesAnyOf(source, msgs);
   }
   // Two states (or state + cp) with non-Yes/No messages
-  if (totalNodes === 2 && !selStart && !selHistory && selMsgs.length >= 1) {
+  if (totalNodes === 2 && !selStart && !selHistory && !selAny && selMsgs.length >= 1) {
     if (hasYesNo) return false;
-    // At least one of the two nodes must be a valid source (not already handling these messages)
     const candidates = [
       ...selStates,
       ...selCPs.map(n => "CP_" + n)
@@ -1288,6 +1502,7 @@ function showManual() {
     {id: "interfaces-msgs", title: "Interfaces & Messages"},
     {id: "transitions", title: "Transitions"},
     {id: "history", title: "History State"},
+    {id: "any", title: "ANY State"},
     {id: "selection", title: "Selection"},
     {id: "editing", title: "Editing & Deleting"},
     {id: "files", title: "Saving, Opening & Exporting"},
@@ -1372,10 +1587,11 @@ function manualContent() {
       <h3>Transitions</h3>
       <p>A <strong>transition</strong> describes how the component moves from a <em>source</em> state to a <em>target</em> state when one or more messages are received. Transitions that share a source and target can be grouped — multiple messages on one arrow declutter the diagram.</p>
       <h3>Pseudo-states</h3>
-      <p>Two special non-editable entries appear at the top of the States list:</p>
+      <p>Three special non-editable entries appear at the top of the States list:</p>
       <ul>
         <li><strong>● START</strong> — marks the initial state of the component. Exactly one transition may leave START, and it carries no message.</li>
         <li><strong>H (history)</strong> — targets a "history" pseudostate. See <a href="#m-history" data-target="m-history">History State</a>.</li>
+        <li><strong>∗ (any)</strong> — a wildcard source, the inverse of H. See <a href="#m-any" data-target="m-any">ANY State</a>.</li>
       </ul>
     </section>
 
@@ -1463,6 +1679,21 @@ function manualContent() {
       <p>H only ever appears as a target. You cannot make H a source, and you cannot use H in self-transitions. The PlantUML syntax <code>StateX --&gt; [H]</code> is generated automatically — no explicit declaration is needed, and you can have as many H-targeted transitions as you like.</p>
     </section>
 
+    <section id="m-any">
+      <h2>ANY State</h2>
+      <p>The <strong>ANY pseudostate</strong> is the inverse of H: it represents "from any state", and is drawn as an asterisk (<code>∗</code>). ANY is only ever a <em>source</em> of a transition, never a target.</p>
+      <p>Use ANY when a particular message should cause the same behaviour no matter which concrete state the component is in — for example, a global <em>Reset</em> or <em>PowerOff</em> that applies everywhere. Without ANY, you would have to draw the same outgoing transition from every state in the diagram.</p>
+      <p>To create an ANY-source transition:</p>
+      <ol>
+        <li>Select <strong>∗ (any)</strong> in the States list.</li>
+        <li>Select exactly one target state or choice-point.</li>
+        <li>Select one or more messages (not <code>Yes</code>/<code>No</code>).</li>
+        <li>Click Add Transition.</li>
+      </ol>
+      <p>Each ANY-source transition renders as its own separate <code>∗</code> node in the diagram, so multiple wildcard transitions do not converge on a single point. A given message can only be used on one ANY-source transition at a time — otherwise the behaviour would be ambiguous.</p>
+      <p>ANY can be combined with H: a transition from <code>∗</code> to <code>[H]</code> means "from any state, go back to the last active one".</p>
+    </section>
+
     <section id="m-selection">
       <h2>Selection</h2>
       <p>Selection drives everything. Use it to tell Stadiæ what you are going to do next.</p>
@@ -1529,6 +1760,7 @@ function manualContent() {
         <li>A non-choice-point source's outgoing transitions cannot carry <code>Yes</code> or <code>No</code>.</li>
         <li>The initial (START) transition carries no message; there is at most one.</li>
         <li>H is only ever a target, never a source.</li>
+        <li>ANY (<code>∗</code>) is only ever a source, never a target.</li>
       </ul>
       <h3>Add Transition enablement (quick check)</h3>
       <table class="rules">
@@ -1537,7 +1769,8 @@ function manualContent() {
         <tr><td>1 state + 1+ non-Yes/No messages</td><td>Self-transition</td></tr>
         <tr><td>2 states, or state + CP, + 1+ non-Yes/No messages</td><td>State-to-state or state-to-CP transition</td></tr>
         <tr><td>1 CP + 1 other node + Yes/No messages</td><td>Choice-point outgoing branch</td></tr>
-        <tr><td>H + 1 state or CP + 1+ messages</td><td>History transition (to [H])</td></tr>
+        <tr><td>H + 1 state or CP + 1+ messages</td><td>History transition (to <code>[H]</code>)</td></tr>
+        <tr><td>∗ + 1 state or CP + 1+ non-Yes/No messages</td><td>Wildcard (ANY-source) transition</td></tr>
       </table>
     </section>
 
@@ -1831,7 +2064,7 @@ function actionAddTransition() {
   }
 
   // History-target transition: H + 1 state or CP + messages
-  if (Selection.history && !Selection.start && (selStates.length + selCPs.length) === 1 && selMsgs.length >= 1) {
+  if (Selection.history && !Selection.start && !Selection.any && (selStates.length + selCPs.length) === 1 && selMsgs.length >= 1) {
     pushHistory();
     const source = selStates.length === 1 ? selStates[0] : ("CP_" + selCPs[0]);
     addMessagesToTransition(source, "[H]", selMsgs, "Down");
@@ -1841,8 +2074,19 @@ function actionAddTransition() {
     return;
   }
 
+  // ANY-source transition: * + 1 state or CP + messages
+  if (Selection.any && !Selection.start && !Selection.history && (selStates.length + selCPs.length) === 1 && selMsgs.length >= 1) {
+    pushHistory();
+    const target = selStates.length === 1 ? selStates[0] : ("CP_" + selCPs[0]);
+    addMessagesToTransition("*", target, selMsgs, "Down");
+    Selection.clearAll();
+    for (const m of selMsgs) Selection.transitions.add(transRowKey("*", target, m.interface, m.name));
+    refresh();
+    return;
+  }
+
   // Self-transition: 1 state + messages
-  if (selStates.length === 1 && selCPs.length === 0 && !Selection.start && !Selection.history && selMsgs.length >= 1) {
+  if (selStates.length === 1 && selCPs.length === 0 && !Selection.start && !Selection.history && !Selection.any && selMsgs.length >= 1) {
     pushHistory();
     const state = selStates[0];
     addMessagesToTransition(state, state, selMsgs, "Right");
