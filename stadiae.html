@@ -1616,7 +1616,7 @@ function buildStateList() {
   });
   for (const s of sorted) {
     const li = document.createElement("li");
-    li.textContent = (s.displayName && s.displayName.length > 0) ? s.displayName.replace(/\n/g, " ") : s.name;
+    li.textContent = (s.displayName && s.displayName.length > 0) ? s.displayName.replace(/\\n|\n/g, " ") : s.name;
     if (Selection.states.has(s.name)) li.classList.add("selected");
     li.addEventListener("click", () => {
       if (Selection.states.has(s.name)) Selection.states.delete(s.name);
@@ -1632,7 +1632,7 @@ function buildCPList() {
   const sorted = [...Model.choicePoints].sort((a,b) => (a.question||a.name).localeCompare(b.question||b.name));
   for (const c of sorted) {
     const li = document.createElement("li");
-    li.textContent = (c.question || c.name).replace(/\n/g, " ");
+    li.textContent = (c.question || c.name).replace(/\\n|\n/g, " ");
     if (Selection.choicePoints.has(c.name)) li.classList.add("selected");
     li.addEventListener("click", () => {
       if (Selection.choicePoints.has(c.name)) Selection.choicePoints.delete(c.name);
@@ -2629,8 +2629,8 @@ function openTransitionDialog(existing) {
   modalContainer.innerHTML = `
     <div class="title">Transition properties</div>
     <div class="body">
-      <label>Source state:</label><span class="static-value">${escapeHTML(t.source)}</span>
-      <label>Target state:</label><span class="static-value">${escapeHTML(t.target)}</span>
+      <label>Source state:</label><span class="static-value">${escapeHTML(nodeLabel(t.source))}</span>
+      <label>Target state:</label><span class="static-value">${escapeHTML(nodeLabel(t.target))}</span>
       <label>Messages:</label><span class="static-value">${escapeHTML(msgsStr)}</span>
       <label>Connector type:</label>
       <select id="tr-type">
@@ -2775,18 +2775,19 @@ function actionAddTransition() {
 }
 
 function openTransitionSourceDialog(nodes, msgs) {
+  const opt = id => `<option value="${escapeHTML(id)}">${escapeHTML(nodeLabel(id))}</option>`;
   modalContainer.innerHTML = `
     <div class="title">Add transition</div>
     <div class="body">
       <label>Source state:</label>
       <select id="tr-src">
-        <option value="${nodes[0]}">${nodes[0]}</option>
-        <option value="${nodes[1]}">${nodes[1]}</option>
+        ${opt(nodes[0])}
+        ${opt(nodes[1])}
       </select>
       <label>Target state:</label>
       <select id="tr-tgt">
-        <option value="${nodes[1]}">${nodes[1]}</option>
-        <option value="${nodes[0]}">${nodes[0]}</option>
+        ${opt(nodes[1])}
+        ${opt(nodes[0])}
       </select>
     </div>
     <div class="actions">
@@ -2825,7 +2826,7 @@ function openTransitionSourceDialog(nodes, msgs) {
     if (src === tgt) { showAlert("Error", "Source and target must differ for non-self-transitions."); return; }
     const pairs = msgs.map(m => [m.interface, m.name]);
     if (sourceAlreadyHandlesAnyOf(src, pairs)) {
-      showAlert("Error", `The source "${src}" already handles one of the selected messages.`);
+      showAlert("Error", `The source "${nodeLabel(src)}" already handles one of the selected messages.`);
       return;
     }
     if (isCP(src) && !onlyYesNo) {
