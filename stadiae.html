@@ -1058,10 +1058,12 @@ function generatePlantUML(opts = {}) {
       anyIdFor.set(t, synthId);
       let line = `state ${synthId} as "*"`;
       if (isMask) {
-        // Clicking the * node selects the whole ANY-transition.
-        const id = idAssigner("trans:" + transitionIdKey(t), "transition");
+        // Clicking any "*" selects the ANY pseudostate itself (like clicking
+        // "∗ (any)" in the states list). All rendered "*" nodes share the
+        // same mask id so they all resolve to the same ref.
+        const id = idAssigner("any", "any");
         line += ` #${id};line:${id}`;
-      } else if (withSelection && isTransitionFullySelected(t)) {
+      } else if (withSelection && Selection.any) {
         line += " #line:FF0000;line.bold";
       }
       lines.push(line);
@@ -1247,6 +1249,13 @@ function renderDiagram() {
     // Keep each channel in [40..219] to stay away from pure white (background)
     // and pure black (anti-aliased edges). Different prime strides per channel
     // ensure neighbouring ids don't end up with similar colors.
+    //
+    // NOTE: the strides are all coprime to 180 so each channel cycles through
+    // 180 values with period 180. Because all three channels share that same
+    // period, the full (r,g,b) triple also repeats every 180 ids — giving a
+    // practical ceiling of ~180 elements before exact colour collisions
+    // occur. The collision warning below makes any future exhaustion visible
+    // rather than silent.
     const r = 40 + ((n * 137) % 180);
     const g = 40 + ((n * 73)  % 180);
     const b = 40 + ((n * 211) % 180);
@@ -1254,6 +1263,15 @@ function renderDiagram() {
       r.toString(16).padStart(2, "0") +
       g.toString(16).padStart(2, "0") +
       b.toString(16).padStart(2, "0");
+    if (idToRef.has(hex)) {
+      console.warn(
+        `Stadiæ mask id collision at n=${n}: color #${hex} is already assigned to ` +
+        `${idToRef.get(hex).kind} "${idToRef.get(hex).key}". ` +
+        `Click selection on the newer element "${key}" will be unreliable. ` +
+        `This means the diagram has grown past the ~180-element limit of the ` +
+        `current colour hash.`
+      );
+    }
     idToRef.set(hex, { kind, key });
     nextId++;
     return hex;
@@ -1423,6 +1441,8 @@ function toggleSelection(ref) {
   const { kind, key } = ref;
   if (kind === "start") {
     Selection.start = !Selection.start;
+  } else if (kind === "any") {
+    Selection.any = !Selection.any;
   } else if (kind === "state") {
     const name = key.replace(/^state:/, "");
     if (Selection.states.has(name)) Selection.states.delete(name);
@@ -1462,7 +1482,19 @@ function refresh() {
   buildTransitionTable();
   buildActionPanel();
   updateToolbar();
-  scheduleRender();
+
+  // Only re-render the diagram when something visible has changed. Interface
+  // and message selections affect the lists and Edit-button enablement but
+  // never the rendered diagram — skipping those saves a server round-trip.
+  const visualFingerprint = snapshot() + "|sel:" +
+    [...Selection.states].sort().join(",") + "|cps:" +
+    [...Selection.choicePoints].sort().join(",") + "|trs:" +
+    currentTransKey + "|flags:" +
+    (Selection.start?"s":"") + (Selection.history?"h":"") + (Selection.any?"a":"");
+  if (refresh._lastVisual !== visualFingerprint) {
+    refresh._lastVisual = visualFingerprint;
+    scheduleRender();
+  }
 }
 
 function buildActionPanel() {
@@ -1645,10 +1677,13 @@ function buildMessageList() {
   } else {
     msgs = Model.messages.filter(m => selectedIfaces.includes(m.interface));
   }
-  msgs.sort((a,b) => a.name.localeCompare(b.name));
+  msgs.sort((a,b) => {
+    if (a.interface !== b.interface) return a.interface.localeCompare(b.interface);
+    return a.name.localeCompare(b.name);
+  });
   for (const m of msgs) {
     const li = document.createElement("li");
-    li.textContent = m.name + "  ("+m.interface+")";
+    li.textContent = m.interface + ":" + m.name;
     if (m.isDefault) li.classList.add("default-item");
     const key = m.interface+":"+m.name;
     if (Selection.messages.has(key)) li.classList.add("selected");
@@ -1785,19 +1820,23 @@ function canAddTransition() {
     if (hasYesNo) return false;
     return !sourceAlreadyHandlesAnyOf(selStates[0], msgs);
   }
-  // Choice-point source with Yes/No message: 1 CP + 1 other node, only Yes/No messages
-  if (selCPs.length === 1 && !selStart && !selHistory && !selAny && (selStates.length + selCPs.length) === 2 && selMsgs.length >= 1) {
-    if (!onlyYesNo) return false;
-    const source = "CP_" + selCPs[0];
-    return !sourceAlreadyHandlesAnyOf(source, msgs);
-  }
-  // Two states (or state + cp) with non-Yes/No messages
+  // Two-node transition: one or two states/CPs, plus at least one message.
+  // The direction is constrained by the domain rules:
+  //   - States cannot source Yes/No messages (those come out of CPs).
+  //   - CPs cannot source non-Yes/No messages (the CP is a decision node).
+  // So whichever node can legitimately be the source must satisfy those
+  // rules and must not already handle the selected messages.
   if (totalNodes === 2 && !selStart && !selHistory && !selAny && selMsgs.length >= 1) {
-    if (hasYesNo) return false;
-    const candidates = [
-      ...selStates,
-      ...selCPs.map(n => "CP_" + n)
-    ];
+    // Mixing Yes/No with other messages on the same transition is not allowed
+    if (hasYesNo && !onlyYesNo) return false;
+    const allNodes = [...selStates, ...selCPs.map(n => "CP_" + n)];
+    const isCP = name => name.startsWith("CP_");
+    const candidates = allNodes.filter(n => {
+      if (isCP(n) && !onlyYesNo) return false;
+      if (!isCP(n) && onlyYesNo) return false;
+      return true;
+    });
+    if (candidates.length === 0) return false;
     return candidates.some(s => !sourceAlreadyHandlesAnyOf(s, msgs));
   }
   return false;
@@ -1836,9 +1875,16 @@ function canEdit() {
     const name = [...Selection.interfaces][0];
     return !isDefaultInterface(name);
   }
-  if (m === 1 && otherTotal === 1 && t === 0) {
-    const [iface,name] = [...Selection.messages][0].split(":");
-    return !isDefaultMessage(iface, name);
+  // Editing a message: the message's own interface is expected to be
+  // co-selected (the Messages list only shows messages of selected
+  // interfaces), so allow that specific combination as well.
+  if (m === 1 && t === 0 && s === 0 && c === 0) {
+    const [iface, name] = [...Selection.messages][0].split(":");
+    if (isDefaultMessage(iface, name)) return false;
+    // Either nothing else is selected, or only the message's own interface is
+    if (i === 0) return true;
+    if (i === 1 && Selection.interfaces.has(iface)) return true;
+    return false;
   }
   // Transitions: exactly one transition has all its rows selected, and no other transition has any row selected
   if (t >= 1 && otherTotal === 0) {
@@ -1856,6 +1902,40 @@ function canEdit() {
 // ---------- Modal dialogs ----------
 const modalOverlay = document.getElementById("modal-overlay");
 const modalContainer = document.getElementById("modal-container");
+
+// Dialog-level keyboard shortcuts: Enter triggers the primary action button
+// (first non-cancel button in .actions), Escape triggers cancel (or close).
+// Attached to document with capture=true so we see the event before the
+// global shortcut handler and can stop it from also running.
+document.addEventListener("keydown", (e) => {
+  if (!modalOverlay.classList.contains("show")) return;
+  // Enter in a textarea = newline, leave it alone
+  if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") {
+    const actions = modalContainer.querySelector(".actions");
+    if (!actions) return;
+    const buttons = actions.querySelectorAll("button");
+    let primary = null;
+    for (const b of buttons) { if (!b.classList.contains("cancel")) { primary = b; break; } }
+    if (primary && !primary.disabled) {
+      e.preventDefault();
+      e.stopPropagation();
+      primary.click();
+    }
+  } else if (e.key === "Escape") {
+    const actions = modalContainer.querySelector(".actions");
+    e.preventDefault();
+    e.stopPropagation();
+    if (!actions) { hideModal(); return; }
+    const cancel = actions.querySelector("button.cancel");
+    if (cancel) cancel.click();
+    else {
+      // No explicit cancel — use the sole button if present, else just close
+      const buttons = actions.querySelectorAll("button");
+      if (buttons.length === 1) buttons[0].click();
+      else hideModal();
+    }
+  }
+}, true);
 
 function showModal(html) {
   modalContainer.innerHTML = html;
@@ -2254,6 +2334,8 @@ function manualContent() {
         <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo</td></tr>
         <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Redo</td></tr>
         <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>Delete selected</td></tr>
+        <tr><td><kbd>Enter</kbd></td><td>Edit the selected element (opens the same dialog as the Edit button). Inside a dialog, confirm (same as clicking OK).</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close the current dialog (same as clicking Cancel).</td></tr>
         <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Change the direction of the selected transition. Repeatedly pressing <kbd>↑</kbd> or <kbd>↓</kbd> also extends the arrow length.</td></tr>
       </table>
       <p>Shortcuts are suspended while you are typing in a dialog field so they don't interfere with editing.</p>
@@ -2309,8 +2391,28 @@ function openStateDialog(existing=null) {
     pushHistory();
     const dn = dnI.value;
     if (existing) {
+      const oldName = existing.name;
       existing.name = name; existing.displayName = dn;
-      // update transitions referencing old name
+      if (oldName !== name) {
+        // update transitions referencing old name
+        Model.transitions.forEach(t => {
+          if (t.source === oldName) t.source = name;
+          if (t.target === oldName) t.target = name;
+        });
+        // update selection keys
+        if (Selection.states.has(oldName)) {
+          Selection.states.delete(oldName);
+          Selection.states.add(name);
+        }
+        const newTransKeys = new Set();
+        for (const key of Selection.transitions) {
+          const parts = key.split("|");
+          if (parts[0] === oldName) parts[0] = name;
+          if (parts[1] === oldName) parts[1] = name;
+          newTransKeys.add(parts.join("|"));
+        }
+        Selection.transitions = newTransKeys;
+      }
     } else {
       Model.states.push({name, displayName: dn});
     }
@@ -2354,7 +2456,31 @@ function openCPDialog(existing=null) {
     }
     pushHistory();
     const q = qI.value;
-    if (existing) { existing.name = name; existing.question = q; }
+    if (existing) {
+      const oldName = existing.name;
+      existing.name = name; existing.question = q;
+      if (oldName !== name) {
+        // transitions refer to CPs with the "CP_" prefix baked in
+        const oldKey = "CP_" + oldName;
+        const newKey = "CP_" + name;
+        Model.transitions.forEach(t => {
+          if (t.source === oldKey) t.source = newKey;
+          if (t.target === oldKey) t.target = newKey;
+        });
+        if (Selection.choicePoints.has(oldName)) {
+          Selection.choicePoints.delete(oldName);
+          Selection.choicePoints.add(name);
+        }
+        const newTransKeys = new Set();
+        for (const key of Selection.transitions) {
+          const parts = key.split("|");
+          if (parts[0] === oldKey) parts[0] = newKey;
+          if (parts[1] === oldKey) parts[1] = newKey;
+          newTransKeys.add(parts.join("|"));
+        }
+        Selection.transitions = newTransKeys;
+      }
+    }
     else { Model.choicePoints.push({name, question: q}); Selection.choicePoints.add(name); }
     hideModal();
     refresh();
@@ -2397,6 +2523,24 @@ function openInterfaceDialog(existing=null) {
       Model.messages.forEach(m => { if (m.interface === old) m.interface = name; });
       // update transitions' message refs
       Model.transitions.forEach(t => t.messages.forEach(m => { if (m.interface === old) m.interface = name; }));
+      // update selection keys that referenced the old interface name
+      if (Selection.interfaces.has(old)) {
+        Selection.interfaces.delete(old);
+        Selection.interfaces.add(name);
+      }
+      const newMsgKeys = new Set();
+      for (const key of Selection.messages) {
+        const [k_iface, ...rest] = key.split(":");
+        newMsgKeys.add((k_iface === old ? name : k_iface) + ":" + rest.join(":"));
+      }
+      Selection.messages = newMsgKeys;
+      const newTransKeys = new Set();
+      for (const key of Selection.transitions) {
+        const parts = key.split("|");
+        if (parts[2] === old) parts[2] = name;
+        newTransKeys.add(parts.join("|"));
+      }
+      Selection.transitions = newTransKeys;
     } else {
       Model.interfaces.push({name, isDefault: false});
       Selection.interfaces.clear();
@@ -2449,6 +2593,25 @@ function openMessageDialog(existing=null) {
       Model.transitions.forEach(t => t.messages.forEach(m => {
         if (m.interface===iface && m.name===oldName) m.name = name;
       }));
+      // update selection keys that referenced the old name
+      const oldKey = iface + ":" + oldName;
+      const newKey = iface + ":" + name;
+      if (Selection.messages.has(oldKey)) {
+        Selection.messages.delete(oldKey);
+        Selection.messages.add(newKey);
+      }
+      // transition row selection keys embed the message name too — fix any that match
+      const newTransKeys = new Set();
+      for (const key of Selection.transitions) {
+        const parts = key.split("|");
+        if (parts[2] === iface && parts[3] === oldName) {
+          parts[3] = name;
+          newTransKeys.add(parts.join("|"));
+        } else {
+          newTransKeys.add(key);
+        }
+      }
+      Selection.transitions = newTransKeys;
     } else {
       Model.messages.push({interface: iface, name, isDefault: false});
     }
@@ -2567,10 +2730,45 @@ function actionAddTransition() {
     return;
   }
 
-  // Otherwise: two nodes (states and/or CPs)
+  // Otherwise: two nodes (states and/or CPs). If the direction is
+  // structurally determined by the domain rules (CPs can only source
+  // Yes/No; states cannot), skip the dialog and add the transition
+  // directly. Only show the picker when both directions remain
+  // legitimate (state+state with non-Yes/No, or CP+CP with Yes/No).
   const allNodes = [...selStates, ...selCPs.map(n => "CP_"+n)];
   if (allNodes.length === 2 && selMsgs.length >= 1) {
-    // Ask user for source/target assignment via a small dialog
+    const msgPairs = selMsgs.map(m => [m.interface, m.name]);
+    const onlyYesNo = msgPairs.every(([i,n]) => i==="Logical" && (n==="Yes"||n==="No"));
+    const isCP = name => name.startsWith("CP_");
+
+    // Determine the valid source direction(s)
+    const validAsSource = (src) => {
+      if (isCP(src) && !onlyYesNo) return false;   // CPs can only source Yes/No
+      if (!isCP(src) && onlyYesNo) return false;   // states cannot source Yes/No
+      if (sourceAlreadyHandlesAnyOf(src, msgPairs)) return false;
+      return true;
+    };
+    const n0valid = validAsSource(allNodes[0]);
+    const n1valid = validAsSource(allNodes[1]);
+
+    if (n0valid && !n1valid) {
+      // Unambiguous: allNodes[0] is the source
+      pushHistory();
+      addMessagesToTransition(allNodes[0], allNodes[1], selMsgs, "Down");
+      Selection.clearAll();
+      for (const m of selMsgs) Selection.transitions.add(transRowKey(allNodes[0], allNodes[1], m.interface, m.name));
+      refresh();
+      return;
+    }
+    if (n1valid && !n0valid) {
+      pushHistory();
+      addMessagesToTransition(allNodes[1], allNodes[0], selMsgs, "Down");
+      Selection.clearAll();
+      for (const m of selMsgs) Selection.transitions.add(transRowKey(allNodes[1], allNodes[0], m.interface, m.name));
+      refresh();
+      return;
+    }
+    // Both directions valid — genuine ambiguity, ask the user
     openTransitionSourceDialog(allNodes, selMsgs);
     return;
   }
@@ -2603,18 +2801,35 @@ function openTransitionSourceDialog(nodes, msgs) {
     // auto-flip target
     tgtS.value = (srcS.value === nodes[0]) ? nodes[1] : nodes[0];
   });
-  // Default to a valid source if one of the two already handles the messages
+  // Default to a valid source. Two constraints: the source can't already
+  // handle the given messages, and a choice-point can only be a source for
+  // Yes/No messages (per the domain rules). If only one of the two nodes
+  // is a valid source given these constraints, preselect it.
   const msgsAsPairs = msgs.map(m => [m.interface, m.name]);
-  if (sourceAlreadyHandlesAnyOf(nodes[0], msgsAsPairs) && !sourceAlreadyHandlesAnyOf(nodes[1], msgsAsPairs)) {
+  const onlyYesNo = msgsAsPairs.length > 0 && msgsAsPairs.every(([i,n]) => i==="Logical" && (n==="Yes"||n==="No"));
+  const isCP = (name) => name.startsWith("CP_");
+  const validSource = (name) => {
+    if (isCP(name) && !onlyYesNo) return false;
+    if (sourceAlreadyHandlesAnyOf(name, msgsAsPairs)) return false;
+    return true;
+  };
+  if (validSource(nodes[1]) && !validSource(nodes[0])) {
     srcS.value = nodes[1];
     tgtS.value = nodes[0];
+  } else if (validSource(nodes[0]) && !validSource(nodes[1])) {
+    srcS.value = nodes[0];
+    tgtS.value = nodes[1];
   }
   document.getElementById("ok").onclick = () => {
     const src = srcS.value, tgt = tgtS.value;
     if (src === tgt) { showAlert("Error", "Source and target must differ for non-self-transitions."); return; }
-    const msgsAsPairs = msgs.map(m => [m.interface, m.name]);
-    if (sourceAlreadyHandlesAnyOf(src, msgsAsPairs)) {
+    const pairs = msgs.map(m => [m.interface, m.name]);
+    if (sourceAlreadyHandlesAnyOf(src, pairs)) {
       showAlert("Error", `The source "${src}" already handles one of the selected messages.`);
+      return;
+    }
+    if (isCP(src) && !onlyYesNo) {
+      showAlert("Error", "A choice-point can only be the source of a transition carrying Yes/No messages.");
       return;
     }
     pushHistory();
@@ -2671,9 +2886,18 @@ function actionDelete() {
     Model.transitions = Model.transitions.filter(t => t.source==="START" || t.messages.length>0);
   }
 
-  // Delete interfaces (removes all their messages and transition refs)
+  // Delete interfaces (removes all their messages and transition refs).
+  // However, if any of an interface's messages are individually selected,
+  // the user's intent is the message, not the whole interface — the
+  // interface is co-selected only because list visibility requires it.
+  // Skip interface deletion in that case.
+  const ifacesWithSelectedMessages = new Set();
+  for (const key of Selection.messages) {
+    ifacesWithSelectedMessages.add(key.split(":")[0]);
+  }
   for (const iname of Selection.interfaces) {
     if (isDefaultInterface(iname)) continue;
+    if (ifacesWithSelectedMessages.has(iname)) continue;
     Model.interfaces = Model.interfaces.filter(i => i.name !== iname);
     Model.messages = Model.messages.filter(m => m.interface !== iname);
     Model.transitions.forEach(t => {
@@ -2707,12 +2931,15 @@ function actionEdit() {
   } else if (Selection.choicePoints.size === 1) {
     const name = [...Selection.choicePoints][0];
     openCPDialog(Model.choicePoints.find(c => c.name === name));
+  } else if (Selection.messages.size === 1) {
+    // Check messages before interfaces: the message's own interface is
+    // expected to be co-selected (it gates list visibility), and the user's
+    // intent with the message selected is to edit the message.
+    const [iface, name] = [...Selection.messages][0].split(":");
+    openMessageDialog(Model.messages.find(m => m.interface===iface && m.name===name));
   } else if (Selection.interfaces.size === 1) {
     const name = [...Selection.interfaces][0];
     openInterfaceDialog(Model.interfaces.find(i => i.name === name));
-  } else if (Selection.messages.size === 1) {
-    const [iface, name] = [...Selection.messages][0].split(":");
-    openMessageDialog(Model.messages.find(m => m.interface===iface && m.name===name));
   } else if (Selection.transitions.size >= 1) {
     const target = Model.transitions.find(isTransitionFullySelected);
     if (target) openTransitionDialog(target);
@@ -3169,6 +3396,9 @@ function changeTransitionDirectionByKey(direction) {
 
 // Keyboard shortcuts
 document.addEventListener("keydown", e => {
+  // While a modal is open, the dialog-level handler (attached in capture
+  // phase above) owns the keyboard. Skip all global shortcuts.
+  if (modalOverlay.classList.contains("show")) return;
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
   if (e.ctrlKey || e.metaKey) {
     if (e.key === "z") { e.preventDefault(); undo(); }
@@ -3178,6 +3408,12 @@ document.addEventListener("keydown", e => {
     else if (e.key === "o") { e.preventDefault(); openFile(); }
   } else if (e.key === "Delete" || e.key === "Backspace") {
     if (!document.getElementById("btn-delete").disabled) actionDelete();
+  } else if (e.key === "Enter") {
+    // Enter opens the Edit dialog for the current selection, when valid.
+    if (!document.getElementById("btn-edit").disabled) {
+      e.preventDefault();
+      actionEdit();
+    }
   } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" ||
              e.key === "ArrowUp"   || e.key === "ArrowDown") {
     const dir = { ArrowLeft: "Left", ArrowRight: "Right",
