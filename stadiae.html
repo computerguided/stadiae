@@ -754,6 +754,8 @@
       <div class="item" data-action="change-name">Change name...</div>
       <div class="item" data-action="change-tfont">Change transition font size...</div>
       <div class="item" data-action="change-sfont">Change state font size...</div>
+      <div class="separator"></div>
+      <div class="item" data-action="copy-transitions-md">Copy transitions as Markdown table...</div>
     </div>
   </div>
   <div class="menu" data-menu="help">Help
@@ -955,24 +957,30 @@ function plantUMLImageURL(source) {
 //         diagram with unique element colors, invisible text, thick arrows.
 //   idAssigner: in mask mode, a function (key, kind) => colorStr that also
 //               records the mapping in an external Map. See renderDiagram.
-// A session-unique salt woven into every generated PlantUML source as a
-// comment. This makes every URL from this session distinct from any other
-// browser session's URLs, sidestepping any server-side PNG cache key
-// collisions that have been observed to occasionally return the "wrong"
-// rendered image for a request.
-const SESSION_SALT = Math.random().toString(36).slice(2, 12) + "-" + Date.now().toString(36);
+// Per-render salt woven into every generated PlantUML source as a comment.
+// Each render increments the counter so the server can never serve a
+// previously-cached PNG in response to a new request, defeating observed
+// cache collisions where two structurally-similar requests end up sharing
+// one cache entry.
+const SESSION_PREFIX = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+let renderSalt = 0;
+function nextRenderSalt() {
+  renderSalt++;
+  return SESSION_PREFIX + "-" + renderSalt.toString(36);
+}
 
 function generatePlantUML(opts = {}) {
-  const { withSelection = false, mode = "visible", idAssigner = null, includeSalt = true } = opts;
+  const { withSelection = false, mode = "visible", idAssigner = null, includeSalt = true, salt = null } = opts;
   const isMask = mode === "mask";
   const lines = [];
   lines.push("@startuml");
-  // Mode + session salt — guarantees each generated source is distinct
-  // against other modes and other sessions, defeating any server-side
-  // cache collisions. Exports omit this (includeSalt: false) so saved
-  // .puml files stay clean.
+  // Mode + per-render salt — guarantees each generated source is unique
+  // across renders AND across sessions. Defeats server-side PNG cache
+  // collisions. Exports omit this (includeSalt: false) so saved .puml
+  // files stay clean.
   if (includeSalt) {
-    lines.push(`' mode: ${isMask ? "selection-mask" : "visible"} session: ${SESSION_SALT}`);
+    const tag = salt || nextRenderSalt();
+    lines.push(`' mode: ${isMask ? "selection-mask" : "visible"} render: ${tag}`);
   }
   lines.push("'== Formatting ==");
   lines.push("hide empty description");
@@ -1441,6 +1449,12 @@ function toggleSelection(ref) {
 
 // ---------- UI building ----------
 function refresh() {
+  // Selection changes end any in-progress arrow-key adjustment session.
+  const currentTransKey = [...Selection.transitions].sort().join(",");
+  if (refresh._lastTransSelection !== currentTransKey) {
+    arrowKeySession = { key: null, direction: null };
+    refresh._lastTransSelection = currentTransKey;
+  }
   buildStateList();
   buildCPList();
   buildInterfaceList();
@@ -2112,6 +2126,7 @@ function manualContent() {
       <p>Add more messages to an existing transition by selecting the same source and target plus the extra messages, then clicking Add Transition again. The messages stack on the same arrow with <code>\\n</code> separators, decluttering the diagram.</p>
       <h3>Connector direction and length</h3>
       <p>Select a transition (all its rows) and click Edit. The Transition Properties dialog lets you pick <em>Right</em>, <em>Left</em>, <em>Up</em>, or <em>Down</em>. For Up and Down you can also set a length (number of dashes) to spread the arrow further — useful when PlantUML's auto-layout overlaps arrows.</p>
+      <p><strong>Shortcut:</strong> with a transition selected, the arrow keys (<kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd>) change the connector direction directly. Repeatedly pressing <kbd>↑</kbd> or <kbd>↓</kbd> extends the arrow length by one dash each press. Self-transitions are fixed at <code>-&gt;</code> and cannot be redirected.</p>
       <h3>Documenting the action</h3>
       <p>Each transition row can carry a free-text <strong>action</strong> describing what the component does when that specific (source, target, message) transition fires. This is developer documentation — actions are stored in the saved <code>.json</code> file and visible in the editor's <em>Action</em> panel, but they are intentionally <em>not</em> included in the generated PlantUML so the diagram stays uncluttered.</p>
       <p>To document a transition's action: select a single row in the transitions table. The Action panel below the table switches from a placeholder to an editable text area. Type the description; it is saved to the model as you type. Rows that have a non-empty action show a small indicator dot in the leftmost column of the transitions table.</p>
@@ -2193,6 +2208,8 @@ function manualContent() {
       <p>Writes the clean PlantUML source (no selection highlighting) to a <code>.puml</code> file. Feed this to any PlantUML tool, check it into source control, or paste it into an online PlantUML renderer.</p>
       <h3>Export as PNG</h3>
       <p>Downloads the currently rendered diagram as a PNG image. Useful for embedding in reports and slides.</p>
+      <h3>Copy transitions as Markdown</h3>
+      <p>Under <em>Component → Copy transitions as Markdown table…</em>, Stadiæ produces a markdown table of every transition, with columns <em>Source</em>, <em>Target</em>, <em>Interface</em>, <em>Message</em>, and <em>Action</em>. Source and target use their display names / questions, and newlines inside cells become <code>&lt;br&gt;</code> so the markdown stays well-formed. Click <em>Copy to clipboard</em> or just select-all in the textarea and paste elsewhere.</p>
       <div class="tip">Exports always use the unselected (clean) version of the diagram — the red highlighting you may have on screen is not baked into the output.</div>
     </section>
 
@@ -2237,6 +2254,7 @@ function manualContent() {
         <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo</td></tr>
         <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Redo</td></tr>
         <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>Delete selected</td></tr>
+        <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Change the direction of the selected transition. Repeatedly pressing <kbd>↑</kbd> or <kbd>↓</kbd> also extends the arrow length.</td></tr>
       </table>
       <p>Shortcuts are suspended while you are typing in a dialog field so they don't interfere with editing.</p>
     </section>
@@ -2776,6 +2794,104 @@ function downloadJSON(filename) {
   URL.revokeObjectURL(a.href);
 }
 
+// Build a markdown table of all transitions.
+// Columns: Source | Target | Interface | Message | Action
+// Uses display labels (state.displayName, cp.question) for source/target so
+// the exported table is human-readable. Cells that contain pipes, newlines
+// or HTML characters are escaped/normalised so the markdown table stays valid.
+function buildTransitionsMarkdown() {
+  const esc = s => {
+    if (s == null) return "";
+    return String(s)
+      // Convert literal "\n" sequences (as typed by the user in multi-line
+      // display names / questions) and actual newlines to <br> so the cell
+      // stays on one row.
+      .replace(/\\n/g, "<br>")
+      .replace(/\r?\n/g, "<br>")
+      // Escape pipes, which would otherwise break the markdown table layout.
+      .replace(/\|/g, "\\|");
+  };
+
+  const headers = ["Source", "Target", "Interface", "Message", "Action"];
+  const sep = headers.map(() => "---");
+  const rows = [];
+
+  // Flatten each transition into one row per message. Initial transitions
+  // (messageless) produce a single row with empty Interface/Message/Action.
+  const flat = [];
+  for (const t of Model.transitions) {
+    if (!t.messages || t.messages.length === 0) {
+      flat.push({ t, iface: "", msg: "", action: "" });
+    } else {
+      for (const m of t.messages) {
+        flat.push({ t, iface: m.interface, msg: m.name, action: m.action || "" });
+      }
+    }
+  }
+  flat.sort((a, b) => {
+    const srcA = nodeLabel(a.t.source), srcB = nodeLabel(b.t.source);
+    if (srcA !== srcB) return srcA.localeCompare(srcB);
+    const tgtA = nodeLabel(a.t.target), tgtB = nodeLabel(b.t.target);
+    if (tgtA !== tgtB) return tgtA.localeCompare(tgtB);
+    if (a.iface !== b.iface) return a.iface.localeCompare(b.iface);
+    return a.msg.localeCompare(b.msg);
+  });
+
+  for (const r of flat) {
+    rows.push([
+      esc(nodeLabel(r.t.source)),
+      esc(nodeLabel(r.t.target)),
+      esc(r.iface),
+      esc(r.msg),
+      esc(r.action),
+    ]);
+  }
+
+  const lines = [];
+  lines.push("| " + headers.join(" | ") + " |");
+  lines.push("| " + sep.join(" | ") + " |");
+  for (const row of rows) lines.push("| " + row.join(" | ") + " |");
+  return lines.join("\n");
+}
+
+function showTransitionsMarkdown() {
+  const md = buildTransitionsMarkdown();
+  modalContainer.innerHTML = `
+    <div class="title">Transitions as Markdown</div>
+    <div class="body" style="display:block;">
+      <p style="margin:0 0 10px 0; font-size:12.5px; color:var(--text-muted);">
+        A markdown table of all transitions, ordered by source. Paste it into your docs or tickets.
+      </p>
+      <textarea id="md-text" readonly style="width:100%; min-width:600px; height:300px; font-family:'SF Mono',Menlo,Consolas,monospace; font-size:12px; padding:10px; border:1px solid var(--border-strong); border-radius:6px; resize:vertical; background:var(--surface-2); color:var(--text);"></textarea>
+    </div>
+    <div class="actions">
+      <button id="md-copy">Copy to clipboard</button>
+      <button id="md-close" class="cancel">Close</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const ta = document.getElementById("md-text");
+  ta.value = md;
+  ta.focus();
+  ta.select();
+
+  const copyBtn = document.getElementById("md-copy");
+  copyBtn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(md);
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => { copyBtn.textContent = "Copy to clipboard"; }, 1500);
+    } catch (_e) {
+      // Fallback: use the textarea's native selection copy
+      ta.select();
+      document.execCommand("copy");
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => { copyBtn.textContent = "Copy to clipboard"; }, 1500);
+    }
+  };
+  document.getElementById("md-close").onclick = hideModal;
+}
+
 function exportPUML() {
   const base = (Model.componentName || "diagram").replace(/\s+/g, "_");
   showPrompt("Export as PlantUML", "File name:", base + ".puml", null, (filename) => {
@@ -2895,6 +3011,9 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
           v => (/^\d+$/.test(v) && +v>=6 && +v<=40) ? null : "Enter a number between 6 and 40",
           v => { pushHistory(); Model.stateFontSize = parseInt(v,10); refresh(); });
         break;
+      case "copy-transitions-md":
+        showTransitionsMarkdown();
+        break;
       case "manual":
         showManual();
         break;
@@ -3001,6 +3120,53 @@ window.addEventListener("beforeunload", e => {
   if (Model.dirty) { e.preventDefault(); e.returnValue = ""; }
 });
 
+// Arrow-key session tracking: repeated presses of the same direction on the
+// same transition coalesce into a single history snapshot, so "Up Up Up" is
+// one undo step rather than three.
+let arrowKeySession = { key: null, direction: null };
+
+// Which transition (if any) is a sole "fully selected" transition, with
+// nothing else selected? That's the one arrow keys operate on.
+function soleFullySelectedTransition() {
+  const otherSel = Selection.states.size + Selection.choicePoints.size +
+                   Selection.interfaces.size + Selection.messages.size +
+                   (Selection.start?1:0) + (Selection.history?1:0) + (Selection.any?1:0);
+  if (otherSel !== 0 || Selection.transitions.size === 0) return null;
+  const fully = Model.transitions.filter(isTransitionFullySelected);
+  const partially = Model.transitions.filter(t =>
+    !isTransitionFullySelected(t) && isTransitionPartiallySelected(t));
+  if (fully.length !== 1 || partially.length !== 0) return null;
+  const rows = transRowKeys(fully[0]);
+  if (rows.length !== Selection.transitions.size) return null;
+  return fully[0];
+}
+
+function changeTransitionDirectionByKey(direction) {
+  const t = soleFullySelectedTransition();
+  if (!t) return false;
+  // Self-transitions always use -> (per the design spec)
+  if (t.source === t.target) return false;
+
+  const sessionKey = transitionIdKey(t);
+  const sameSession = (arrowKeySession.key === sessionKey &&
+                       arrowKeySession.direction === direction);
+
+  if (!sameSession) {
+    pushHistory();
+    arrowKeySession = { key: sessionKey, direction };
+  }
+
+  // Repeated Up/Down presses extend the arrow length; other directions reset to 1.
+  if (sameSession && (direction === "Up" || direction === "Down")) {
+    t.length = (t.length || 1) + 1;
+  } else {
+    t.connector = direction;
+    t.length = 1;
+  }
+  refresh();
+  return true;
+}
+
 // Keyboard shortcuts
 document.addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
@@ -3012,6 +3178,14 @@ document.addEventListener("keydown", e => {
     else if (e.key === "o") { e.preventDefault(); openFile(); }
   } else if (e.key === "Delete" || e.key === "Backspace") {
     if (!document.getElementById("btn-delete").disabled) actionDelete();
+  } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" ||
+             e.key === "ArrowUp"   || e.key === "ArrowDown") {
+    const dir = { ArrowLeft: "Left", ArrowRight: "Right",
+                  ArrowUp: "Up", ArrowDown: "Down" }[e.key];
+    if (changeTransitionDirectionByKey(dir)) e.preventDefault();
+  } else {
+    // Any other key ends the arrow-key session so a later Up/Down starts fresh
+    arrowKeySession = { key: null, direction: null };
   }
 });
 
