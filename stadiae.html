@@ -955,11 +955,25 @@ function plantUMLImageURL(source) {
 //         diagram with unique element colors, invisible text, thick arrows.
 //   idAssigner: in mask mode, a function (key, kind) => colorStr that also
 //               records the mapping in an external Map. See renderDiagram.
+// A session-unique salt woven into every generated PlantUML source as a
+// comment. This makes every URL from this session distinct from any other
+// browser session's URLs, sidestepping any server-side PNG cache key
+// collisions that have been observed to occasionally return the "wrong"
+// rendered image for a request.
+const SESSION_SALT = Math.random().toString(36).slice(2, 12) + "-" + Date.now().toString(36);
+
 function generatePlantUML(opts = {}) {
-  const { withSelection = false, mode = "visible", idAssigner = null } = opts;
+  const { withSelection = false, mode = "visible", idAssigner = null, includeSalt = true } = opts;
   const isMask = mode === "mask";
   const lines = [];
   lines.push("@startuml");
+  // Mode + session salt — guarantees each generated source is distinct
+  // against other modes and other sessions, defeating any server-side
+  // cache collisions. Exports omit this (includeSalt: false) so saved
+  // .puml files stay clean.
+  if (includeSalt) {
+    lines.push(`' mode: ${isMask ? "selection-mask" : "visible"} session: ${SESSION_SALT}`);
+  }
   lines.push("'== Formatting ==");
   lines.push("hide empty description");
   lines.push("skinparam Arrow {");
@@ -1192,7 +1206,15 @@ const maskState = {
 };
 maskState.ctx = maskState.canvas.getContext("2d", { willReadFrequently: true });
 
+// Monotonically-increasing render sequence. Each call to renderDiagram
+// bumps this; image load callbacks from earlier renders check they're
+// still current before touching the DOM or mask state. This prevents a
+// late-arriving image from a cancelled render from overwriting the UI
+// with stale content.
+let renderSeq = 0;
+
 function renderDiagram() {
+  const myRenderSeq = ++renderSeq;
   const panel = document.getElementById("canvas-panel");
 
   // === Build visible source (with selection highlighting) ===
@@ -1242,6 +1264,8 @@ function renderDiagram() {
   const visibleImg = new Image();
   visibleImg.crossOrigin = "anonymous";
   visibleImg.onload = () => {
+    // Ignore late arrivals from a superseded render
+    if (myRenderSeq !== renderSeq) return;
     panel.innerHTML = "";
     visibleImg.style.cursor = "default";
     visibleImg.addEventListener("click", onDiagramClick);
@@ -1250,6 +1274,7 @@ function renderDiagram() {
     panel.appendChild(visibleImg);
   };
   visibleImg.onerror = () => {
+    if (myRenderSeq !== renderSeq) return;
     panel.innerHTML = '<div class="error">Could not render diagram.\nThe PlantUML server may be unreachable, or the diagram is invalid.</div>';
   };
   visibleImg.src = visibleUrl;
@@ -1257,6 +1282,9 @@ function renderDiagram() {
   const maskImg = new Image();
   maskImg.crossOrigin = "anonymous";
   maskImg.onload = () => {
+    // Ignore late arrivals from a superseded render — otherwise a slow mask
+    // from an earlier state could overwrite the current valid mask.
+    if (myRenderSeq !== renderSeq) return;
     try {
       maskState.canvas.width = maskImg.naturalWidth;
       maskState.canvas.height = maskImg.naturalHeight;
@@ -1273,6 +1301,7 @@ function renderDiagram() {
     }
   };
   maskImg.onerror = () => {
+    if (myRenderSeq !== renderSeq) return;
     // No mask — clicks will just clear selection, same as before.
     maskState.ready = false;
   };
@@ -2752,7 +2781,7 @@ function exportPUML() {
   showPrompt("Export as PlantUML", "File name:", base + ".puml", null, (filename) => {
     if (!filename.endsWith(".puml")) filename += ".puml";
     // Use the unselected (clean) PlantUML source — no red selection styling
-    const src = generatePlantUML({ withSelection: false });
+    const src = generatePlantUML({ withSelection: false, includeSalt: false });
     const blob = new Blob([src], { type: "text/plain" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -2767,7 +2796,7 @@ function exportPNG() {
   showPrompt("Export as PNG", "File name:", base + ".png", null, (filename) => {
     if (!filename.endsWith(".png")) filename += ".png";
     // Request a fresh render without selection styling, then download
-    const src = generatePlantUML({ withSelection: false });
+    const src = generatePlantUML({ withSelection: false, includeSalt: false });
     const url = plantUMLImageURL(src);
     // Fetch as blob so we can save it locally
     fetch(url)
