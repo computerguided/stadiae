@@ -264,6 +264,125 @@
     text-transform: uppercase;
     color: var(--text-muted);
     border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .list-box .header-add {
+    all: unset;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    transition: all 0.12s;
+  }
+  .list-box .header-add:hover {
+    background: var(--accent);
+    color: white;
+  }
+  .list-box .header-add:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .list-box .header-add:disabled:hover {
+    background: transparent;
+    color: var(--text-muted);
+  }
+  /* === System panel (interfaces + messages, shared across components) === */
+  .system-panel {
+    flex: 0 0 auto;
+    height: 160px;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+  }
+  .system-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+  }
+  /* === Tab bar (component switcher) === */
+  .tab-bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border-strong);
+    padding: 0 4px;
+  }
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px 7px 14px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+    position: relative;
+    top: 1px;
+  }
+  .tab:hover {
+    background: var(--accent-soft);
+    color: var(--text);
+  }
+  .tab.active {
+    background: var(--surface);
+    border-color: var(--border-strong);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .tab-close {
+    all: unset;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 3px;
+    color: var(--text-faint);
+    opacity: 0.5;
+  }
+  .tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
+  .tab-close:hover {
+    background: rgba(220, 50, 50, 0.15);
+    color: #c33;
+  }
+  .tab-add {
+    all: unset;
+    cursor: pointer;
+    padding: 8px 12px 7px 12px;
+    font-size: 14px;
+    line-height: 1;
+    color: var(--text-muted);
+    border-radius: 6px 6px 0 0;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+  }
+  .tab-add:hover {
+    background: var(--accent);
+    color: white;
+  }
+  /* === Component panel (per-component states/CPs/transitions/action) === */
+  .component-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
   }
   .list-box ul {
     list-style: none;
@@ -775,13 +894,8 @@
   <div class="sep"></div>
   <button id="btn-delete" title="Delete selected">Delete</button>
   <div class="sep"></div>
-  <button id="btn-add-state" title="Add state">Add State</button>
-  <button id="btn-add-cp" title="Add choice-point">Add Choice-point</button>
   <button id="btn-add-trans" title="Add transition">Add Transition</button>
   <button id="btn-redirect" title="Redirect selected transition rows to a new target">Redirect</button>
-  <div class="sep"></div>
-  <button id="btn-add-iface" title="Add interface">Add Interface</button>
-  <button id="btn-add-msg" title="Add message">Add Message</button>
   <div class="sep"></div>
   <button id="btn-edit" title="Edit selected">Edit</button>
 </div>
@@ -791,46 +905,66 @@
     <div class="loading">Rendering diagram...</div>
   </div>
   <div class="right-panel">
-    <div class="lists-grid" id="lists-grid">
-      <div class="list-box">
-        <div class="header">States</div>
-        <ul id="list-states"></ul>
-      </div>
-      <div class="list-box">
-        <div class="header">Choice-points</div>
-        <ul id="list-cps"></ul>
-      </div>
-      <div class="list-box">
-        <div class="header">Interfaces</div>
-        <ul id="list-ifaces"></ul>
-      </div>
-      <div class="list-box">
-        <div class="header">Messages</div>
-        <ul id="list-msgs"></ul>
-      </div>
-    </div>
-    <div class="resize-handle" id="resize-handle" title="Drag to resize"></div>
-    <div class="trans-panel">
-      <div class="header">Transitions</div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th></th><th>Source</th><th>Target</th><th>Interface</th><th>Message</th>
-            </tr>
-          </thead>
-          <tbody id="trans-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="resize-handle" id="resize-handle-action" title="Drag to resize"></div>
-    <div class="action-panel" id="action-panel">
-      <div class="header">Action</div>
-      <div class="action-body">
-        <div class="action-placeholder" id="action-placeholder">
-          Select a single transition row to view or edit its action.
+    <div class="system-panel" id="system-panel">
+      <div class="system-grid">
+        <div class="list-box">
+          <div class="header">
+            <span>Interfaces</span>
+            <button class="header-add" id="btn-add-iface" title="Add interface">+</button>
+          </div>
+          <ul id="list-ifaces"></ul>
         </div>
-        <textarea id="action-textarea" placeholder="Describe the action performed when this transition fires…" style="display:none;"></textarea>
+        <div class="list-box">
+          <div class="header">
+            <span>Messages</span>
+            <button class="header-add" id="btn-add-msg" title="Add message">+</button>
+          </div>
+          <ul id="list-msgs"></ul>
+        </div>
+      </div>
+    </div>
+    <div class="resize-handle" id="resize-handle-system" title="Drag to resize"></div>
+    <div class="tab-bar" id="tab-bar"></div>
+    <div class="component-panel" id="component-panel">
+      <div class="lists-grid" id="lists-grid">
+        <div class="list-box">
+          <div class="header">
+            <span>States</span>
+            <button class="header-add" id="btn-add-state" title="Add state">+</button>
+          </div>
+          <ul id="list-states"></ul>
+        </div>
+        <div class="list-box">
+          <div class="header">
+            <span>Choice-points</span>
+            <button class="header-add" id="btn-add-cp" title="Add choice-point">+</button>
+          </div>
+          <ul id="list-cps"></ul>
+        </div>
+      </div>
+      <div class="resize-handle" id="resize-handle" title="Drag to resize"></div>
+      <div class="trans-panel">
+        <div class="header">Transitions</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th></th><th>Source</th><th>Target</th><th>Interface</th><th>Message</th>
+              </tr>
+            </thead>
+            <tbody id="trans-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="resize-handle" id="resize-handle-action" title="Drag to resize"></div>
+      <div class="action-panel" id="action-panel">
+        <div class="header">Action</div>
+        <div class="action-body">
+          <div class="action-placeholder" id="action-placeholder">
+            Select a single transition row to view or edit its action.
+          </div>
+          <textarea id="action-textarea" placeholder="Describe the action performed when this transition fires…" style="display:none;"></textarea>
+        </div>
       </div>
     </div>
   </div>
@@ -852,10 +986,34 @@
  * ============================================================= */
 
 // ---------- Model ----------
+// The top-level Model holds system-wide data (interfaces, messages, save
+// metadata) and an array of components. Each component owns its own states,
+// choice-points, transitions, name, and font sizes. Interfaces and messages
+// are shared across all components — they represent the contract vocabulary
+// of the system as a whole.
+//
+// The `Component` accessor below is a thin convenience that always points
+// at the currently active component. Reading `Component.states` is exactly
+// `Model.components[Model.activeComponentIndex].states`; writing to it works
+// the same. This keeps the code that manipulates one component readable.
+function makeEmptyComponent(name) {
+  return {
+    name: name || "Component Name",
+    arrowFontSize: 9,
+    stateFontSize: 12,
+    states: [],          // {name, displayName}
+    choicePoints: [],    // {name, question}  name excludes "CP_" prefix
+    // transitions: {source, target, messages: [{interface,name,action?}], connector, length}
+    // Source/target are state/cp names. "START" is a special source,
+    // "[H]" special target, "*" special source. Each message may carry a
+    // free-text "action" (developer documentation, persisted in JSON but
+    // not emitted to PlantUML).
+    transitions: []
+  };
+}
+
 const Model = {
-  componentName: "Component Name",
-  arrowFontSize: 9,
-  stateFontSize: 12,
+  // System-wide data (shared across all components)
   // START is implicit. Default interfaces: Timer, Logical. Default messages: Timeout, Yes, No
   interfaces: [
     { name: "Timer", isDefault: true },
@@ -866,16 +1024,29 @@ const Model = {
     { interface: "Logical", name: "Yes", isDefault: true },
     { interface: "Logical", name: "No", isDefault: true }
   ],
-  states: [],     // {name, displayName}
-  choicePoints: [], // {name, question}  name excludes "CP_" prefix
-  // transitions: {source, target, messages: [{interface,name,action?}], connector: "Right"|"Left"|"Up"|"Down", length: int>=1}
-  // Source/target are state/cp names. "START" is a special source, "[H]" special target, "*" special source.
-  // Each message may optionally carry a free-text "action" describing what happens when that specific
-  // (source, target, message) row fires. Actions do NOT appear in the generated PlantUML — they are
-  // internal developer documentation, persisted only in the saved JSON.
-  transitions: [],
+  // Components
+  components: [ makeEmptyComponent("Component Name") ],
+  activeComponentIndex: 0,
+  // Save metadata
   dirty: false,
   savedFilename: null
+};
+
+// Active-component proxy. Reading/writing Component.states is equivalent
+// to reading/writing Model.components[Model.activeComponentIndex].states.
+const Component = {
+  get name()          { return Model.components[Model.activeComponentIndex].name; },
+  set name(v)         { Model.components[Model.activeComponentIndex].name = v; },
+  get arrowFontSize() { return Model.components[Model.activeComponentIndex].arrowFontSize; },
+  set arrowFontSize(v){ Model.components[Model.activeComponentIndex].arrowFontSize = v; },
+  get stateFontSize() { return Model.components[Model.activeComponentIndex].stateFontSize; },
+  set stateFontSize(v){ Model.components[Model.activeComponentIndex].stateFontSize = v; },
+  get states()        { return Model.components[Model.activeComponentIndex].states; },
+  set states(v)       { Model.components[Model.activeComponentIndex].states = v; },
+  get choicePoints()  { return Model.components[Model.activeComponentIndex].choicePoints; },
+  set choicePoints(v) { Model.components[Model.activeComponentIndex].choicePoints = v; },
+  get transitions()   { return Model.components[Model.activeComponentIndex].transitions; },
+  set transitions(v)  { Model.components[Model.activeComponentIndex].transitions = v; }
 };
 
 // Selection: arrays of identifiers
@@ -902,19 +1073,22 @@ const History = { past: [], future: [] };
 
 function snapshot() {
   return JSON.stringify({
-    componentName: Model.componentName,
-    arrowFontSize: Model.arrowFontSize,
-    stateFontSize: Model.stateFontSize,
     interfaces: Model.interfaces,
     messages: Model.messages,
-    states: Model.states,
-    choicePoints: Model.choicePoints,
-    transitions: Model.transitions
+    components: Model.components,
+    activeComponentIndex: Model.activeComponentIndex
   });
 }
 function restore(str) {
   const d = JSON.parse(str);
-  Object.assign(Model, d);
+  Model.interfaces = d.interfaces;
+  Model.messages = d.messages;
+  Model.components = d.components;
+  Model.activeComponentIndex = d.activeComponentIndex;
+  // Clamp index defensively
+  if (Model.activeComponentIndex >= Model.components.length) {
+    Model.activeComponentIndex = Math.max(0, Model.components.length - 1);
+  }
 }
 function pushHistory() {
   History.past.push(snapshot());
@@ -988,11 +1162,11 @@ function generatePlantUML(opts = {}) {
   lines.push("'== Formatting ==");
   lines.push("hide empty description");
   lines.push("skinparam Arrow {");
-  lines.push("  FontSize " + Model.arrowFontSize);
+  lines.push("  FontSize " + Component.arrowFontSize);
   if (isMask) lines.push("  FontColor #00000000");
   lines.push("}");
   lines.push("skinparam State {");
-  lines.push("  FontSize " + Model.stateFontSize);
+  lines.push("  FontSize " + Component.stateFontSize);
   if (isMask) lines.push("  FontColor #00000000");
   lines.push("}");
   if (!isMask) {
@@ -1026,7 +1200,7 @@ function generatePlantUML(opts = {}) {
   }
   lines.push("");
   lines.push("'== Component ==");
-  lines.push(`state component as "${Model.componentName}" {`);
+  lines.push(`state component as "${Component.name}" {`);
   if (isMask) {
     // START always has its own ID so clicking the start dot is selectable.
     const startId = idAssigner("START", "start");
@@ -1037,7 +1211,7 @@ function generatePlantUML(opts = {}) {
   }
   lines.push("");
   lines.push("'== States ==");
-  for (const s of Model.states) {
+  for (const s of Component.states) {
     let line = `state ${s.name}`;
     if (s.displayName && s.displayName.length > 0) {
       line += ` as "${s.displayName.replace(/\n/g, "\\n")}"`;
@@ -1054,7 +1228,7 @@ function generatePlantUML(opts = {}) {
   // So that each rendered "*" is distinct in the diagram.
   const anyIdFor = new Map(); // transition -> synthetic id like "ANY_1"
   let anyCounter = 0;
-  for (const t of Model.transitions) {
+  for (const t of Component.transitions) {
     if (t.source === "*") {
       anyCounter++;
       const synthId = "ANY_" + anyCounter;
@@ -1074,7 +1248,7 @@ function generatePlantUML(opts = {}) {
   }
   lines.push("");
   lines.push("'== Choice-points ==");
-  for (const cp of Model.choicePoints) {
+  for (const cp of Component.choicePoints) {
     const q = (cp.question || "").replace(/\n/g, "\\n");
     // In mask mode, skip the <<choicepoint>> stereotype so the white-rectangle
     // <style> block doesn't override the unique mask fill color.
@@ -1091,7 +1265,7 @@ function generatePlantUML(opts = {}) {
   }
   lines.push("");
   lines.push("'== Transitions ==");
-  for (const t of Model.transitions) {
+  for (const t of Component.transitions) {
     const fullySelected = !isMask && withSelection && isTransitionFullySelected(t);
     let arrow;
     switch (t.connector) {
@@ -1146,7 +1320,7 @@ function parseTransRowKey(key) {
 // Find the message object on a transition for a given row key, or null
 function findMessageForRow(key) {
   const { source, target, iface, name } = parseTransRowKey(key);
-  const t = Model.transitions.find(tt => tt.source === source && tt.target === target);
+  const t = Component.transitions.find(tt => tt.source === source && tt.target === target);
   if (!t) return null;
   if (iface === "" && name === "") return null; // initial transition, no message
   const m = t.messages.find(mm => mm.interface === iface && mm.name === name);
@@ -1159,11 +1333,11 @@ function nodeLabel(id) {
   if (id === "[H]") return "H";
   if (id === "*") return "∗";
   if (id.startsWith("CP_")) {
-    const cp = Model.choicePoints.find(c => c.name === id.slice(3));
+    const cp = Component.choicePoints.find(c => c.name === id.slice(3));
     if (cp && cp.question) return cp.question.replace(/\\n|\n/g, " ");
     return id;
   }
-  const s = Model.states.find(ss => ss.name === id);
+  const s = Component.states.find(ss => ss.name === id);
   if (s && s.displayName) return s.displayName.replace(/\\n|\n/g, " ");
   return id;
 }
@@ -1185,15 +1359,15 @@ function isTransitionPartiallySelected(t) {
 
 // ---------- Validation helpers ----------
 function isUniqueStateName(name, excludeName=null) {
-  if (Model.states.some(s => s.name === name && s.name !== excludeName)) return false;
+  if (Component.states.some(s => s.name === name && s.name !== excludeName)) return false;
   // also can't collide with CP names
-  if (Model.choicePoints.some(c => ("CP_"+c.name) === name)) return false;
+  if (Component.choicePoints.some(c => ("CP_"+c.name) === name)) return false;
   if (name === "START" || name === "component") return false;
   return true;
 }
 function isUniqueCPName(name, excludeName=null) {
-  if (Model.choicePoints.some(c => c.name === name && c.name !== excludeName)) return false;
-  if (Model.states.some(s => s.name === ("CP_"+name))) return false;
+  if (Component.choicePoints.some(c => c.name === name && c.name !== excludeName)) return false;
+  if (Component.states.some(s => s.name === ("CP_"+name))) return false;
   return true;
 }
 function isUniqueInterfaceName(name, excludeName=null) {
@@ -1465,7 +1639,7 @@ function toggleSelection(ref) {
     // key is "trans:source|target" — find the transition and toggle ALL its rows together
     const tid = key.replace(/^trans:/, "");
     const [src, tgt] = tid.split("|");
-    const t = Model.transitions.find(tt => tt.source === src && tt.target === tgt);
+    const t = Component.transitions.find(tt => tt.source === src && tt.target === tgt);
     if (!t) return;
     const rows = transRowKeys(t);
     const allSelected = rows.every(k => Selection.transitions.has(k));
@@ -1485,6 +1659,7 @@ function refresh() {
     arrowKeySession = { key: null, direction: null };
     refresh._lastTransSelection = currentTransKey;
   }
+  buildTabBar();
   buildStateList();
   buildCPList();
   buildInterfaceList();
@@ -1496,7 +1671,7 @@ function refresh() {
   // Only re-render the diagram when something visible has changed. Includes
   // interface and message selections because they bold matching message
   // labels on the rendered diagram.
-  const visualFingerprint = snapshot() + "|sel:" +
+  const visualFingerprint = snapshot() + "|cmp:" + Model.activeComponentIndex + "|sel:" +
     [...Selection.states].sort().join(",") + "|cps:" +
     [...Selection.choicePoints].sort().join(",") + "|trs:" +
     currentTransKey + "|ifs:" +
@@ -1585,6 +1760,96 @@ function initActionPanel() {
   });
 }
 
+function buildTabBar() {
+  const bar = document.getElementById("tab-bar");
+  bar.innerHTML = "";
+  const canDelete = Model.components.length > 1;
+  Model.components.forEach((c, idx) => {
+    const tab = document.createElement("div");
+    tab.className = "tab" + (idx === Model.activeComponentIndex ? " active" : "");
+    tab.title = c.name;
+    const label = document.createElement("span");
+    label.textContent = c.name;
+    tab.appendChild(label);
+    if (canDelete) {
+      const close = document.createElement("button");
+      close.className = "tab-close";
+      close.textContent = "×";
+      close.title = "Delete this component";
+      close.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteComponent(idx);
+      });
+      tab.appendChild(close);
+    }
+    // Click to activate; double-click to rename
+    tab.addEventListener("click", () => switchToComponent(idx));
+    tab.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      renameComponent(idx);
+    });
+    bar.appendChild(tab);
+  });
+  const addBtn = document.createElement("button");
+  addBtn.className = "tab-add";
+  addBtn.textContent = "+";
+  addBtn.title = "Add a new component";
+  addBtn.addEventListener("click", addComponent);
+  bar.appendChild(addBtn);
+}
+
+function switchToComponent(idx) {
+  if (idx === Model.activeComponentIndex) return;
+  if (idx < 0 || idx >= Model.components.length) return;
+  Model.activeComponentIndex = idx;
+  // Clear all selections — a new component means new context.
+  Selection.clearAll();
+  refresh();
+}
+
+function addComponent() {
+  showPrompt("Add component", "Component name:", "New Component",
+    v => v.trim() ? null : "Name cannot be empty",
+    (name) => {
+      pushHistory();
+      Model.components.push(makeEmptyComponent(name.trim()));
+      Model.activeComponentIndex = Model.components.length - 1;
+      Selection.clearAll();
+      refresh();
+    });
+}
+
+function renameComponent(idx) {
+  const c = Model.components[idx];
+  showPrompt("Rename component", "Component name:", c.name,
+    v => v.trim() ? null : "Name cannot be empty",
+    (name) => {
+      pushHistory();
+      c.name = name.trim();
+      refresh();
+    });
+}
+
+function deleteComponent(idx) {
+  if (Model.components.length <= 1) return;
+  const c = Model.components[idx];
+  showConfirm("Delete component",
+    `Delete component "${c.name}" and all its states, choice-points, and transitions? Interfaces and messages are shared across all components and will not be affected.`,
+    () => {
+      pushHistory();
+      Model.components.splice(idx, 1);
+      if (Model.activeComponentIndex >= Model.components.length) {
+        Model.activeComponentIndex = Model.components.length - 1;
+      } else if (idx < Model.activeComponentIndex) {
+        Model.activeComponentIndex--;
+      }
+      Selection.clearAll();
+      refresh();
+    },
+    () => {}
+  );
+}
+
 function buildStateList() {
   const ul = document.getElementById("list-states");
   ul.innerHTML = "";
@@ -1622,7 +1887,7 @@ function buildStateList() {
   });
   ul.appendChild(anyLi);
 
-  const sorted = [...Model.states].sort((a,b) => {
+  const sorted = [...Component.states].sort((a,b) => {
     const an = a.displayName || a.name, bn = b.displayName || b.name;
     return an.localeCompare(bn);
   });
@@ -1641,7 +1906,7 @@ function buildStateList() {
 function buildCPList() {
   const ul = document.getElementById("list-cps");
   ul.innerHTML = "";
-  const sorted = [...Model.choicePoints].sort((a,b) => (a.question||a.name).localeCompare(b.question||b.name));
+  const sorted = [...Component.choicePoints].sort((a,b) => (a.question||a.name).localeCompare(b.question||b.name));
   for (const c of sorted) {
     const li = document.createElement("li");
     li.textContent = (c.question || c.name).replace(/\\n|\n/g, " ");
@@ -1712,7 +1977,7 @@ function buildTransitionTable() {
   tb.innerHTML = "";
   // Each transition may have multiple messages — expand to one row per message
   const rows = [];
-  for (const t of Model.transitions) {
+  for (const t of Component.transitions) {
     if (!t.messages || t.messages.length === 0) {
       rows.push({ t, iface: "", msg: "" });
     } else {
@@ -1837,7 +2102,7 @@ function canAddTransition() {
 
   // Initial transition: START + 1 state, and START has no transition yet
   if (selStart && selStates.length === 1 && selCPs.length === 0 && !selHistory && !selAny && selMsgs.length === 0) {
-    return !Model.transitions.some(t => t.source === "START");
+    return !Component.transitions.some(t => t.source === "START");
   }
   // History-target transition: H + exactly one state OR choice-point + >=1 message
   if (selHistory && !selStart && !selAny && (selStates.length + selCPs.length) === 1 && selMsgs.length >= 1) {
@@ -1900,7 +2165,7 @@ function canRedirectTransitions() {
 
 // True if the source state/CP already handles any of the given messages in ANY outgoing transition.
 function sourceAlreadyHandlesAnyOf(source, msgs) {
-  for (const t of Model.transitions) {
+  for (const t of Component.transitions) {
     if (t.source !== source) continue;
     for (const [i, n] of msgs) {
       if (t.messages.some(m => m.interface === i && m.name === n)) return true;
@@ -1938,8 +2203,8 @@ function canEdit() {
   }
   // Transitions: exactly one transition has all its rows selected, and no other transition has any row selected
   if (t >= 1 && otherTotal === 0) {
-    const fullySelected = Model.transitions.filter(isTransitionFullySelected);
-    const partiallySelected = Model.transitions.filter(tt => !isTransitionFullySelected(tt) && isTransitionPartiallySelected(tt));
+    const fullySelected = Component.transitions.filter(isTransitionFullySelected);
+    const partiallySelected = Component.transitions.filter(tt => !isTransitionFullySelected(tt) && isTransitionPartiallySelected(tt));
     if (fullySelected.length === 1 && partiallySelected.length === 0) {
       // also: selection set size must equal that transition's row count
       const rows = transRowKeys(fullySelected[0]);
@@ -2086,6 +2351,7 @@ function showManual() {
     {id: "intro", title: "Introduction"},
     {id: "concepts", title: "Core Concepts"},
     {id: "interface", title: "The Interface"},
+    {id: "components", title: "Components"},
     {id: "workflow", title: "Typical Workflow"},
     {id: "states", title: "States"},
     {id: "choicepoints", title: "Choice-points"},
@@ -2156,26 +2422,27 @@ function manualContent() {
     <section id="m-intro">
       <h2>Introduction</h2>
       <p>Stadiæ is a graphical editor for <strong>state diagrams</strong> of functional components. It is a front-end for <a href="https://plantuml.com" target="_blank">PlantUML</a>: every edit you make is translated to PlantUML source code and rendered by a PlantUML server. You get the convenience of a GUI plus a clean, version-controllable <code>.puml</code> file you can export at any time.</p>
+      <p>A single Stadiæ file can contain multiple components, each with its own state machine, all sharing a common vocabulary of interfaces and messages — so you can model a whole subsystem side-by-side in one file.</p>
       <p>State diagrams in Stadiæ describe a component's <em>behaviour</em> — the states it can be in, the messages it handles, the choices it makes, and how it transitions between states.</p>
     </section>
 
     <section id="m-concepts">
       <h2>Core Concepts</h2>
-      <h3>Component</h3>
-      <p>The entire diagram describes a single <strong>component</strong>. Its name shows at the top of the rendered diagram. Change it via <em>Component → Change name…</em>.</p>
+      <h3>Components</h3>
+      <p>A Stadiæ file can contain one or more <strong>components</strong>. Each component is a complete state machine with its own states, choice-points, transitions, and name. Components share the system's <em>interfaces</em> and <em>messages</em> — that's the contract vocabulary they communicate with. Components are selected through the tab bar at the top of the right panel; the canvas and lower lists always show the active component. See <a href="#m-components" data-target="m-components">Components</a>.</p>
       <h3>States</h3>
-      <p>A <strong>state</strong> is a distinct situation the component can be in (e.g. <code>Advertising</code>, <code>Connecting</code>). Each state has a <em>name</em> (single word, unique, used in PlantUML) and an optional <em>display name</em> (free text, can use <code>\\n</code> for line breaks) shown on the rendered diagram.</p>
+      <p>A <strong>state</strong> is a distinct situation the component can be in (e.g. <code>Advertising</code>, <code>Connecting</code>). Each state has a <em>name</em> (single word, unique <em>within the component</em>, used in PlantUML) and an optional <em>display name</em> (free text, can use <code>\\n</code> for line breaks) shown on the rendered diagram.</p>
       <h3>Choice-points</h3>
-      <p>A <strong>choice-point</strong> is a decision node. It asks a question (e.g. <em>"Is Server Whitelisted?"</em>) and branches on <code>Yes</code> or <code>No</code>. Choice-points are drawn as white rectangles to distinguish them from regular states.</p>
+      <p>A <strong>choice-point</strong> is a decision node. It asks a question (e.g. <em>"Is Server Whitelisted?"</em>) and branches on <code>Yes</code> or <code>No</code>. Choice-points are drawn as white rectangles to distinguish them from regular states. Like states, they are component-local.</p>
       <h3>Interfaces and messages</h3>
-      <p>A <strong>message</strong> triggers a transition. Messages belong to an <strong>interface</strong> that groups related messages together (e.g. the <code>RTx</code> interface owns <code>ConnectReq</code>, <code>ConnectedInd</code>, etc.). Two interfaces are always present:</p>
+      <p>A <strong>message</strong> triggers a transition. Messages belong to an <strong>interface</strong> that groups related messages together (e.g. the <code>RTx</code> interface owns <code>ConnectReq</code>, <code>ConnectedInd</code>, etc.). Interfaces and messages are <strong>shared across all components</strong> in the file — if two components both speak <code>RTx</code>, they are speaking the same <code>RTx</code>. Two interfaces are always present:</p>
       <ul>
         <li><strong>Timer</strong> — contains the <code>Timeout</code> message for time-based transitions.</li>
         <li><strong>Logical</strong> — contains <code>Yes</code> and <code>No</code>, used exclusively on transitions out of choice-points.</li>
       </ul>
       <p>These defaults cannot be renamed or deleted.</p>
       <h3>Transitions</h3>
-      <p>A <strong>transition</strong> describes how the component moves from a <em>source</em> state to a <em>target</em> state when one or more messages are received. Transitions that share a source and target can be grouped — multiple messages on one arrow declutter the diagram.</p>
+      <p>A <strong>transition</strong> describes how the component moves from a <em>source</em> state to a <em>target</em> state when one or more messages are received. Transitions that share a source and target can be grouped — multiple messages on one arrow declutter the diagram. Transitions are component-local; a transition cannot cross from one component to another.</p>
       <h3>Pseudo-states</h3>
       <p>Three special non-editable entries appear at the top of the States list:</p>
       <ul>
@@ -2188,30 +2455,48 @@ function manualContent() {
     <section id="m-interface">
       <h2>The Interface</h2>
       <h3>Menu bar</h3>
-      <p><strong>File</strong> manages diagrams (new, open, save, save as, export). <strong>Component</strong> changes the component name and font sizes. <strong>Help</strong> opens this manual and the About box.</p>
+      <p><strong>File</strong> manages diagrams (new, open, save, save as, export). <strong>Component</strong> acts on the <em>active</em> component — change its name, font sizes, or copy its transition table as Markdown. <strong>Help</strong> opens this manual and the About box.</p>
       <h3>Toolbar</h3>
       <p>All common actions are one click away. A button is greyed out when the current selection does not make the action meaningful. Hover the Add Transition or Edit button when it is disabled and check your selection — the rules in <a href="#m-rules" data-target="m-rules">Rules Reference</a> explain each enablement condition.</p>
       <h3>Diagram canvas (left)</h3>
-      <p>Shows the rendered PNG from the PlantUML server. Clicking the empty canvas clears the current selection. Selection of elements themselves is made via the lists and transition table on the right.</p>
-      <h3>Element lists (top right)</h3>
-      <p>Four lists show the diagram's elements: <em>States</em>, <em>Choice-points</em>, <em>Interfaces</em>, <em>Messages</em>. Click an entry to toggle its selection. The Messages list only shows messages of the currently selected interface(s). Deselecting an interface also deselects its messages.</p>
-      <h3>Transition table (bottom right)</h3>
-      <p>Lists every transition, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. The split between the lists and the table is adjustable: drag the thin bar between them, or double-click it to restore the default. A small dot in the first column marks rows that have an action description.</p>
+      <p>Shows the rendered PNG of the <em>active</em> component. States, choice-points, and transitions can be selected by clicking them directly on the canvas. Clicking on empty canvas clears the current selection.</p>
+      <h3>System panel (top right)</h3>
+      <p>The top section of the right panel holds <strong>Interfaces</strong> and <strong>Messages</strong>, which are shared across every component in the file. Each list has a small <code>+</code> button in its header to add a new entry. Click an interface to toggle its selection; messages of the selected interface(s) then appear in the Messages list.</p>
+      <h3>Tab bar</h3>
+      <p>Below the system panel, the tab bar shows one tab per component. Click a tab to switch to it; double-click to rename. The <code>+</code> button at the end adds a new component. When more than one component exists, each tab has a small <code>×</code> to delete it. Switching tabs clears the current selection.</p>
+      <h3>Component panel (bottom right)</h3>
+      <p>The rest of the right panel shows the active component's <em>States</em> and <em>Choice-points</em> lists (with the START / H / ∗ pseudo-states at the top of States), the transitions table, and the Action panel. Each list has a small <code>+</code> button in its header to add an entry. Each section is resizable via the thin bars between them — drag to adjust, double-click to reset.</p>
+      <h3>Transition table</h3>
+      <p>Lists every transition of the active component, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. A small dot in the first column marks rows that have an action description.</p>
       <h3>Action panel</h3>
-      <p>Below the transitions table, a free-text area shows the <em>action</em> of the currently selected transition row. Actions are developer documentation that is saved with the diagram but not rendered into the PlantUML — see <a href="#m-transitions" data-target="m-transitions">Transitions</a>. The panel height is adjustable via the handle above it.</p>
-      <div class="tip">A "Show PlantUML" button at the bottom-right opens a live view of the generated source. Useful for sanity-checking or for learning PlantUML.</div>
+      <p>Below the transitions table, a free-text area shows the <em>action</em> of the currently selected transition row. Actions are developer documentation that is saved with the diagram but not rendered into the PlantUML — see <a href="#m-transitions" data-target="m-transitions">Transitions</a>.</p>
+      <div class="tip">A "Show PlantUML" button at the bottom-right opens a live view of the generated source for the active component. Useful for sanity-checking or for learning PlantUML.</div>
+    </section>
+
+    <section id="m-components">
+      <h2>Components</h2>
+      <p>A single <code>.json</code> file can hold multiple components — one for each state machine in the system you are modelling. All components share the same pool of interfaces and messages, because those represent the contract vocabulary between components. States, choice-points, transitions, and action notes belong to a single component and cannot cross component boundaries.</p>
+      <p>The tab bar at the top of the right panel lets you switch between components. The canvas, the States / Choice-points lists, the transition table, and the Action panel always reflect the <em>active</em> component (the highlighted tab). The Interfaces and Messages lists above the tab bar are shared — editing them affects every component.</p>
+      <h3>Add, rename, delete</h3>
+      <p>Click the <code>+</code> at the end of the tab bar to add a new component. Double-click any tab to rename it, or use <em>Component → Change name…</em>. Each tab has a small <code>×</code> (visible when more than one component exists) to delete that component after a confirmation — its states, choice-points, and transitions are removed, but the shared interfaces and messages are not touched. You cannot delete the last remaining component.</p>
+      <h3>Switching components</h3>
+      <p>Clicking a tab switches the active component and <strong>clears the current selection</strong>, so you always start in a clean state in the new component. The diagram re-renders for the new component; interfaces and messages stay as they were.</p>
+      <h3>Interfaces and messages are shared</h3>
+      <p>Adding, renaming, or deleting an interface (or message) updates it everywhere. For example, renaming <code>RTx</code> to <code>Transport</code> updates every transition in every component that references it. Deleting a message cascades through every component's transitions and drops any transitions that end up empty. This keeps the contract vocabulary consistent across the whole system — no manual sync needed.</p>
+      <h3>Exports</h3>
+      <p>PlantUML, PNG, and Markdown exports all apply to the <em>active</em> component only. Switch tabs and export again to get the artefact for each component. The <code>.json</code> save covers the whole file (all components plus the shared interfaces/messages).</p>
     </section>
 
     <section id="m-workflow">
       <h2>Typical Workflow</h2>
       <ol>
-        <li><strong>Set the component name</strong>: <em>Component → Change name</em>, or start a fresh diagram via <em>File → New</em>.</li>
-        <li><strong>Define the vocabulary</strong>: add interfaces, then messages per interface.</li>
-        <li><strong>Lay out the structure</strong>: add states and choice-points.</li>
+        <li><strong>Name the first component</strong> via <em>Component → Change name</em>, or start a fresh file via <em>File → New</em>. For a multi-component system, add more tabs with the <code>+</code> at the end of the tab bar.</li>
+        <li><strong>Define the shared vocabulary</strong>: add interfaces (<code>+</code> in the Interfaces list header), then messages per interface. These are shared across every component, so define them once.</li>
+        <li><strong>Lay out each component</strong>: switch to the tab you want to edit, then add states and choice-points.</li>
         <li><strong>Wire it up</strong>: select a source state, a target, and a message, then click Add Transition.</li>
         <li><strong>Pick the initial state</strong>: select START and the intended first state, then Add Transition.</li>
         <li><strong>Refine</strong>: select elements and click Edit to change properties; adjust connector direction on transitions for a cleaner layout.</li>
-        <li><strong>Save</strong>: <em>File → Save As</em> (JSON, reloadable) and export to <code>.puml</code> or <code>.png</code> when you want to share outside the tool.</li>
+        <li><strong>Save</strong>: <em>File → Save As</em> (JSON, reloadable). The file captures every component plus the shared vocabulary. Export to <code>.puml</code> or <code>.png</code> per active tab when you want to share individual diagrams outside the tool.</li>
       </ol>
     </section>
 
@@ -2335,15 +2620,15 @@ function manualContent() {
     <section id="m-files">
       <h2>Saving, Opening &amp; Exporting</h2>
       <h3>Save / Save As</h3>
-      <p>Stadiæ saves your diagram as a compact <code>.json</code> file that preserves all editor state and can be re-opened with full fidelity. Use <em>File → Save As</em> the first time; after that, <em>File → Save</em> writes to the same filename.</p>
+      <p>Stadiæ saves the entire file — every component, every shared interface and message, and the active-tab indicator — as a compact <code>.json</code> file. Use <em>File → Save As</em> the first time; after that, <em>File → Save</em> writes to the same filename. The current file format is <code>stadiae-v2</code>.</p>
       <h3>Open</h3>
-      <p><em>File → Open</em> loads a previously saved <code>.json</code> file. If the current diagram has unsaved edits you'll be asked whether to discard them first.</p>
+      <p><em>File → Open</em> loads a previously saved <code>.json</code> file. Older <code>stadiae-v1</code> (single-component) files are auto-migrated on load into a one-component v2 file; a subsequent save writes v2. If the current diagram has unsaved edits you'll be asked whether to discard them first.</p>
       <h3>Export as PlantUML (.puml)</h3>
-      <p>Writes the clean PlantUML source (no selection highlighting) to a <code>.puml</code> file. Feed this to any PlantUML tool, check it into source control, or paste it into an online PlantUML renderer.</p>
+      <p>Writes the clean PlantUML source of the <em>active</em> component (no selection highlighting) to a <code>.puml</code> file. To export every component, switch tabs and export each one. Feed the files to any PlantUML tool, check them into source control, or paste them into an online PlantUML renderer.</p>
       <h3>Export as PNG</h3>
-      <p>Downloads the currently rendered diagram as a PNG image. Useful for embedding in reports and slides.</p>
+      <p>Downloads the currently rendered active-component diagram as a PNG image. Useful for embedding in reports and slides.</p>
       <h3>Copy transitions as Markdown</h3>
-      <p>Under <em>Component → Copy transitions as Markdown table…</em>, Stadiæ produces a markdown table of every transition, with columns <em>Source</em>, <em>Target</em>, <em>Interface</em>, <em>Message</em>, and <em>Action</em>. Source and target use their display names / questions, and newlines inside cells become <code>&lt;br&gt;</code> so the markdown stays well-formed. Click <em>Copy to clipboard</em> or just select-all in the textarea and paste elsewhere.</p>
+      <p>Under <em>Component → Copy transitions as Markdown table…</em>, Stadiæ produces a markdown table of the <em>active</em> component's transitions, with columns <em>Source</em>, <em>Target</em>, <em>Interface</em>, <em>Message</em>, and <em>Action</em>. Source and target use their display names / questions, and newlines inside cells become <code>&lt;br&gt;</code> so the markdown stays well-formed. Click <em>Copy to clipboard</em> or just select-all in the textarea and paste elsewhere.</p>
       <div class="tip">Exports always use the unselected (clean) version of the diagram — the red highlighting you may have on screen is not baked into the output.</div>
     </section>
 
@@ -2449,7 +2734,7 @@ function openStateDialog(existing=null) {
       existing.name = name; existing.displayName = dn;
       if (oldName !== name) {
         // update transitions referencing old name
-        Model.transitions.forEach(t => {
+        Component.transitions.forEach(t => {
           if (t.source === oldName) t.source = name;
           if (t.target === oldName) t.target = name;
         });
@@ -2468,7 +2753,7 @@ function openStateDialog(existing=null) {
         Selection.transitions = newTransKeys;
       }
     } else {
-      Model.states.push({name, displayName: dn});
+      Component.states.push({name, displayName: dn});
     }
     hideModal();
     refresh();
@@ -2517,7 +2802,7 @@ function openCPDialog(existing=null) {
         // transitions refer to CPs with the "CP_" prefix baked in
         const oldKey = "CP_" + oldName;
         const newKey = "CP_" + name;
-        Model.transitions.forEach(t => {
+        Component.transitions.forEach(t => {
           if (t.source === oldKey) t.source = newKey;
           if (t.target === oldKey) t.target = newKey;
         });
@@ -2535,7 +2820,7 @@ function openCPDialog(existing=null) {
         Selection.transitions = newTransKeys;
       }
     }
-    else { Model.choicePoints.push({name, question: q}); Selection.choicePoints.add(name); }
+    else { Component.choicePoints.push({name, question: q}); Selection.choicePoints.add(name); }
     hideModal();
     refresh();
   };
@@ -2575,8 +2860,10 @@ function openInterfaceDialog(existing=null) {
       existing.name = name;
       // update messages
       Model.messages.forEach(m => { if (m.interface === old) m.interface = name; });
-      // update transitions' message refs
-      Model.transitions.forEach(t => t.messages.forEach(m => { if (m.interface === old) m.interface = name; }));
+      // update transitions' message refs across ALL components
+      for (const c of Model.components) {
+        c.transitions.forEach(t => t.messages.forEach(m => { if (m.interface === old) m.interface = name; }));
+      }
       // update selection keys that referenced the old interface name
       if (Selection.interfaces.has(old)) {
         Selection.interfaces.delete(old);
@@ -2643,10 +2930,12 @@ function openMessageDialog(existing=null) {
     if (existing) {
       const oldName = existing.name;
       existing.name = name;
-      // update transitions
-      Model.transitions.forEach(t => t.messages.forEach(m => {
-        if (m.interface===iface && m.name===oldName) m.name = name;
-      }));
+      // update transitions across ALL components
+      for (const c of Model.components) {
+        c.transitions.forEach(t => t.messages.forEach(m => {
+          if (m.interface===iface && m.name===oldName) m.name = name;
+        }));
+      }
       // update selection keys that referenced the old name
       const oldKey = iface + ":" + oldName;
       const newKey = iface + ":" + name;
@@ -2744,7 +3033,7 @@ function actionAddTransition() {
   // Initial transition (START + state)
   if (Selection.start && selStates.length === 1 && selCPs.length === 0 && !Selection.history && selMsgs.length === 0) {
     pushHistory();
-    Model.transitions.push({ source: "START", target: selStates[0], messages: [], connector: "Down", length: 1 });
+    Component.transitions.push({ source: "START", target: selStates[0], messages: [], connector: "Down", length: 1 });
     Selection.clearAll();
     Selection.transitions.add(transRowKey("START", selStates[0], "", ""));
     refresh();
@@ -2898,10 +3187,10 @@ function openTransitionSourceDialog(nodes, msgs) {
 }
 
 function addMessagesToTransition(source, target, msgs, defaultConnector) {
-  let t = Model.transitions.find(tt => tt.source === source && tt.target === target);
+  let t = Component.transitions.find(tt => tt.source === source && tt.target === target);
   if (!t) {
     t = { source, target, messages: [], connector: defaultConnector, length: 1 };
-    Model.transitions.push(t);
+    Component.transitions.push(t);
   }
   for (const m of msgs) {
     if (!t.messages.some(mm => mm.interface===m.interface && mm.name===m.name)) {
@@ -2929,7 +3218,7 @@ function actionRedirectTransitions() {
     if (iface === "" && name === "") continue;  // initial transitions can't be redirected (their target IS the chosen state already, but they have no message rows we'd move)
     const pairKey = src + "|" + tgt;
     if (!rowsByPair.has(pairKey)) rowsByPair.set(pairKey, { source: src, oldTarget: tgt, messages: [] });
-    const t = Model.transitions.find(tt => tt.source === src && tt.target === tgt);
+    const t = Component.transitions.find(tt => tt.source === src && tt.target === tgt);
     if (!t) continue;
     const m = t.messages.find(mm => mm.interface === iface && mm.name === name);
     if (m) rowsByPair.get(pairKey).messages.push(m);
@@ -2952,7 +3241,7 @@ function actionRedirectTransitions() {
       }
       continue;
     }
-    const dest = Model.transitions.find(tt => tt.source === source && tt.target === newTarget);
+    const dest = Component.transitions.find(tt => tt.source === source && tt.target === newTarget);
     if (dest) {
       for (const m of messages) {
         if (dest.messages.some(mm => mm.interface === m.interface && mm.name === m.name)) {
@@ -2972,19 +3261,19 @@ function actionRedirectTransitions() {
   pushHistory();
   const newSelection = new Set();
   for (const { source, oldTarget, messages } of rowsByPair.values()) {
-    const oldT = Model.transitions.find(tt => tt.source === source && tt.target === oldTarget);
+    const oldT = Component.transitions.find(tt => tt.source === source && tt.target === oldTarget);
 
     // Find or create the destination transition. Connector handling:
     //   - If we're moving ALL of oldT's messages, the old transition will
     //     be dropped, so the new one inherits its connector and length.
     //   - Otherwise the new one gets defaults.
-    let dest = Model.transitions.find(tt => tt.source === source && tt.target === newTarget);
+    let dest = Component.transitions.find(tt => tt.source === source && tt.target === newTarget);
     const movingAll = oldT && messages.length === oldT.messages.length;
     if (!dest) {
       const connector = movingAll ? oldT.connector : "Down";
       const length = movingAll ? oldT.length : 1;
       dest = { source, target: newTarget, messages: [], connector, length };
-      Model.transitions.push(dest);
+      Component.transitions.push(dest);
     }
 
     // Move each message (preserving its action field).
@@ -3003,7 +3292,7 @@ function actionRedirectTransitions() {
 
   // Drop transitions that are now empty (except the initial transition,
   // which is intentionally messageless — but we never touch that here).
-  Model.transitions = Model.transitions.filter(t =>
+  Component.transitions = Component.transitions.filter(t =>
     t.source === "START" || (t.messages && t.messages.length > 0));
 
   // Replace selection with the redirected rows so the user can immediately
@@ -3021,35 +3310,36 @@ function actionDelete() {
   for (const key of Selection.transitions) {
     const parts = key.split("|");
     const src = parts[0], tgt = parts[1], iface = parts[2], name = parts[3];
-    const t = Model.transitions.find(tt => tt.source===src && tt.target===tgt);
+    const t = Component.transitions.find(tt => tt.source===src && tt.target===tgt);
     if (!t) continue;
     if (iface === "" && name === "") {
       // initial transition (START with no messages) — remove the whole transition
-      Model.transitions = Model.transitions.filter(tt => tt !== t);
+      Component.transitions = Component.transitions.filter(tt => tt !== t);
     } else {
       t.messages = t.messages.filter(m => !(m.interface===iface && m.name===name));
     }
   }
   // Drop transitions that ended up with no messages (except START, which never has messages)
-  Model.transitions = Model.transitions.filter(t => t.source==="START" || (t.messages && t.messages.length > 0));
+  Component.transitions = Component.transitions.filter(t => t.source==="START" || (t.messages && t.messages.length > 0));
 
-  // Delete messages
+  // Delete messages — cascade across ALL components, since messages are
+  // shared system-wide.
   for (const key of Selection.messages) {
     const [iface, name] = key.split(":");
     Model.messages = Model.messages.filter(m => !(m.interface===iface && m.name===name));
-    // remove from any transitions
-    Model.transitions.forEach(t => {
-      t.messages = t.messages.filter(mm => !(mm.interface===iface && mm.name===name));
-    });
-    // drop empty non-initial transitions
-    Model.transitions = Model.transitions.filter(t => t.source==="START" || t.messages.length>0);
+    for (const c of Model.components) {
+      c.transitions.forEach(t => {
+        t.messages = t.messages.filter(mm => !(mm.interface===iface && mm.name===name));
+      });
+      // drop empty non-initial transitions in every component
+      c.transitions = c.transitions.filter(t => t.source==="START" || t.messages.length>0);
+    }
   }
 
-  // Delete interfaces (removes all their messages and transition refs).
-  // However, if any of an interface's messages are individually selected,
-  // the user's intent is the message, not the whole interface — the
-  // interface is co-selected only because list visibility requires it.
-  // Skip interface deletion in that case.
+  // Delete interfaces — cascade across ALL components.
+  // (Skip an interface whose messages are individually selected — the user's
+  // intent is the message, not the whole interface; see canEdit/actionDelete
+  // history.)
   const ifacesWithSelectedMessages = new Set();
   for (const key of Selection.messages) {
     ifacesWithSelectedMessages.add(key.split(":")[0]);
@@ -3059,23 +3349,25 @@ function actionDelete() {
     if (ifacesWithSelectedMessages.has(iname)) continue;
     Model.interfaces = Model.interfaces.filter(i => i.name !== iname);
     Model.messages = Model.messages.filter(m => m.interface !== iname);
-    Model.transitions.forEach(t => {
-      t.messages = t.messages.filter(mm => mm.interface !== iname);
-    });
-    Model.transitions = Model.transitions.filter(t => t.source==="START" || t.messages.length>0);
+    for (const c of Model.components) {
+      c.transitions.forEach(t => {
+        t.messages = t.messages.filter(mm => mm.interface !== iname);
+      });
+      c.transitions = c.transitions.filter(t => t.source==="START" || t.messages.length>0);
+    }
   }
 
   // Delete states
   for (const sname of Selection.states) {
-    Model.states = Model.states.filter(s => s.name !== sname);
-    Model.transitions = Model.transitions.filter(t => t.source !== sname && t.target !== sname);
+    Component.states = Component.states.filter(s => s.name !== sname);
+    Component.transitions = Component.transitions.filter(t => t.source !== sname && t.target !== sname);
   }
 
   // Delete choice-points
   for (const cname of Selection.choicePoints) {
     const prefixed = "CP_" + cname;
-    Model.choicePoints = Model.choicePoints.filter(c => c.name !== cname);
-    Model.transitions = Model.transitions.filter(t => t.source !== prefixed && t.target !== prefixed);
+    Component.choicePoints = Component.choicePoints.filter(c => c.name !== cname);
+    Component.transitions = Component.transitions.filter(t => t.source !== prefixed && t.target !== prefixed);
   }
 
   Selection.clearAll();
@@ -3086,10 +3378,10 @@ function actionEdit() {
   if (!canEdit()) return;
   if (Selection.states.size === 1) {
     const name = [...Selection.states][0];
-    openStateDialog(Model.states.find(s => s.name === name));
+    openStateDialog(Component.states.find(s => s.name === name));
   } else if (Selection.choicePoints.size === 1) {
     const name = [...Selection.choicePoints][0];
-    openCPDialog(Model.choicePoints.find(c => c.name === name));
+    openCPDialog(Component.choicePoints.find(c => c.name === name));
   } else if (Selection.messages.size === 1) {
     // Check messages before interfaces: the message's own interface is
     // expected to be co-selected (it gates list visibility), and the user's
@@ -3100,7 +3392,7 @@ function actionEdit() {
     const name = [...Selection.interfaces][0];
     openInterfaceDialog(Model.interfaces.find(i => i.name === name));
   } else if (Selection.transitions.size >= 1) {
-    const target = Model.transitions.find(isTransitionFullySelected);
+    const target = Component.transitions.find(isTransitionFullySelected);
     if (target) openTransitionDialog(target);
   }
 }
@@ -3126,9 +3418,6 @@ function newDiagram() {
 }
 
 function resetModel(componentName) {
-  Model.componentName = componentName || "Component Name";
-  Model.arrowFontSize = 9;
-  Model.stateFontSize = 12;
   Model.interfaces = [
     { name: "Timer", isDefault: true },
     { name: "Logical", isDefault: true }
@@ -3138,15 +3427,14 @@ function resetModel(componentName) {
     { interface: "Logical", name: "Yes", isDefault: true },
     { interface: "Logical", name: "No", isDefault: true }
   ];
-  Model.states = [];
-  Model.choicePoints = [];
-  Model.transitions = [];
+  Model.components = [ makeEmptyComponent(componentName || "Component Name") ];
+  Model.activeComponentIndex = 0;
 }
 
 function saveAs() {
   const base = Model.savedFilename
     ? (Model.savedFilename.endsWith(".json") ? Model.savedFilename : Model.savedFilename + ".json")
-    : (Model.componentName || "diagram") + ".json";
+    : (Component.name || "diagram") + ".json";
   showPrompt("Save As", "File name:", base, null, (filename) => {
     downloadJSON(filename);
     Model.savedFilename = filename.endsWith(".json") ? filename : filename + ".json";
@@ -3162,15 +3450,18 @@ function save() {
 }
 function downloadJSON(filename) {
   const data = {
-    format: "stadiae-v1",
-    componentName: Model.componentName,
-    arrowFontSize: Model.arrowFontSize,
-    stateFontSize: Model.stateFontSize,
+    format: "stadiae-v2",
     interfaces: Model.interfaces.filter(i => !i.isDefault),
     messages: Model.messages.filter(m => !m.isDefault),
-    states: Model.states,
-    choicePoints: Model.choicePoints,
-    transitions: Model.transitions
+    components: Model.components.map(c => ({
+      name: c.name,
+      arrowFontSize: c.arrowFontSize,
+      stateFontSize: c.stateFontSize,
+      states: c.states,
+      choicePoints: c.choicePoints,
+      transitions: c.transitions
+    })),
+    activeComponentIndex: Model.activeComponentIndex
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
@@ -3205,7 +3496,7 @@ function buildTransitionsMarkdown() {
   // Flatten each transition into one row per message. Initial transitions
   // (messageless) produce a single row with empty Interface/Message/Action.
   const flat = [];
-  for (const t of Model.transitions) {
+  for (const t of Component.transitions) {
     if (!t.messages || t.messages.length === 0) {
       flat.push({ t, iface: "", msg: "", action: "" });
     } else {
@@ -3279,7 +3570,7 @@ function showTransitionsMarkdown() {
 }
 
 function exportPUML() {
-  const base = (Model.componentName || "diagram").replace(/\s+/g, "_");
+  const base = (Component.name || "diagram").replace(/\s+/g, "_");
   showPrompt("Export as PlantUML", "File name:", base + ".puml", null, (filename) => {
     if (!filename.endsWith(".puml")) filename += ".puml";
     // Use the unselected (clean) PlantUML source — no red selection styling
@@ -3294,7 +3585,7 @@ function exportPUML() {
 }
 
 function exportPNG() {
-  const base = (Model.componentName || "diagram").replace(/\s+/g, "_");
+  const base = (Component.name || "diagram").replace(/\s+/g, "_");
   showPrompt("Export as PNG", "File name:", base + ".png", null, (filename) => {
     if (!filename.endsWith(".png")) filename += ".png";
     // Request a fresh render without selection styling, then download
@@ -3334,15 +3625,13 @@ document.getElementById("file-input").addEventListener("change", e => {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      if (data.format !== "stadiae-v1") throw new Error("Invalid diagram format");
-      resetModel(data.componentName);
-      Model.arrowFontSize = data.arrowFontSize || 9;
-      Model.stateFontSize = data.stateFontSize || 12;
-      for (const i of (data.interfaces||[])) Model.interfaces.push({name:i.name, isDefault:false});
-      for (const m of (data.messages||[])) Model.messages.push({interface:m.interface, name:m.name, isDefault:false});
-      Model.states = data.states || [];
-      Model.choicePoints = data.choicePoints || [];
-      Model.transitions = data.transitions || [];
+      if (data.format === "stadiae-v2") {
+        loadV2(data);
+      } else if (data.format === "stadiae-v1") {
+        loadV1(data);
+      } else {
+        throw new Error("Invalid diagram format");
+      }
       Selection.clearAll();
       History.past = []; History.future = [];
       Model.dirty = false;
@@ -3355,6 +3644,50 @@ document.getElementById("file-input").addEventListener("change", e => {
   reader.readAsText(file);
   e.target.value = "";
 });
+
+function loadV1(data) {
+  // Old single-component format — wrap it as a single component in v2.
+  resetModel(data.componentName);
+  Component.arrowFontSize = data.arrowFontSize || 9;
+  Component.stateFontSize = data.stateFontSize || 12;
+  for (const i of (data.interfaces||[])) Model.interfaces.push({name:i.name, isDefault:false});
+  for (const m of (data.messages||[])) Model.messages.push({interface:m.interface, name:m.name, isDefault:false});
+  Component.states = data.states || [];
+  Component.choicePoints = data.choicePoints || [];
+  Component.transitions = data.transitions || [];
+}
+
+function loadV2(data) {
+  // Reset to system defaults, then restore saved data.
+  resetModel();
+  Model.interfaces = [
+    { name: "Timer", isDefault: true },
+    { name: "Logical", isDefault: true }
+  ];
+  Model.messages = [
+    { interface: "Timer", name: "Timeout", isDefault: true },
+    { interface: "Logical", name: "Yes", isDefault: true },
+    { interface: "Logical", name: "No", isDefault: true }
+  ];
+  for (const i of (data.interfaces||[])) Model.interfaces.push({name:i.name, isDefault:false});
+  for (const m of (data.messages||[])) Model.messages.push({interface:m.interface, name:m.name, isDefault:false});
+  if (data.components && data.components.length > 0) {
+    Model.components = data.components.map(c => ({
+      name: c.name || "Component",
+      arrowFontSize: c.arrowFontSize || 9,
+      stateFontSize: c.stateFontSize || 12,
+      states: c.states || [],
+      choicePoints: c.choicePoints || [],
+      transitions: c.transitions || []
+    }));
+  } else {
+    Model.components = [ makeEmptyComponent("Component Name") ];
+  }
+  Model.activeComponentIndex = Math.min(
+    Math.max(0, data.activeComponentIndex || 0),
+    Model.components.length - 1
+  );
+}
 
 // ---------- Menu wiring ----------
 document.querySelectorAll(".menubar .menu").forEach(menu => {
@@ -3383,19 +3716,19 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
       case "export-png": exportPNG(); break;
       case "exit": showAlert("Exit", "In a desktop app this would close the application. Close the browser tab to exit."); break;
       case "change-name":
-        showPrompt("Change component name", "Name:", Model.componentName, null, (name) => {
-          pushHistory(); Model.componentName = name; refresh();
+        showPrompt("Change component name", "Name:", Component.name, null, (name) => {
+          pushHistory(); Component.name = name; refresh();
         });
         break;
       case "change-tfont":
-        showPrompt("Transition font size", "Size (pt):", String(Model.arrowFontSize),
+        showPrompt("Transition font size", "Size (pt):", String(Component.arrowFontSize),
           v => (/^\d+$/.test(v) && +v>=6 && +v<=40) ? null : "Enter a number between 6 and 40",
-          v => { pushHistory(); Model.arrowFontSize = parseInt(v,10); refresh(); });
+          v => { pushHistory(); Component.arrowFontSize = parseInt(v,10); refresh(); });
         break;
       case "change-sfont":
-        showPrompt("State font size", "Size (pt):", String(Model.stateFontSize),
+        showPrompt("State font size", "Size (pt):", String(Component.stateFontSize),
           v => (/^\d+$/.test(v) && +v>=6 && +v<=40) ? null : "Enter a number between 6 and 40",
-          v => { pushHistory(); Model.stateFontSize = parseInt(v,10); refresh(); });
+          v => { pushHistory(); Component.stateFontSize = parseInt(v,10); refresh(); });
         break;
       case "copy-transitions-md":
         showTransitionsMarkdown();
@@ -3502,6 +3835,40 @@ document.getElementById("code-toggle").onclick = () => {
   handle.addEventListener("dblclick", () => { panel.style.height = "140px"; });
 })();
 
+// Vertical resize handle between system panel and component panel
+(function() {
+  const handle = document.getElementById("resize-handle-system");
+  const sys = document.getElementById("system-panel");
+  let dragging = false;
+  let startY = 0, startH = 0;
+
+  handle.addEventListener("mousedown", e => {
+    dragging = true;
+    startY = e.clientY;
+    startH = sys.getBoundingClientRect().height;
+    handle.classList.add("dragging");
+    document.body.classList.add("resizing-v");
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const rightPanel = sys.parentElement;
+    const available = rightPanel.getBoundingClientRect().height;
+    const min = 80;
+    const max = Math.max(min, available - 200);
+    let h = startH + (e.clientY - startY);
+    h = Math.max(min, Math.min(max, h));
+    sys.style.height = h + "px";
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("dragging");
+    document.body.classList.remove("resizing-v");
+  });
+  handle.addEventListener("dblclick", () => { sys.style.height = "160px"; });
+})();
+
 // Warn on close if dirty
 window.addEventListener("beforeunload", e => {
   if (Model.dirty) { e.preventDefault(); e.returnValue = ""; }
@@ -3519,8 +3886,8 @@ function soleFullySelectedTransition() {
                    Selection.interfaces.size + Selection.messages.size +
                    (Selection.start?1:0) + (Selection.history?1:0) + (Selection.any?1:0);
   if (otherSel !== 0 || Selection.transitions.size === 0) return null;
-  const fully = Model.transitions.filter(isTransitionFullySelected);
-  const partially = Model.transitions.filter(t =>
+  const fully = Component.transitions.filter(isTransitionFullySelected);
+  const partially = Component.transitions.filter(t =>
     !isTransitionFullySelected(t) && isTransitionPartiallySelected(t));
   if (fully.length !== 1 || partially.length !== 0) return null;
   const rows = transRowKeys(fully[0]);
