@@ -776,6 +776,7 @@
   <button id="btn-add-state" title="Add state">Add State</button>
   <button id="btn-add-cp" title="Add choice-point">Add Choice-point</button>
   <button id="btn-add-trans" title="Add transition">Add Transition</button>
+  <button id="btn-redirect" title="Redirect selected transition rows to a new target">Redirect</button>
   <div class="sep"></div>
   <button id="btn-add-iface" title="Add interface">Add Interface</button>
   <button id="btn-add-msg" title="Add message">Add Message</button>
@@ -1772,6 +1773,9 @@ function updateToolbar() {
   // Add transition:
   document.getElementById("btn-add-trans").disabled = !canAddTransition();
 
+  // Redirect transition:
+  document.getElementById("btn-redirect").disabled = !canRedirectTransitions();
+
   // Edit: depends on single selected element of editable type
   document.getElementById("btn-edit").disabled = !canEdit();
 }
@@ -1842,10 +1846,21 @@ function canAddTransition() {
   return false;
 }
 
-function transitionExistsWithAnyOf(source, target, msgs) {
-  const t = Model.transitions.find(tt => tt.source === source && tt.target === target);
-  if (!t) return false;
-  return msgs.some(([i,n]) => t.messages.some(m => m.interface===i && m.name===n));
+// Redirect: ≥1 transition row selected + exactly one valid target node (state,
+// CP, or H), and nothing else. The selected transition rows can come from
+// any sources/targets — they're each redirected independently to the new
+// target. This predicate only checks the *shape* of the selection; the
+// action checks for conflicts (e.g., an existing transition at the new
+// target already carrying the message) and aborts cleanly with an alert.
+function canRedirectTransitions() {
+  if (Selection.transitions.size === 0) return false;
+  if (Selection.start || Selection.any) return false;     // not valid targets
+  if (Selection.interfaces.size > 0) return false;
+  if (Selection.messages.size > 0) return false;
+  // Exactly one target node: state, CP, or H
+  const nodeCount = Selection.states.size + Selection.choicePoints.size + (Selection.history?1:0);
+  if (nodeCount !== 1) return false;
+  return true;
 }
 
 // True if the source state/CP already handles any of the given messages in ANY outgoing transition.
@@ -2206,7 +2221,11 @@ function manualContent() {
       <p>Add more messages to an existing transition by selecting the same source and target plus the extra messages, then clicking Add Transition again. The messages stack on the same arrow with <code>\\n</code> separators, decluttering the diagram.</p>
       <h3>Connector direction and length</h3>
       <p>Select a transition (all its rows) and click Edit. The Transition Properties dialog lets you pick <em>Right</em>, <em>Left</em>, <em>Up</em>, or <em>Down</em>. For Up and Down you can also set a length (number of dashes) to spread the arrow further — useful when PlantUML's auto-layout overlaps arrows.</p>
-      <p><strong>Shortcut:</strong> with a transition selected, the arrow keys (<kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd>) change the connector direction directly. Repeatedly pressing <kbd>↑</kbd> or <kbd>↓</kbd> extends the arrow length by one dash each press. Self-transitions are fixed at <code>-&gt;</code> and cannot be redirected.</p>
+      <p><strong>Shortcut:</strong> with a transition selected, the arrow keys (<kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd>) change the connector direction directly. Repeatedly pressing <kbd>↑</kbd> or <kbd>↓</kbd> extends the arrow length by one dash each press. Self-transitions are fixed at <code>-&gt;</code> and ignore the arrow keys.</p>
+      <h3>Redirecting a transition to another target</h3>
+      <p>To change <em>where</em> a transition goes (rather than its visual direction), select one or more transition rows in the transitions table, plus exactly one target node — a state, a choice-point, or <strong>H (history)</strong> — and click <strong>Redirect</strong>.</p>
+      <p>Each selected row is moved to a transition into the new target. The original messages, including any action notes, are preserved. Rows can come from different sources; each is redirected independently. The redirected rows become the new selection so you can immediately see what changed.</p>
+      <p>If a redirect would create a duplicate transition (the new target's source already handles that message) or is a no-op (the row already targets the chosen node), Stadiæ aborts before making any changes and shows a list of the conflicts.</p>
       <h3>Documenting the action</h3>
       <p>Each transition row can carry a free-text <strong>action</strong> describing what the component does when that specific (source, target, message) transition fires. This is developer documentation — actions are stored in the saved <code>.json</code> file and visible in the editor's <em>Action</em> panel, but they are intentionally <em>not</em> included in the generated PlantUML so the diagram stays uncluttered.</p>
       <p>To document a transition's action: select a single row in the transitions table. The Action panel below the table switches from a placeholder to an editable text area. Type the description; it is saved to the model as you type. Rows that have a non-empty action show a small indicator dot in the leftmost column of the transitions table.</p>
@@ -2856,6 +2875,110 @@ function addMessagesToTransition(source, target, msgs, defaultConnector) {
   }
 }
 
+function actionRedirectTransitions() {
+  if (!canRedirectTransitions()) return;
+
+  // Determine the new target node
+  let newTarget;
+  if (Selection.states.size === 1) newTarget = [...Selection.states][0];
+  else if (Selection.choicePoints.size === 1) newTarget = "CP_" + [...Selection.choicePoints][0];
+  else newTarget = "[H]";  // history
+
+  // Group selected rows by their original (source, target) and resolve to
+  // the actual message objects (so we keep their action notes).
+  // Each entry: {source, oldTarget, messages: [{interface, name, action?}], allRows: bool}
+  const rowsByPair = new Map();
+  for (const key of Selection.transitions) {
+    const parts = key.split("|");
+    const src = parts[0], tgt = parts[1], iface = parts[2], name = parts[3];
+    if (iface === "" && name === "") continue;  // initial transitions can't be redirected (their target IS the chosen state already, but they have no message rows we'd move)
+    const pairKey = src + "|" + tgt;
+    if (!rowsByPair.has(pairKey)) rowsByPair.set(pairKey, { source: src, oldTarget: tgt, messages: [] });
+    const t = Model.transitions.find(tt => tt.source === src && tt.target === tgt);
+    if (!t) continue;
+    const m = t.messages.find(mm => mm.interface === iface && mm.name === name);
+    if (m) rowsByPair.get(pairKey).messages.push(m);
+  }
+
+  if (rowsByPair.size === 0) {
+    showAlert("Redirect", "No redirectable transition rows are selected (initial transitions cannot be redirected).");
+    return;
+  }
+
+  // Pre-flight checks: every redirect must end up at a (source, newTarget)
+  // transition that doesn't already carry the same message. Self-redirects
+  // (source equals newTarget already) are no-ops; flag them as conflicts so
+  // the user notices.
+  const conflicts = [];
+  for (const { source, oldTarget, messages } of rowsByPair.values()) {
+    if (oldTarget === newTarget) {
+      for (const m of messages) {
+        conflicts.push(`${nodeLabel(source)} → ${nodeLabel(newTarget)} on ${m.interface}:${m.name} (already has this target)`);
+      }
+      continue;
+    }
+    const dest = Model.transitions.find(tt => tt.source === source && tt.target === newTarget);
+    if (dest) {
+      for (const m of messages) {
+        if (dest.messages.some(mm => mm.interface === m.interface && mm.name === m.name)) {
+          conflicts.push(`${nodeLabel(source)} → ${nodeLabel(newTarget)} on ${m.interface}:${m.name} (target already handles this message)`);
+        }
+      }
+    }
+  }
+  if (conflicts.length) {
+    showAlert("Cannot redirect",
+      "These redirects would create duplicate transitions or are no-ops:\n\n• " +
+      conflicts.join("\n• "));
+    return;
+  }
+
+  // All clear — perform the redirects.
+  pushHistory();
+  const newSelection = new Set();
+  for (const { source, oldTarget, messages } of rowsByPair.values()) {
+    const oldT = Model.transitions.find(tt => tt.source === source && tt.target === oldTarget);
+
+    // Find or create the destination transition. Connector handling:
+    //   - If we're moving ALL of oldT's messages, the old transition will
+    //     be dropped, so the new one inherits its connector and length.
+    //   - Otherwise the new one gets defaults.
+    let dest = Model.transitions.find(tt => tt.source === source && tt.target === newTarget);
+    const movingAll = oldT && messages.length === oldT.messages.length;
+    if (!dest) {
+      const connector = movingAll ? oldT.connector : "Down";
+      const length = movingAll ? oldT.length : 1;
+      dest = { source, target: newTarget, messages: [], connector, length };
+      Model.transitions.push(dest);
+    }
+
+    // Move each message (preserving its action field).
+    for (const m of messages) {
+      // Remove from old transition
+      if (oldT) {
+        oldT.messages = oldT.messages.filter(mm => !(mm.interface === m.interface && mm.name === m.name));
+      }
+      // Add to destination, copying action
+      const moved = { interface: m.interface, name: m.name };
+      if (m.action) moved.action = m.action;
+      dest.messages.push(moved);
+      newSelection.add(transRowKey(source, newTarget, m.interface, m.name));
+    }
+  }
+
+  // Drop transitions that are now empty (except the initial transition,
+  // which is intentionally messageless — but we never touch that here).
+  Model.transitions = Model.transitions.filter(t =>
+    t.source === "START" || (t.messages && t.messages.length > 0));
+
+  // Replace selection with the redirected rows so the user can immediately
+  // see what moved.
+  Selection.clearAll();
+  for (const k of newSelection) Selection.transitions.add(k);
+
+  refresh();
+}
+
 function actionDelete() {
   pushHistory();
 
@@ -3260,6 +3383,7 @@ document.getElementById("btn-delete").onclick = actionDelete;
 document.getElementById("btn-add-state").onclick = actionAddState;
 document.getElementById("btn-add-cp").onclick = actionAddCP;
 document.getElementById("btn-add-trans").onclick = actionAddTransition;
+document.getElementById("btn-redirect").onclick = actionRedirectTransitions;
 document.getElementById("btn-add-iface").onclick = actionAddInterface;
 document.getElementById("btn-add-msg").onclick = actionAddMessage;
 document.getElementById("btn-edit").onclick = actionEdit;
