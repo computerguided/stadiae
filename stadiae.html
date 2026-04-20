@@ -369,6 +369,8 @@
   }
   .trans-panel td.action-dot.has-action::before { opacity: 0.75; }
   .trans-panel th:first-child { width: 18px; padding-left: 6px; padding-right: 0; }
+  /* Cells whose interface or message matches the current selection */
+  .trans-panel td.match { font-weight: 600; color: var(--text); }
 
   /* === Action panel === */
   .action-panel {
@@ -1112,8 +1114,15 @@ function generatePlantUML(opts = {}) {
       const parts = t.messages.map(m => {
         const key = transRowKey(t.source, t.target, m.interface, m.name);
         const selected = !isMask && withSelection && Selection.transitions.has(key);
-        const text = `$${m.interface}_${m.name}`;
-        return selected ? `<color:#FF0000>${text}</color>` : text;
+        // Bold this label when its interface/message matches the current
+        // selection — gives a quick visual index of where it's used.
+        // (When messages are individually selected, the interface alone
+        // doesn't count as a match — see isUsageMatch.)
+        const matched = !isMask && withSelection && isUsageMatch(m.interface, m.name);
+        let text = `$${m.interface}_${m.name}`;
+        if (selected) text = `<color:#FF0000>${text}</color>`;
+        if (matched) text = `<b>${text}</b>`;
+        return text;
       });
       line += ` : ${parts.join("\\n")}`;
     }
@@ -1484,13 +1493,15 @@ function refresh() {
   buildActionPanel();
   updateToolbar();
 
-  // Only re-render the diagram when something visible has changed. Interface
-  // and message selections affect the lists and Edit-button enablement but
-  // never the rendered diagram — skipping those saves a server round-trip.
+  // Only re-render the diagram when something visible has changed. Includes
+  // interface and message selections because they bold matching message
+  // labels on the rendered diagram.
   const visualFingerprint = snapshot() + "|sel:" +
     [...Selection.states].sort().join(",") + "|cps:" +
     [...Selection.choicePoints].sort().join(",") + "|trs:" +
-    currentTransKey + "|flags:" +
+    currentTransKey + "|ifs:" +
+    [...Selection.interfaces].sort().join(",") + "|msgs:" +
+    [...Selection.messages].sort().join(",") + "|flags:" +
     (Selection.start?"s":"") + (Selection.history?"h":"") + (Selection.any?"a":"");
   if (refresh._lastVisual !== visualFingerprint) {
     refresh._lastVisual = visualFingerprint;
@@ -1726,11 +1737,16 @@ function buildTransitionTable() {
       const m = r.t.messages.find(mm => mm.interface === r.iface && mm.name === r.msg);
       if (m && m.action && m.action.trim().length > 0) hasAction = true;
     }
+    // Highlight cells whose interface/message matches the current selection,
+    // making it easy to scan where an interface or message is used.
+    // (When messages are individually selected, only those rows match —
+    // not every row of the same interface.)
+    const matched = isUsageMatch(r.iface, r.msg);
     tr.innerHTML = `<td class="action-dot${hasAction ? " has-action" : ""}" title="${hasAction ? "Has action" : ""}"></td>
                     <td>${escapeHTML(nodeLabel(r.t.source))}</td>
                     <td>${escapeHTML(nodeLabel(r.t.target))}</td>
-                    <td>${escapeHTML(r.iface)}</td>
-                    <td>${escapeHTML(r.msg)}</td>`;
+                    <td${matched ? ' class="match"' : ''}>${escapeHTML(r.iface)}</td>
+                    <td${matched ? ' class="match"' : ''}>${escapeHTML(r.msg)}</td>`;
     tr.addEventListener("click", () => {
       if (Selection.transitions.has(key)) Selection.transitions.delete(key);
       else Selection.transitions.add(key);
@@ -1786,6 +1802,25 @@ function isDefaultInterface(name) {
 function isDefaultMessage(iface, name) {
   return (iface === "Timer" && name === "Timeout") ||
          (iface === "Logical" && (name === "Yes" || name === "No"));
+}
+
+// Helpers for the "where is this interface/message used" highlighting.
+// Rule: when any message of an interface is individually selected, that
+// interface's matching is restricted to those specific messages — bolding
+// the whole interface would defeat the user's specificity. When the
+// interface is selected with none of its messages individually selected,
+// every message of that interface counts as a match.
+function interfaceHasAnySelectedMessage(iface) {
+  for (const k of Selection.messages) {
+    if (k.split(":")[0] === iface) return true;
+  }
+  return false;
+}
+function isUsageMatch(iface, name) {
+  if (!iface) return false;
+  if (Selection.messages.has(iface + ":" + name)) return true;
+  if (Selection.interfaces.has(iface) && !interfaceHasAnySelectedMessage(iface)) return true;
+  return false;
 }
 
 function canAddTransition() {
