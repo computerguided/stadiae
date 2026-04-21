@@ -6,7 +6,6 @@ Rename the downloaded file to `plantuml.jar`
 
 ```
 sudo apt install graphviz
-java -jar plantuml.jar -picoweb:8000
 ```
 
 On Ubuntu:
@@ -19,7 +18,7 @@ Description=PlantUML PicoWeb Server
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/java -jar /opt/plantuml/plantuml.jar -picoweb:8000
+ExecStart=/usr/bin/java -jar /path/to/plantuml.jar -picoweb:8000
 Restart=on-failure
 User=<yourusername>
 WorkingDirectory=/opt/plantuml
