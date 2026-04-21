@@ -18,7 +18,7 @@ Description=PlantUML PicoWeb Server
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/java -jar /path/to/plantuml.jar -picoweb:8000
+ExecStart=/usr/bin/java -jar /path/to/plantuml.jar -picoweb:8080
 Restart=on-failure
 User=<yourusername>
 WorkingDirectory=/opt/plantuml
@@ -39,5 +39,5 @@ Check it's running:
 
 ```
 bashsudo systemctl status plantuml.service
-curl http://localhost:8000
+curl http://localhost:8080
 ```
