@@ -17,29 +17,25 @@ sudo apt update
 sudo apt install default-jdk
 ```
 
-### Graphviz
-
-Installs the dot-language module.
-
-```
-which dot
-```
-
-If not present, install it:
-
-```
-sudo apt install graphviz
-```
-
 ## Install PlantUML picoserver
 
 ### Download
 
-Download PlantUML picoserver: https://plantuml.com/download.
+Download PlantUML picoserver and rename the downloaded file to `plantuml.jar`.
 
-Rename the downloaded file to `plantuml.jar`.
+```
+sudo curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2026.2/plantuml-epl-1.2026.2.jar
+```
 
-### Create background server
+The server can now be run in the terminal.
+
+```
+java -jar plantuml.jar -picoweb:8080
+```
+
+However, a more convenient solution is to start it as a permanent service as described in the next section.
+
+### Create PlantUML service
 
 Create the `plantuml.service` file:
 
@@ -55,10 +51,10 @@ Description=PlantUML PicoWeb Server
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/java -jar /path/to/plantuml.jar -picoweb:8080
+ExecStart=/usr/bin/java -jar /path/to/plantuml/plantuml.jar -picoweb:8080
 Restart=on-failure
 User=your_user_name
-WorkingDirectory=/opt/plantuml
+WorkingDirectory=/path/to/plantuml
 
 [Install]
 WantedBy=multi-user.target
@@ -77,3 +73,4 @@ Check it's running:
 sudo systemctl status plantuml.service
 curl http://localhost:8080
 ```
+
