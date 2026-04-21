@@ -17,6 +17,21 @@ sudo apt update
 sudo apt install default-jdk
 ```
 
+### Graphviz
+To run the PlantUML server, Graphviz (https://graphviz.org) is required, which implements the dot-language.
+
+Check if it is installed on your system:
+
+```
+which dot
+```
+
+If not present, install it:
+
+```
+sudo apt install graphviz
+```
+
 ## Install PlantUML picoserver
 
 ### Download
