@@ -1650,7 +1650,14 @@ function renderDiagram() {
   // Invalidate mask while new images are fetching
   maskState.ready = false;
 
-  panel.innerHTML = '<div class="loading">Rendering diagram...</div>';
+  // Keep the previously-rendered image visible while the new one fetches,
+  // so a small edit doesn't blank the canvas mid-typing. Only show the
+  // "Rendering diagram..." placeholder when there's no existing image yet
+  // (first render after load, or after an error).
+  const existingImg = panel.querySelector("img");
+  if (!existingImg) {
+    panel.innerHTML = '<div class="loading">Rendering diagram...</div>';
+  }
 
   // === Fetch both images in parallel ===
   const visibleImg = new Image();
