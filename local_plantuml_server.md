@@ -10,7 +10,7 @@ Check if Java is installed on your system:
 which java
 ```
 
-Otherwise, downoad Java from the website (https://www.java.com/en/download/help/linux_x64_install.html)
+Otherwise, download Java from the website (https://www.java.com/en/download/help/linux_x64_install.html)
 
 ### Graphviz
 
@@ -30,8 +30,9 @@ sudo apt install graphviz
 
 ### Download
 
-Download PlantUML picoserver: https://plantuml.com/download
-Rename the downloaded file to `plantuml.jar`
+Download PlantUML picoserver: https://plantuml.com/download.
+
+Rename the downloaded file to `plantuml.jar`.
 
 ### Create background server
 
