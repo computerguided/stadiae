@@ -1,8 +1,11 @@
+Download PlantUML picoserver:
+
+https://plantuml.com/download
+
+Rename the downloaded file to `plantuml.jar`
 
 ```
 sudo apt install graphviz
-curl -O https://github.com/plantuml/plantuml/releases/download/v1.2026.2/plantuml-1.2026.2.jar plantuml.jar > plantum.jar
-mv 
 java -jar plantuml.jar -picoweb:8000
 ```
 
