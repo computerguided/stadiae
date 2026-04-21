@@ -614,6 +614,104 @@
     justify-content: flex-end;
     gap: 8px;
   }
+
+  /* === Server configuration dialog ===
+     A custom body layout that doesn't inherit the default two-column
+     label/input grid used by other dialogs. */
+  .srv-body {
+    display: block !important;
+    grid-template-columns: none !important;
+    padding: 4px 20px 20px 20px;
+  }
+  .srv-body p.srv-intro {
+    margin: 0 0 16px 0;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.55;
+  }
+  .srv-body .srv-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .srv-body .srv-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .srv-body .srv-option:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .srv-body .srv-option.checked {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: 0 0 0 1px var(--accent) inset;
+  }
+  .srv-body .srv-option input[type="radio"] {
+    width: auto !important;
+    margin: 3px 0 0 0;
+    flex: 0 0 auto;
+    accent-color: var(--accent);
+  }
+  .srv-body .srv-option .srv-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+  .srv-body .srv-option .srv-label strong {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .srv-body .srv-option .srv-label span.srv-desc {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+  .srv-body .srv-url-block {
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    transition: opacity 0.15s;
+  }
+  .srv-body .srv-url-block.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .srv-body .srv-url-block .srv-url-label {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .srv-body .srv-url-block input {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+  .srv-body .srv-url-block .srv-preview {
+    margin-top: 8px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    word-break: break-all;
+  }
+  .srv-body .srv-url-block .srv-preview .srv-preview-url {
+    color: var(--text);
+  }
   .modal .actions button {
     background: var(--accent);
     color: white;
@@ -820,6 +918,43 @@
     transition: all 0.12s;
   }
   .code-toggle:hover { color: var(--accent); border-color: var(--accent-soft-hover); }
+
+  /* Small clickable indicator showing which PlantUML server is active.
+     Lives just to the left of the Show PlantUML toggle. Click to configure. */
+  .server-status {
+    position: fixed;
+    bottom: 12px;
+    right: 140px;
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    z-index: 500;
+    box-shadow: var(--shadow-md);
+    transition: all 0.12s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 360px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .server-status:hover { color: var(--accent); border-color: var(--accent-soft-hover); }
+  .server-status .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #888;
+    flex: 0 0 auto;
+  }
+  .server-status.online .dot { background: #3b82f6; }
+  .server-status.local  .dot { background: #10b981; }
+  .server-status .label { color: var(--text-muted); }
+  .server-status .value { color: var(--text); font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; }
   .code-panel {
     position: fixed;
     bottom: 48px; right: 12px;
@@ -866,6 +1001,8 @@
       <div class="separator"></div>
       <div class="item" data-action="export-puml">Export as PlantUML (.puml)...</div>
       <div class="item" data-action="export-png">Export as PNG image...</div>
+      <div class="separator"></div>
+      <div class="item" data-action="plantuml-server">PlantUML server...</div>
       <div class="separator"></div>
       <div class="item" data-action="exit">Exit</div>
     </div>
@@ -974,6 +1111,11 @@
   <div class="modal" id="modal-container"></div>
 </div>
 
+<button class="server-status" id="server-status" title="PlantUML server — click to change">
+  <span class="dot"></span>
+  <span class="label">plantuml:</span>
+  <span class="value" id="server-status-value">online</span>
+</button>
 <button class="code-toggle" id="code-toggle">Show PlantUML</button>
 <pre class="code-panel" id="code-panel"></pre>
 
@@ -1048,6 +1190,46 @@ const Component = {
   get transitions()   { return Model.components[Model.activeComponentIndex].transitions; },
   set transitions(v)  { Model.components[Model.activeComponentIndex].transitions = v; }
 };
+
+// ---------- PlantUML server configuration ----------
+// Where renders are dispatched to. Persisted to localStorage so the user's
+// choice survives across sessions. Two modes: "online" uses the public
+// plantuml.com server (the default, no setup required); "local" uses a
+// PlantUML server running on the user's own machine or network. The full
+// request URL is constructed as `<baseUrl>/plantuml/png/<encoded source>`,
+// which matches the public server's layout and the default layout of a
+// PlantUML server started with `-picoweb` or run as a Docker image.
+const PlantUMLServer = {
+  mode: "online",                          // "online" | "local"
+  localUrl: "http://127.0.0.1:8080",       // user-configurable local base URL
+  onlineUrl: "https://www.plantuml.com"    // not configurable; named for symmetry
+};
+
+function loadPlantUMLServerConfig() {
+  try {
+    const raw = localStorage.getItem("stadiae.plantumlServer");
+    if (!raw) return;
+    const cfg = JSON.parse(raw);
+    if (cfg.mode === "online" || cfg.mode === "local") PlantUMLServer.mode = cfg.mode;
+    if (typeof cfg.localUrl === "string" && cfg.localUrl.trim()) {
+      PlantUMLServer.localUrl = cfg.localUrl.trim().replace(/\/+$/, "");
+    }
+  } catch (_) { /* corrupted / unavailable — stick with defaults */ }
+}
+
+function savePlantUMLServerConfig() {
+  try {
+    localStorage.setItem("stadiae.plantumlServer", JSON.stringify({
+      mode: PlantUMLServer.mode,
+      localUrl: PlantUMLServer.localUrl
+    }));
+  } catch (_) { /* localStorage disabled — setting won't persist, but the
+                   current session still works */ }
+}
+
+function activePlantUMLBaseUrl() {
+  return PlantUMLServer.mode === "local" ? PlantUMLServer.localUrl : PlantUMLServer.onlineUrl;
+}
 
 // Selection: arrays of identifiers
 const Selection = {
@@ -1124,7 +1306,7 @@ function encodePlantUML(text) {
 
 function plantUMLImageURL(source) {
   const encoded = encodePlantUML(source);
-  return "https://www.plantuml.com/plantuml/png/" + encoded;
+  return activePlantUMLBaseUrl() + "/plantuml/png/" + encoded;
 }
 
 // ---------- PlantUML generation ----------
@@ -3531,6 +3713,108 @@ function buildTransitionsMarkdown() {
   return lines.join("\n");
 }
 
+function showPlantUMLServerDialog() {
+  const m = PlantUMLServer.mode;
+  const url = PlantUMLServer.localUrl;
+  modalContainer.innerHTML = `
+    <div class="title">PlantUML server</div>
+    <div class="body srv-body">
+      <p class="srv-intro">Where Stadiæ sends PlantUML source to be rendered into PNG. Your choice is saved in this browser and will be used next time.</p>
+      <div class="srv-options">
+        <label class="srv-option ${m==="online"?"checked":""}" data-mode="online">
+          <input type="radio" name="srv-mode" value="online" ${m==="online"?"checked":""}>
+          <span class="srv-label">
+            <strong>Online — plantuml.com</strong>
+            <span class="srv-desc">Public PlantUML server. No setup, requires internet access.</span>
+          </span>
+        </label>
+        <label class="srv-option ${m==="local"?"checked":""}" data-mode="local">
+          <input type="radio" name="srv-mode" value="local" ${m==="local"?"checked":""}>
+          <span class="srv-label">
+            <strong>Local server</strong>
+            <span class="srv-desc">A PlantUML server running on your machine or local network.</span>
+          </span>
+        </label>
+      </div>
+      <div class="srv-url-block ${m==="local"?"":"disabled"}" id="srv-url-block">
+        <label class="srv-url-label" for="srv-url">Base URL</label>
+        <input type="text" id="srv-url" value="${escapeHTML(url)}" placeholder="http://127.0.0.1:8080">
+        <div class="srv-preview">
+          requests &rarr; <span class="srv-preview-url" id="srv-url-preview">${escapeHTML(url)}</span>/plantuml/png/&lt;encoded&gt;
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="srv-ok">OK</button>
+      <button id="srv-cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+
+  const urlInput = document.getElementById("srv-url");
+  const urlBlock = document.getElementById("srv-url-block");
+  const preview = document.getElementById("srv-url-preview");
+  const options = document.querySelectorAll(".srv-option");
+  const radios = document.querySelectorAll("input[name='srv-mode']");
+
+  function currentMode() {
+    for (const r of radios) if (r.checked) return r.value;
+    return "online";
+  }
+  function syncUi() {
+    const mode = currentMode();
+    // Update option cards' checked styling
+    options.forEach(o => o.classList.toggle("checked", o.dataset.mode === mode));
+    // Enable/disable URL block
+    urlBlock.classList.toggle("disabled", mode !== "local");
+  }
+  syncUi();
+  radios.forEach(r => r.addEventListener("change", syncUi));
+  urlInput.addEventListener("input", () => {
+    preview.textContent = urlInput.value.trim().replace(/\/+$/, "") || "http://…";
+  });
+
+  document.getElementById("srv-ok").onclick = () => {
+    const mode = currentMode();
+    if (mode === "local") {
+      const raw = urlInput.value.trim().replace(/\/+$/, "");
+      if (!/^https?:\/\/.+/i.test(raw)) {
+        showAlert("Invalid URL", "Enter a URL starting with http:// or https:// — e.g. http://127.0.0.1:8080");
+        return;
+      }
+      PlantUMLServer.localUrl = raw;
+    }
+    PlantUMLServer.mode = mode;
+    savePlantUMLServerConfig();
+    updateServerStatus();
+    hideModal();
+    // Force a re-render so the new server is used immediately.
+    refresh._lastVisual = null;
+    refresh();
+  };
+  document.getElementById("srv-cancel").onclick = hideModal;
+}
+
+// Keep the bottom-right badge in sync with the current PlantUMLServer state.
+function updateServerStatus() {
+  const el = document.getElementById("server-status");
+  const val = document.getElementById("server-status-value");
+  if (!el || !val) return;
+  if (PlantUMLServer.mode === "local") {
+    el.classList.remove("online");
+    el.classList.add("local");
+    // Show host:port without the scheme for compactness.
+    let shortUrl = PlantUMLServer.localUrl.replace(/^https?:\/\//i, "");
+    val.textContent = "local (" + shortUrl + ")";
+    el.title = "PlantUML server: " + PlantUMLServer.localUrl + " — click to change";
+  } else {
+    el.classList.remove("local");
+    el.classList.add("online");
+    val.textContent = "online";
+    el.title = "PlantUML server: plantuml.com — click to change";
+  }
+}
+
 function showTransitionsMarkdown() {
   const md = buildTransitionsMarkdown();
   modalContainer.innerHTML = `
@@ -3714,6 +3998,7 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
       case "saveas": saveAs(); break;
       case "export-puml": exportPUML(); break;
       case "export-png": exportPNG(); break;
+      case "plantuml-server": showPlantUMLServerDialog(); break;
       case "exit": showAlert("Exit", "In a desktop app this would close the application. Close the browser tab to exit."); break;
       case "change-name":
         showPrompt("Change component name", "Name:", Component.name, null, (name) => {
@@ -3763,6 +4048,9 @@ document.getElementById("code-toggle").onclick = () => {
   document.getElementById("code-toggle").textContent =
     p.classList.contains("show") ? "Hide PlantUML" : "Show PlantUML";
 };
+
+// Server-status badge — click opens the PlantUML server config dialog.
+document.getElementById("server-status").onclick = showPlantUMLServerDialog;
 
 // Vertical resize handle: drag to change lists-grid height
 (function() {
@@ -3953,6 +4241,8 @@ document.addEventListener("keydown", e => {
 });
 
 // ---------- Bootstrap ----------
+loadPlantUMLServerConfig();
+updateServerStatus();
 initActionPanel();
 resetModel("Component Name");
 refresh();
