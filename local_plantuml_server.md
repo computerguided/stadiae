@@ -10,7 +10,12 @@ Check if Java is installed on your system:
 which java
 ```
 
-Otherwise, download Java from the website (https://www.java.com/en/download/help/linux_x64_install.html)
+Otherwise, install it:
+
+```
+sudo apt update
+sudo apt install default-jdk
+```
 
 ### Graphviz
 
