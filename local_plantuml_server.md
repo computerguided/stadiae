@@ -27,3 +27,18 @@ WorkingDirectory=/opt/plantuml
 [Install]
 WantedBy=multi-user.target
 ```
+
+
+Then
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable --now plantuml.service
+```
+
+Check it's running:
+
+```
+bashsudo systemctl status plantuml.service
+curl http://localhost:8000
+```
