@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>stadiae — state-diagram editor for embedded systems architects</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:         #f8f8f6;
+  --bg-2:       #efefeb;
+  --bg-3:       #e6e5df;
+  --surface:    #ffffff;
+  --ink:        #0f0f12;
+  --ink-1:      #2c2c33;
+  --ink-2:      #55555d;
+  --ink-3:      #8e8e95;
+  --ink-4:      #b8b8bd;
+  --rule:       #0f0f12;
+  --rule-soft:  #d8d8d2;
+  --accent:     #2b2a8f;
+  --accent-hov: #1e1d66;
+  --accent-bg:  #eceaf6;
+  --green:      #1a7a3a;
+  --red:        #a11f33;
+  --amber:      #8a5a10;
+  --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", "Menlo", "Consolas", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code, pre, .mono, kbd { font-family: var(--mono); }
+
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.15s; }
+a:hover { border-bottom-color: var(--accent); }
+
+/* ================ Top status bar ================ */
+.topbar {
+  position: sticky; top: 0;
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--rule);
+  padding: 10px 28px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 24px;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.topbar .brand { font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
+.topbar .brand .hash { color: var(--ink-3); }
+.topbar .path { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar .path .slash { color: var(--ink-4); }
+.topbar .actions { display: flex; gap: 16px; font-size: 12px; }
+.topbar .actions a { color: var(--ink-2); }
+.topbar .actions a:hover { color: var(--accent); }
+
+/* ================ Layout ================ */
+.wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 28px;
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 48px;
+}
+
+/* ================ Sidebar ================ */
+aside.sidebar {
+  position: sticky;
+  top: 60px;
+  align-self: start;
+  padding-top: 56px;
+  padding-bottom: 40px;
+  font-family: var(--mono);
+  font-size: 12px;
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+}
+aside.sidebar .tag { display: inline-block; font-size: 10.5px; color: var(--ink-3); margin-bottom: 6px; letter-spacing: 0.03em; }
+aside.sidebar h4 {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 26px 0 10px 0;
+}
+aside.sidebar h4:first-of-type { margin-top: 0; }
+aside.sidebar ul { list-style: none; }
+aside.sidebar li { margin: 4px 0; }
+aside.sidebar li a {
+  color: var(--ink-1);
+  display: block;
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid transparent;
+  margin-left: -12px;
+  border-bottom: none;
+  transition: all 0.12s;
+}
+aside.sidebar li a:hover { color: var(--accent); border-left-color: var(--accent); }
+aside.sidebar li a .idx { color: var(--ink-3); margin-right: 8px; }
+aside.sidebar .meta {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule-soft);
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.8;
+}
+aside.sidebar .meta .k { color: var(--ink-2); }
+
+/* ================ Main ================ */
+main.doc { padding: 56px 0 120px 0; min-width: 0; }
+
+/* ---- Hero ---- */
+.hero { border-bottom: 1px solid var(--rule); padding-bottom: 48px; margin-bottom: 48px; }
+.hero .crumb { font-family: var(--mono); font-size: 12px; color: var(--ink-3); margin-bottom: 20px; }
+.hero .crumb .accent { color: var(--accent); }
+.hero h1 {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 52px;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.hero h1 .mono-accent {
+  font-family: var(--mono);
+  font-weight: 500;
+  color: var(--accent);
+  font-size: 44px;
+  letter-spacing: -0.02em;
+}
+.hero .tagline {
+  font-size: 19px;
+  line-height: 1.45;
+  color: var(--ink-1);
+  max-width: 60ch;
+  margin-bottom: 28px;
+}
+.hero .tagline .hl { color: var(--accent); font-weight: 500; }
+.hero .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 28px; }
+
+.btn {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 18px;
+  border-radius: 2px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  letter-spacing: -0.01em;
+}
+.btn:hover { border-bottom: 1px solid; }
+.btn-primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn-primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-ghost { background: transparent; color: var(--ink-1); border-color: var(--rule); }
+.btn-ghost:hover { background: var(--surface); color: var(--ink); border-color: var(--ink); }
+
+.hero .badges {
+  display: flex; flex-wrap: wrap; gap: 10px 18px;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-2);
+  align-items: center;
+}
+.hero .badges .badge { display: inline-flex; align-items: center; gap: 6px; }
+.hero .badges .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+.hero .badges .badge.warn::before { background: var(--amber); }
+.hero .badges .sep { color: var(--ink-4); }
+
+/* ---- Section titles ---- */
+section.block { padding: 48px 0; border-bottom: 1px solid var(--rule-soft); scroll-margin-top: 70px; }
+section.block:last-of-type { border-bottom: none; }
+
+.sec-head {
+  display: grid; grid-template-columns: 120px 1fr; gap: 24px;
+  align-items: baseline; margin-bottom: 28px;
+}
+.sec-head .num { font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.02em; }
+.sec-head .num .hash { color: var(--accent); }
+.sec-head h2 {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.sec-head h2 .mono-accent {
+  font-family: var(--mono);
+  font-weight: 500;
+  color: var(--accent);
+  font-size: 22px;
+}
+
+.sec-body { display: grid; grid-template-columns: 120px 1fr; gap: 24px; }
+.sec-body .content { min-width: 0; }
+.sec-body p { font-size: 15.5px; line-height: 1.6; color: var(--ink-1); max-width: 72ch; }
+.sec-body p + p { margin-top: 14px; }
+
+/* ---- Code / pre blocks ---- */
+pre.code {
+  background: var(--surface);
+  border: 1px solid var(--rule-soft);
+  border-left: 2px solid var(--accent);
+  padding: 16px 20px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-1);
+  overflow-x: auto;
+  border-radius: 2px;
+  white-space: pre;
+}
+pre.code .kw    { color: var(--accent); font-weight: 500; }
+pre.code .str   { color: var(--green); }
+pre.code .num   { color: var(--amber); }
+pre.code .com   { color: var(--ink-3); font-style: italic; }
+pre.code .id    { color: var(--ink); }
+pre.code .punct { color: var(--ink-3); }
+
+.code-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  margin: 18px 0 8px 0;
+}
+.code-label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+.kbd {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 1px 7px;
+  background: var(--bg-3);
+  border: 1px solid var(--rule-soft);
+  border-bottom: 2px solid var(--rule-soft);
+  border-radius: 3px;
+  color: var(--ink);
+}
+
+.callout {
+  margin: 20px 0;
+  padding: 14px 18px;
+  background: var(--accent-bg);
+  border-left: 2px solid var(--accent);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-1);
+}
+.callout b { color: var(--accent); font-weight: 600; }
+
+/* ---- Feature table ---- */
+table.features { width: 100%; border-collapse: collapse; font-size: 14.5px; margin-top: 8px; }
+table.features th, table.features td { text-align: left; padding: 14px 16px; vertical-align: top; border-bottom: 1px solid var(--rule-soft); }
+table.features th {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--rule);
+  padding: 10px 16px;
+}
+table.features td.name {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 500;
+  white-space: nowrap;
+  width: 200px;
+}
+table.features td.desc { color: var(--ink-1); line-height: 1.55; }
+table.features tr:last-child td { border-bottom: none; }
+
+/* ---- Compare sections (diff-style) ---- */
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 16px;
+}
+.compare .col { padding: 14px 16px; border-radius: 2px; }
+.compare .col h5 {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+  color: var(--ink-2);
+}
+.compare .col.theirs { border-left: 2px solid var(--red); background: #fdf3f4; }
+.compare .col.ours   { border-left: 2px solid var(--green); background: #f1faf4; }
+.compare .col.theirs h5::before { content: "− "; color: var(--red); font-weight: bold; }
+.compare .col.ours h5::before  { content: "+ "; color: var(--green); font-weight: bold; }
+.compare .col ul { list-style: none; font-size: 13px; line-height: 1.55; color: var(--ink-1); }
+.compare .col li { padding: 4px 0; }
+.compare .col li::before { content: "→ "; color: var(--ink-3); font-family: var(--mono); }
+
+/* ---- Terminal ---- */
+.terminal {
+  background: var(--ink);
+  color: #e8e6ea;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  overflow: hidden;
+  margin: 20px 0;
+}
+.terminal .bar {
+  background: #2b2b33;
+  padding: 8px 14px;
+  font-size: 11px;
+  color: #9a9aa1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.terminal .bar .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.terminal .bar .d1 { background: #ff5f56; }
+.terminal .bar .d2 { background: #ffbd2e; }
+.terminal .bar .d3 { background: #27c93f; }
+.terminal .bar .title { margin-left: 8px; color: #aaa; font-family: var(--mono); font-size: 11px; }
+.terminal .body { padding: 16px 18px; white-space: pre; overflow-x: auto; }
+.terminal .prompt  { color: #64d98b; }
+.terminal .cmd     { color: #f0f0f0; }
+.terminal .arg     { color: #cbb3ff; }
+.terminal .out     { color: #b5b5bb; }
+.terminal .kw      { color: #7dd3fc; }
+.terminal .comment { color: #6b7280; font-style: italic; }
+
+/* ---- ASCII art diagram ---- */
+pre.ascii {
+  background: var(--surface);
+  border: 1px solid var(--rule-soft);
+  padding: 16px 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-1);
+  overflow-x: auto;
+  border-radius: 2px;
+  white-space: pre;
+}
+pre.ascii .hl { color: var(--accent); font-weight: 500; }
+pre.ascii .muted { color: var(--ink-3); }
+
+/* ---- Screenshot figure ---- */
+figure.shot {
+  margin: 24px 0 8px 0;
+  padding: 0;
+  border: 1px solid var(--rule-soft);
+  border-left: 2px solid var(--accent);
+  background: var(--surface);
+  border-radius: 2px;
+  overflow: hidden;
+}
+figure.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-bottom: 1px solid var(--rule-soft);
+}
+figure.shot figcaption {
+  padding: 10px 16px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+figure.shot figcaption .fig {
+  color: var(--accent);
+  font-weight: 500;
+  margin-right: 10px;
+}
+
+/* ---- Shortcuts ---- */
+table.shortcuts { width: 100%; border-collapse: collapse; margin-top: 8px; }
+table.shortcuts td { padding: 9px 0; border-bottom: 1px dashed var(--rule-soft); vertical-align: middle; }
+table.shortcuts tr:last-child td { border-bottom: none; }
+table.shortcuts td.keys { width: 220px; font-family: var(--mono); }
+table.shortcuts td.desc { color: var(--ink-1); font-size: 14px; }
+
+/* ---- CTA ---- */
+.cta {
+  margin-top: 48px;
+  padding: 28px;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: 4px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 28px;
+}
+.cta .cta-text { font-family: var(--mono); font-size: 13.5px; line-height: 1.5; color: #d8d8dc; }
+.cta .cta-text b { color: #fff; font-weight: 500; }
+.cta .cta-text .hash { color: #888; }
+.cta .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cta .btn-primary:hover { background: #3b3ac0; border-color: #3b3ac0; }
+
+/* ---- Footer ---- */
+footer.foot {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 28px;
+  border-top: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 28px;
+  align-items: center;
+}
+footer.foot a { color: var(--ink-2); }
+footer.foot a:hover { color: var(--accent); }
+footer.foot .links a + a { margin-left: 18px; }
+
+/* ---- Responsive ---- */
+@media (max-width: 900px) {
+  .wrap { grid-template-columns: 1fr; gap: 0; }
+  aside.sidebar { position: static; max-height: none; padding: 24px 0; border-bottom: 1px solid var(--rule-soft); }
+  .sec-head, .sec-body { grid-template-columns: 1fr; gap: 12px; }
+  .sec-head .num { font-size: 11px; }
+  .compare { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 40px; }
+  .hero h1 .mono-accent { font-size: 32px; }
+  .cta { grid-template-columns: 1fr; gap: 16px; }
+}
+@media (max-width: 560px) {
+  .topbar { grid-template-columns: 1fr; gap: 4px; }
+  .topbar .path { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="hash">#</span> stadi&aelig;</div>
+  <div class="path">
+    <span class="slash">github.com/</span>computerguided<span class="slash">/</span>stadiae
+  </div>
+  <div class="actions">
+    <a href="stadiae.html">open &rarr;</a>
+    <a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github &#8599;</a>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <span class="tag">stadi&aelig;</span>
+    <h4>Contents</h4>
+    <ul>
+      <li><a href="#synopsis"><span class="idx">0</span>synopsis</a></li>
+      <li><a href="#what-it-is"><span class="idx">1</span>what it is</a></li>
+      <li><a href="#why"><span class="idx">2</span>why it exists</a></li>
+      <li><a href="#model"><span class="idx">3</span>the model</a></li>
+      <li><a href="#output"><span class="idx">4</span>output</a></li>
+      <li><a href="#layout"><span class="idx">5</span>layout</a></li>
+      <li><a href="#shortcuts"><span class="idx">6</span>shortcuts</a></li>
+      <li><a href="#vcs"><span class="idx">7</span>vcs workflow</a></li>
+      <li><a href="#install"><span class="idx">8</span>install</a></li>
+      <li><a href="#server"><span class="idx">9</span>server</a></li>
+    </ul>
+
+    <h4>Source</h4>
+    <ul>
+      <li><a href="stadiae.html">stadiae.html</a></li>
+      <li><a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github repo &#8599;</a></li>
+      <li><a href="https://github.com/computerguided/stadiae/blob/main/README.md" target="_blank" rel="noopener">README.md &#8599;</a></li>
+      <li><a href="https://github.com/computerguided/stadiae/blob/main/design.md" target="_blank" rel="noopener">design.md &#8599;</a></li>
+    </ul>
+
+    <div class="meta">
+      <div><span class="k">format</span> stadiae-v2</div>
+      <div><span class="k">deps</span> &lt;browser&gt;</div>
+      <div><span class="k">size</span> ~1 MB</div>
+      <div><span class="k">license</span> proprietary</div>
+    </div>
+  </aside>
+
+  <main class="doc">
+
+    <!-- Hero -->
+    <section class="hero" id="synopsis">
+      <div class="crumb"><span class="accent">$</span> man stadi&aelig;</div>
+      <h1>stadi&aelig; <span class="mono-accent">&mdash; state&mdash;diagrams</span></h1>
+      <p class="tagline">
+        A browser-based state-diagram editor for embedded systems architects. Edits the <span class="hl">domain model</span> directly &mdash; states, choice-points, interfaces, messages, transitions &mdash; and emits clean, diffable PlantUML. One HTML file. No install. No lock-in.
+      </p>
+
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="stadiae.html">./stadiae.html &rarr;</a>
+        <a class="btn btn-ghost" href="#what-it-is">keep reading</a>
+      </div>
+
+      <div class="badges">
+        <span class="badge">runs in any modern browser</span>
+        <span class="sep">&middot;</span>
+        <span class="badge">exports .puml / .png / .md</span>
+        <span class="sep">&middot;</span>
+        <span class="badge">git-friendly JSON save format</span>
+        <span class="sep">&middot;</span>
+        <span class="badge">online or local PlantUML server</span>
+      </div>
+    </section>
+
+    <!-- 1. What it is -->
+    <section class="block" id="what-it-is">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 01 /// summary</div>
+        <h2>A GUI front-end for PlantUML that speaks the <span class="mono-accent">domain</span>.</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <p>
+            Stadi&aelig; maintains an in-memory model of your diagram &mdash; states, choice-points, interfaces, messages, transitions &mdash; and re-emits PlantUML source from scratch on every edit. You never touch PlantUML syntax unless you want to; you edit behaviour. The server renders it; you see the result.
+          </p>
+          <p>
+            The domain is not decoration. The tool knows that a choice-point has exactly two branches (<code>Yes</code> / <code>No</code>), that an initial transition carries no message, that each source handles a given message at most once, that History and ANY are real pseudo-states with real semantics. Malformed diagrams cannot be saved, because they cannot be constructed.
+          </p>
+
+          <div class="code-label"><span class="dot"></span> sample output &middot; generated PlantUML</div>
+          <pre class="code"><span class="com">'== States ==</span>
+<span class="kw">state</span> <span class="id">Advertising</span>
+<span class="kw">state</span> <span class="id">Connecting</span>
+<span class="kw">state</span> <span class="id">CP_Whitelisted</span> <span class="kw">as</span> <span class="str">"Is Server\nWhitelisted?"</span>
+
+<span class="com">'== Transitions ==</span>
+[*]            --&gt; <span class="id">Advertising</span>
+<span class="id">Advertising</span>    --&gt; <span class="id">CP_Whitelisted</span>    : <span class="str">$RTx_ConnectReq</span>
+<span class="id">CP_Whitelisted</span> --&gt; <span class="id">Connecting</span>        : <span class="str">$Logical_Yes</span>
+<span class="id">CP_Whitelisted</span> --&gt; <span class="id">Error</span>             : <span class="str">$Logical_No</span></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Why -->
+    <section class="block" id="why">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 02 /// motivation</div>
+        <h2>Why not just draw it somewhere else?</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <p>
+            Every architect has tried the alternatives. Each one breaks in a different way once the diagram needs to live alongside the code.
+          </p>
+
+          <div class="compare">
+            <div class="col theirs">
+              <h5>Generic drawing tools</h5>
+              <ul>
+                <li>no domain semantics &mdash; anything can connect to anything</li>
+                <li>binary save format, undiff&shy;able, un&shy;reviewable</li>
+                <li>proprietary; diagrams hostage to the app</li>
+                <li>layout is manual &mdash; small model changes cause large visual churn</li>
+              </ul>
+            </div>
+            <div class="col ours">
+              <h5>Stadi&aelig;</h5>
+              <ul>
+                <li>domain-first: transitions, messages, choice-points are real</li>
+                <li>JSON save, PlantUML export &mdash; plain text, diff-able</li>
+                <li>no account, no backend, no lock-in &mdash; one HTML file</li>
+                <li>PlantUML auto-layout stays stable across edits</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="compare">
+            <div class="col theirs">
+              <h5>Hand-written PlantUML</h5>
+              <ul>
+                <li>every edit requires remembering syntax and re-running the renderer</li>
+                <li>no invariants enforced; typos silently change meaning</li>
+                <li>no element-level click-to-edit on the rendered image</li>
+                <li>actions, messages, interfaces have no first-class structure</li>
+              </ul>
+            </div>
+            <div class="col ours">
+              <h5>Stadi&aelig;</h5>
+              <ul>
+                <li>point-and-click editing, live re-render on every change</li>
+                <li>invariants enforced before the diagram is even saved</li>
+                <li>click states, choice-points, and transitions directly on the canvas</li>
+                <li>interfaces and messages first-class, shared across components</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Model -->
+    <section class="block" id="model">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 03 /// data model</div>
+        <h2>The entire state fits on one page.</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <p>
+            A Stadi&aelig; file holds a list of components, all sharing one set of interfaces and messages. This matches the reality of embedded systems: components are independent state machines, but they speak a common protocol.
+          </p>
+
+          <div class="code-label"><span class="dot"></span> stadiae-v2.json &middot; save format</div>
+          <pre class="code"><span class="punct">{</span>
+  <span class="kw">"format"</span><span class="punct">:</span> <span class="str">"stadiae-v2"</span><span class="punct">,</span>
+  <span class="kw">"interfaces"</span><span class="punct">:</span> <span class="punct">[</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">},</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"Data"</span><span class="punct">}</span> <span class="punct">],</span>
+  <span class="kw">"messages"</span><span class="punct">:</span>   <span class="punct">[</span> <span class="punct">{</span><span class="kw">"interface"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">,</span> <span class="kw">"name"</span><span class="punct">:</span><span class="str">"ConnectReq"</span><span class="punct">},</span> <span class="com">/* ... */</span> <span class="punct">],</span>
+  <span class="kw">"components"</span><span class="punct">:</span> <span class="punct">[</span>
+    <span class="punct">{</span>
+      <span class="kw">"name"</span><span class="punct">:</span> <span class="str">"Node"</span><span class="punct">,</span>
+      <span class="kw">"states"</span><span class="punct">:</span>       <span class="punct">[</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"Advertising"</span><span class="punct">,</span> <span class="kw">"displayName"</span><span class="punct">:</span><span class="str">"Advertising"</span><span class="punct">},</span> <span class="com">/* ... */</span> <span class="punct">],</span>
+      <span class="kw">"choicePoints"</span><span class="punct">:</span> <span class="punct">[</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"Whitelisted"</span><span class="punct">,</span> <span class="kw">"question"</span><span class="punct">:</span><span class="str">"Is Server\nWhitelisted?"</span><span class="punct">}</span> <span class="punct">],</span>
+      <span class="kw">"transitions"</span><span class="punct">:</span>  <span class="punct">[</span>
+        <span class="punct">{</span>
+          <span class="kw">"source"</span><span class="punct">:</span> <span class="str">"Advertising"</span><span class="punct">,</span>
+          <span class="kw">"target"</span><span class="punct">:</span> <span class="str">"CP_Whitelisted"</span><span class="punct">,</span>
+          <span class="kw">"messages"</span><span class="punct">:</span> <span class="punct">[</span>
+            <span class="punct">{</span> <span class="kw">"interface"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">,</span> <span class="kw">"name"</span><span class="punct">:</span><span class="str">"ConnectReq"</span><span class="punct">,</span>
+              <span class="kw">"action"</span><span class="punct">:</span> <span class="str">"Post ConnectReq to RTx; arm retry timer."</span> <span class="punct">}</span>
+          <span class="punct">],</span>
+          <span class="kw">"connector"</span><span class="punct">:</span> <span class="str">"Down"</span><span class="punct">,</span> <span class="kw">"length"</span><span class="punct">:</span> <span class="num">1</span>
+        <span class="punct">}</span>
+      <span class="punct">]</span>
+    <span class="punct">}</span>
+  <span class="punct">],</span>
+  <span class="kw">"activeComponentIndex"</span><span class="punct">:</span> <span class="num">0</span>
+<span class="punct">}</span></pre>
+
+          <div class="callout"><b>invariants.</b> each <code>(source, interface, name)</code> tuple appears at most once per component &middot; choice-points only emit <code>Logical:Yes</code> / <code>Logical:No</code> &middot; exactly one transition may leave <code>START</code> &middot; History and ANY are typed pseudo-endpoints. enforced at edit time; unreachable at save time.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Output -->
+    <section class="block" id="output">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 04 /// output</div>
+        <h2>Every artefact is plain text.</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <p>
+            Stadi&aelig; is opinionated about file formats because your CI pipeline, your code review process, and your future self all are. Three exports, all text:
+          </p>
+
+          <table class="features">
+            <thead>
+              <tr><th>Export</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="name">.json</td>
+                <td class="desc">Full round-trip save. Every component, every shared interface/message, every action note. Re-open and continue editing. Version: <code>stadiae-v2</code> with auto-migration from v1.</td>
+              </tr>
+              <tr>
+                <td class="name">.puml</td>
+                <td class="desc">Clean PlantUML source of the active component &mdash; feed to any PlantUML pipeline, render in CI, embed in documentation.</td>
+              </tr>
+              <tr>
+                <td class="name">.png</td>
+                <td class="desc">Rendered diagram of the active component for slide decks and one-pagers. Selection highlighting is never baked in.</td>
+              </tr>
+              <tr>
+                <td class="name">.md table</td>
+                <td class="desc">Transitions as a Markdown table &mdash; <code>Source</code>, <code>Target</code>, <code>Interface</code>, <code>Message</code>, <code>Action</code>. Drop it into a specification document or pull request description.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p style="margin-top:22px">
+            The <code>action</code> field on each transition row is where the behavioural description lives &mdash; "post ConnectReq to RTx; arm retry timer" &mdash; stored in the JSON save, surfaced in the Markdown export, <em>omitted</em> from PlantUML so the diagram stays uncluttered. Behaviour and visualisation, separated.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Layout -->
+    <section class="block" id="layout">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 05 /// interface</div>
+        <h2>The working surface.</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <p>
+            Two panes. Rendered diagram on the left, the domain on the right. Everything a single click away.
+          </p>
+
+          <p>
+            The canvas isn't a dumb image. A <em>second</em> PlantUML rendering runs in parallel with every element painted in a unique colour. A click on the canvas samples the pixel, looks up the element, and selects it. Near-misses are silently ignored &mdash; clicking between two states doesn't blow away your selection.
+          </p>
+
+          <div class="code-label"><span class="dot"></span> screenshot &middot; editor in use</div>
+          <figure class="shot">
+            <a href="screenshot.png"><img src="screenshot.png" alt="Stadiæ editor with a rendered state diagram on the left and the domain panel on the right"></a>
+            <figcaption><span class="fig">FIG. 1</span>A multi-component diagram open in Stadi&aelig;. The active component's state machine renders on the left; the system vocabulary and per-component lists are on the right.</figcaption>
+          </figure>
+
+          <p>
+            Interfaces and messages live in the <em>system panel</em>; they're shared across all components. Below that, a tab bar switches between components &mdash; <code>Node</code>, <code>Gateway</code>, <code>Session</code>, whatever your subsystem contains. Each component has its own states, choice-points, transitions, and action notes, but the protocol vocabulary is shared.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Shortcuts -->
+    <section class="block" id="shortcuts">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 06 /// interaction</div>
+        <h2>Keyboard-driven where it counts.</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <table class="shortcuts">
+            <tr><td class="keys"><span class="kbd">Ctrl</span> + <span class="kbd">S</span></td><td class="desc">save</td></tr>
+            <tr><td class="keys"><span class="kbd">Ctrl</span> + <span class="kbd">O</span></td><td class="desc">open</td></tr>
+            <tr><td class="keys"><span class="kbd">Ctrl</span> + <span class="kbd">N</span></td><td class="desc">new diagram</td></tr>
+            <tr><td class="keys"><span class="kbd">Ctrl</span> + <span class="kbd">Z</span> / <span class="kbd">Y</span></td><td class="desc">undo / redo</td></tr>
+            <tr><td class="keys"><span class="kbd">Del</span></td><td class="desc">delete selected element(s)</td></tr>
+            <tr><td class="keys"><span class="kbd">Enter</span></td><td class="desc">edit the selected element</td></tr>
+            <tr><td class="keys"><span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> <span class="kbd">&uarr;</span> <span class="kbd">&darr;</span></td><td class="desc">change selected transition's connector direction; repeated <span class="kbd">&uarr;</span> or <span class="kbd">&darr;</span> extends length</td></tr>
+            <tr><td class="keys">click canvas</td><td class="desc">select state / choice-point / transition directly on the rendered image</td></tr>
+            <tr><td class="keys">dbl-click tab</td><td class="desc">rename component</td></tr>
+          </table>
+
+          <div class="callout">
+            <b>undo coalescing.</b> repeated arrow-key presses on the same transition collapse into one undo step. ten presses of <span class="kbd">&uarr;</span> &mdash; one undo. switch direction or transition and the session ends, committing the change.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. VCS -->
+    <section class="block" id="vcs">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 07 /// workflow</div>
+        <h2>Diagrams as <span class="mono-accent">source code</span>.</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <p>
+            The save format is compact, stable JSON. The PlantUML export is deterministic. Both round-trip losslessly. What that means in practice:
+          </p>
+
+          <div class="terminal">
+            <div class="bar">
+              <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
+              <span class="title">~/rtx-stack</span>
+            </div>
+<div class="body"><span class="prompt">$</span> <span class="cmd">git</span> <span class="arg">diff</span> node.stadiae.json
+<span class="comment">diff --git a/node.stadiae.json b/node.stadiae.json</span>
+<span class="comment">index 8f2c1a..3e4d7b 100644</span>
+<span class="comment">--- a/node.stadiae.json</span>
+<span class="comment">+++ b/node.stadiae.json</span>
+<span class="out">@@ -34,7 +34,8 @@</span>
+           "source": "Advertising",
+           "target": "CP_Whitelisted",
+           "messages": [
+<span style="color:#ff7b7b">-            { "interface":"RTx", "name":"ConnectReq" }</span>
+<span style="color:#7bff9a">+            { "interface":"RTx", "name":"ConnectReq",</span>
+<span style="color:#7bff9a">+              "action":"post ConnectReq; arm 2s retry timer" }</span>
+           ],
+           "connector":"Down", "length":1
+
+<span class="prompt">$</span> <span class="cmd">git</span> <span class="arg">commit -m</span> <span class="kw">"Node: document RTx ConnectReq action"</span>
+<span class="out">[main 4a3e21c] Node: document RTx ConnectReq action</span>
+<span class="out"> 1 file changed, 2 insertions(+), 1 deletion(-)</span></div>
+          </div>
+
+          <p>
+            A pull request can contain a state-machine change the same way it contains a code change. Your reviewer sees <em>exactly</em> what moved. No screenshots, no "open the Visio file and look at page 3", no tribal knowledge about who last touched the diagram.
+          </p>
+
+          <p>
+            In your CI: run <code>plantuml node.stadiae.puml</code> to render the current diagrams into artefacts, attach them to release notes, check them into a documentation site. Stadi&aelig; is a <em>participant</em> in your engineering pipeline, not a detour from it.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. Install -->
+    <section class="block" id="install">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 08 /// installation</div>
+        <h2>There is no installation.</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <p>
+            <code>stadiae.html</code> is the entire program. Put it wherever you put other tools &mdash; a shared network drive, an internal wiki page, your Downloads folder. Open it in a browser.
+          </p>
+
+          <div class="terminal">
+            <div class="bar">
+              <span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
+              <span class="title">setup</span>
+            </div>
+<div class="body"><span class="prompt">$</span> <span class="cmd">curl</span> <span class="arg">-O</span> https://www.computerguided.com/stadiae/stadiae.html
+<span class="prompt">$</span> <span class="cmd">open</span> stadiae.html  <span class="comment"># or xdg-open, or double-click</span>
+
+<span class="comment"># that's it. no npm install, no docker pull, no account.</span>
+<span class="comment"># rendering goes through plantuml.com by default;</span>
+<span class="comment"># point to a local PlantUML server for offline use.</span></div>
+          </div>
+
+          <p>
+            System requirements: a modern browser and network reachability to a PlantUML server for rendering. Exports work offline regardless &mdash; the <code>.puml</code> file generation is local.
+          </p>
+
+          <p style="margin-top:22px">
+            Source, detailed design document, user manual, and issue tracker live on GitHub: <a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github.com/computerguided/stadiae</a>.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. PlantUML server -->
+    <section class="block" id="server">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 09 /// rendering</div>
+        <h2>Public server or <span class="mono-accent">your own</span>.</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <p>
+            Stadi&aelig; renders diagrams by sending PlantUML source to a PlantUML server. By default it uses the public server at <code>plantuml.com</code>, which works out of the box and requires no setup. When that's not appropriate &mdash; because you work offline, because your network blocks external services, or because you want your diagrams never to leave your machine &mdash; point Stadi&aelig; at a local PlantUML server instead.
+          </p>
+
+          <div class="code-label"><span class="dot"></span> how the request URL is built</div>
+          <pre class="code"><span class="com">// online (default)</span>
+<span class="str">"https://www.plantuml.com"</span> <span class="punct">+</span> <span class="str">"/plantuml/png/"</span> <span class="punct">+</span> <span class="id">encoded</span>
+
+<span class="com">// local</span>
+<span class="str">"http://127.0.0.1:8080"</span> <span class="punct">+</span> <span class="str">"/plantuml/png/"</span> <span class="punct">+</span> <span class="id">encoded</span></pre>
+
+          <p>
+            Choose between the two via <em>File &rarr; PlantUML server&hellip;</em>, or click the small <code>plantuml:</code> badge at the bottom-right of the canvas. The dialog has two radio options and a <em>Base URL</em> field that's only active when <em>Local</em> is selected; your choice is saved in the browser and persists across sessions.
+          </p>
+
+          <p>
+            Setting up a local PlantUML server on Linux takes a few minutes &mdash; step-by-step instructions are on GitHub: <a href="https://github.com/computerguided/stadiae/blob/main/local_plantuml_server.md" target="_blank" rel="noopener">local_plantuml_server.md &#8599;</a>. Once it's running, point Stadi&aelig; at its base URL (default <code>http://127.0.0.1:8080</code>) and the canvas re-renders immediately from the local server.
+          </p>
+
+          <div class="callout"><b>privacy.</b> with a local server, PlantUML source never leaves your machine. useful when the diagrams describe embargoed work, or when organisational policy forbids external service calls.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <div class="cta">
+      <div class="cta-text">
+        <span class="hash">&gt;</span> <b>stadiae.html</b> &middot; open it, draw behaviour, commit the diff.
+      </div>
+      <a href="stadiae.html" class="btn btn-primary">./stadiae.html &rarr;</a>
+    </div>
+
+  </main>
+</div>
+
+<footer class="foot">
+  <div>stadi&aelig; &middot; &copy; computerguided systems &middot; v2</div>
+  <div class="links">
+    <a href="stadiae.html">open</a>
+    <a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github &#8599;</a>
+    <a href="https://github.com/computerguided/stadiae/blob/main/README.md" target="_blank" rel="noopener">readme</a>
+    <a href="https://github.com/computerguided/stadiae/blob/main/DESIGN.md" target="_blank" rel="noopener">design</a>
+  </div>
+</footer>
+
+</body>
+</html>

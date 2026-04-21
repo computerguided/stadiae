@@ -1030,6 +1030,8 @@
   <button id="btn-redo" title="Redo">Redo</button>
   <div class="sep"></div>
   <button id="btn-delete" title="Delete selected">Delete</button>
+  <button id="btn-copy" title="Copy selected states and choice-points (Ctrl+C)">Copy</button>
+  <button id="btn-paste" title="Paste copied elements into this component (Ctrl+V)">Paste</button>
   <div class="sep"></div>
   <button id="btn-add-trans" title="Add transition">Add Transition</button>
   <button id="btn-redirect" title="Redirect selected transition rows to a new target">Redirect</button>
@@ -1799,7 +1801,7 @@ function onDiagramClick(e) {
     }
     return;
   }
-  toggleSelection(hit.ref);
+  selectClick(e, "canvas", () => toggleSelection(hit.ref));
   refresh();
 }
 
@@ -1808,6 +1810,84 @@ function hasAnySelection() {
          Selection.interfaces.size || Selection.messages.size ||
          Selection.transitions.size ||
          Selection.start || Selection.history || Selection.any;
+}
+
+// Click semantics for selection:
+//
+//   - Ctrl/Cmd-click: toggle the clicked item in/out of the current
+//     selection, never clearing anything else.
+//
+//   - Plain click in a DIFFERENT panel/context than the last click: add
+//     without clearing. Picking an interface, then a message, then a
+//     source state, then a target state — each in a different panel —
+//     just composes.
+//
+//   - Plain click in the SAME panel/context as the last click: act like a
+//     single-select within that panel. Clear any previous items *of that
+//     same context*, then add the clicked item. Items in other contexts
+//     are preserved. So clicking Interface A then Interface B swaps the
+//     interface but leaves your selected states alone.
+//
+// Contexts: "states", "cps", "ifaces", "msgs", "transitions", "canvas".
+// The states context covers both real states and the START/H/ANY
+// pseudo-states (they live in the same list). The canvas is its own
+// context — plain-clicks on it replace all canvas-selectable things
+// (states, CPs, transitions) but leave lists (interfaces/messages)
+// unchanged.
+let lastSelectionContext = null;
+
+// Clear only the parts of Selection that belong to a given context.
+function clearSelectionForContext(ctx) {
+  switch (ctx) {
+    case "states":
+      Selection.states.clear();
+      Selection.start = false;
+      Selection.history = false;
+      Selection.any = false;
+      break;
+    case "cps":
+      Selection.choicePoints.clear();
+      break;
+    case "ifaces":
+      // Messages depend on their interfaces being selected for visibility;
+      // if no interface stays selected, orphaned messages can't be seen
+      // or reasoned about. So clear both together.
+      Selection.interfaces.clear();
+      Selection.messages.clear();
+      break;
+    case "msgs":
+      Selection.messages.clear();
+      break;
+    case "transitions":
+      Selection.transitions.clear();
+      break;
+    case "canvas":
+      // Canvas-selectable things: states, CPs, transitions, and the
+      // START/H/ANY pseudo-states via their on-canvas representations.
+      Selection.states.clear();
+      Selection.choicePoints.clear();
+      Selection.transitions.clear();
+      Selection.start = false;
+      Selection.history = false;
+      Selection.any = false;
+      break;
+  }
+}
+
+function selectClick(e, context, toggleFn) {
+  const additiveModifier = e.ctrlKey || e.metaKey;
+  if (additiveModifier) {
+    // Ctrl/Cmd-click: pure toggle, nothing cleared.
+    toggleFn();
+  } else if (lastSelectionContext === context && hasAnySelection()) {
+    // Same panel as last click: single-select within that panel.
+    clearSelectionForContext(context);
+    toggleFn();
+  } else {
+    // Different panel from last click (or empty selection): just add.
+    toggleFn();
+  }
+  lastSelectionContext = context;
 }
 
 function toggleSelection(ref) {
@@ -2048,8 +2128,8 @@ function buildStateList() {
   startLi.textContent = "● START";
   startLi.classList.add("default-item");
   if (Selection.start) startLi.classList.add("selected");
-  startLi.addEventListener("click", () => {
-    Selection.start = !Selection.start;
+  startLi.addEventListener("click", (e) => {
+    selectClick(e, "states", () => { Selection.start = !Selection.start; });
     refresh();
   });
   ul.appendChild(startLi);
@@ -2059,8 +2139,8 @@ function buildStateList() {
   hLi.textContent = "H (history)";
   hLi.classList.add("default-item");
   if (Selection.history) hLi.classList.add("selected");
-  hLi.addEventListener("click", () => {
-    Selection.history = !Selection.history;
+  hLi.addEventListener("click", (e) => {
+    selectClick(e, "states", () => { Selection.history = !Selection.history; });
     refresh();
   });
   ul.appendChild(hLi);
@@ -2070,8 +2150,8 @@ function buildStateList() {
   anyLi.textContent = "∗ (any)";
   anyLi.classList.add("default-item");
   if (Selection.any) anyLi.classList.add("selected");
-  anyLi.addEventListener("click", () => {
-    Selection.any = !Selection.any;
+  anyLi.addEventListener("click", (e) => {
+    selectClick(e, "states", () => { Selection.any = !Selection.any; });
     refresh();
   });
   ul.appendChild(anyLi);
@@ -2084,9 +2164,11 @@ function buildStateList() {
     const li = document.createElement("li");
     li.textContent = (s.displayName && s.displayName.length > 0) ? s.displayName.replace(/\\n|\n/g, " ") : s.name;
     if (Selection.states.has(s.name)) li.classList.add("selected");
-    li.addEventListener("click", () => {
-      if (Selection.states.has(s.name)) Selection.states.delete(s.name);
-      else Selection.states.add(s.name);
+    li.addEventListener("click", (e) => {
+      selectClick(e, "states", () => {
+        if (Selection.states.has(s.name)) Selection.states.delete(s.name);
+        else Selection.states.add(s.name);
+      });
       refresh();
     });
     ul.appendChild(li);
@@ -2100,9 +2182,11 @@ function buildCPList() {
     const li = document.createElement("li");
     li.textContent = (c.question || c.name).replace(/\\n|\n/g, " ");
     if (Selection.choicePoints.has(c.name)) li.classList.add("selected");
-    li.addEventListener("click", () => {
-      if (Selection.choicePoints.has(c.name)) Selection.choicePoints.delete(c.name);
-      else Selection.choicePoints.add(c.name);
+    li.addEventListener("click", (e) => {
+      selectClick(e, "cps", () => {
+        if (Selection.choicePoints.has(c.name)) Selection.choicePoints.delete(c.name);
+        else Selection.choicePoints.add(c.name);
+      });
       refresh();
     });
     ul.appendChild(li);
@@ -2117,16 +2201,18 @@ function buildInterfaceList() {
     li.textContent = i.name;
     if (i.isDefault) li.classList.add("default-item");
     if (Selection.interfaces.has(i.name)) li.classList.add("selected");
-    li.addEventListener("click", () => {
-      if (Selection.interfaces.has(i.name)) {
-        Selection.interfaces.delete(i.name);
-        // Also deselect any messages belonging to this interface
-        for (const key of [...Selection.messages]) {
-          if (key.startsWith(i.name + ":")) Selection.messages.delete(key);
+    li.addEventListener("click", (e) => {
+      selectClick(e, "ifaces", () => {
+        if (Selection.interfaces.has(i.name)) {
+          Selection.interfaces.delete(i.name);
+          // Also deselect any messages belonging to this interface
+          for (const key of [...Selection.messages]) {
+            if (key.startsWith(i.name + ":")) Selection.messages.delete(key);
+          }
+        } else {
+          Selection.interfaces.add(i.name);
         }
-      } else {
-        Selection.interfaces.add(i.name);
-      }
+      });
       // message list depends on iface selection
       refresh();
     });
@@ -2153,9 +2239,15 @@ function buildMessageList() {
     if (m.isDefault) li.classList.add("default-item");
     const key = m.interface+":"+m.name;
     if (Selection.messages.has(key)) li.classList.add("selected");
-    li.addEventListener("click", () => {
-      if (Selection.messages.has(key)) Selection.messages.delete(key);
-      else Selection.messages.add(key);
+    li.addEventListener("click", (e) => {
+      selectClick(e, "msgs", () => {
+        if (Selection.messages.has(key)) Selection.messages.delete(key);
+        else Selection.messages.add(key);
+        // Ensure the message's interface is selected so the message stays
+        // visible in the Messages list (list visibility is gated on
+        // interface selection).
+        if (Selection.messages.has(key)) Selection.interfaces.add(m.interface);
+      });
       refresh();
     });
     ul.appendChild(li);
@@ -2201,9 +2293,11 @@ function buildTransitionTable() {
                     <td>${escapeHTML(nodeLabel(r.t.target))}</td>
                     <td${matched ? ' class="match"' : ''}>${escapeHTML(r.iface)}</td>
                     <td${matched ? ' class="match"' : ''}>${escapeHTML(r.msg)}</td>`;
-    tr.addEventListener("click", () => {
-      if (Selection.transitions.has(key)) Selection.transitions.delete(key);
-      else Selection.transitions.add(key);
+    tr.addEventListener("click", (e) => {
+      selectClick(e, "transitions", () => {
+        if (Selection.transitions.has(key)) Selection.transitions.delete(key);
+        else Selection.transitions.add(key);
+      });
       refresh();
     });
     tb.appendChild(tr);
@@ -2231,6 +2325,8 @@ function updateToolbar() {
                     return isDefaultMessage(i, n);
                  });
   document.getElementById("btn-delete").disabled = !anySel || includesProtected;
+  document.getElementById("btn-copy").disabled = !canCopy();
+  document.getElementById("btn-paste").disabled = !canPaste();
 
   // Add state / cp / interface: always
   document.getElementById("btn-add-state").disabled = false;
@@ -2551,6 +2647,7 @@ function showManual() {
     {id: "selection", title: "Selection"},
     {id: "editing", title: "Editing & Deleting"},
     {id: "files", title: "Saving, Opening & Exporting"},
+    {id: "server", title: "PlantUML Server"},
     {id: "rules", title: "Rules Reference"},
     {id: "shortcuts", title: "Keyboard Shortcuts"},
     {id: "troubleshooting", title: "Troubleshooting"}
@@ -2610,7 +2707,7 @@ function manualContent() {
   return `
     <section id="m-intro">
       <h2>Introduction</h2>
-      <p>Stadiæ is a graphical editor for <strong>state diagrams</strong> of functional components. It is a front-end for <a href="https://plantuml.com" target="_blank">PlantUML</a>: every edit you make is translated to PlantUML source code and rendered by a PlantUML server. You get the convenience of a GUI plus a clean, version-controllable <code>.puml</code> file you can export at any time.</p>
+      <p>Stadiæ is a graphical editor for <strong>state diagrams</strong> of functional components. It is a front-end for <a href="https://plantuml.com" target="_blank">PlantUML</a>: every edit you make is translated to PlantUML source code and rendered by a PlantUML server — either the public server at <code>plantuml.com</code> or a server running on your own machine. You get the convenience of a GUI plus a clean, version-controllable <code>.puml</code> file you can export at any time.</p>
       <p>A single Stadiæ file can contain multiple components, each with its own state machine, all sharing a common vocabulary of interfaces and messages — so you can model a whole subsystem side-by-side in one file.</p>
       <p>State diagrams in Stadiæ describe a component's <em>behaviour</em> — the states it can be in, the messages it handles, the choices it makes, and how it transitions between states.</p>
     </section>
@@ -2772,9 +2869,19 @@ function manualContent() {
     <section id="m-selection">
       <h2>Selection</h2>
       <p>Selection drives everything. Use it to tell Stadiæ what you are going to do next.</p>
+      <h3>Single vs multiple selection</h3>
+      <p>Stadiæ tries to match the mental model: most of the time you want to pick just one thing; occasionally you want to pick several; and when you are composing a transition from pieces in different panels, you expect each click to <em>add</em> to what you've already got, not wipe it out.</p>
+      <p>The rules:</p>
       <ul>
-        <li><strong>Click a state, choice-point, or transition arrow in the diagram canvas</strong> to toggle its selection. Clicking an arrow toggles the whole grouped transition (all its messages).</li>
-        <li><strong>Click an item in a list or the transition table</strong> to toggle its selection. This also works for finer control — the transition table lets you pick a single message from a grouped arrow.</li>
+        <li><strong>Plain click within the same panel</strong> (the same list, the transition table, or the canvas) swaps: it clears any earlier items <em>from that same panel</em> and selects just the clicked one. Other panels are untouched — if you had two states and an interface selected, and you change your mind about the interface by clicking a different one, the states stay.</li>
+        <li><strong>Plain click in a different panel</strong> than your previous click adds to the selection, without clearing. This way, building a transition (click an interface, then a message, then a source state, then a target state) just works — every click is in a different panel, and each one adds.</li>
+        <li><strong>Ctrl-click</strong> (<strong>⌘-click</strong> on Mac) always toggles the clicked item without clearing anything, regardless of panel. Use it when you want multiple items from the same list — several messages, several transition rows, and so on. Ctrl-click is also how you deselect a single item.</li>
+        <li><strong>Click empty space on the canvas</strong> clears the selection entirely, giving you a fresh start.</li>
+      </ul>
+      <h3>What can be selected</h3>
+      <ul>
+        <li><strong>Click a state, choice-point, or transition arrow in the diagram canvas</strong> to select it. Clicking an arrow selects the whole grouped transition (all its messages).</li>
+        <li><strong>Click an item in a list or the transition table</strong> — the transition table lets you pick a single message from a grouped arrow for finer control.</li>
         <li><strong>Click empty space in the canvas</strong> to clear the whole selection.</li>
         <li><strong>Selected transitions</strong> are highlighted red on the canvas. If every message of a grouped arrow is selected, the arrow itself also turns red; if only some messages are selected, only those message labels turn red.</li>
         <li><strong>Selecting START</strong> highlights the start dot red. <strong>H and ∗</strong> are pseudostates that exist only inside transitions — they don't have standalone highlights. Select them from the States list when you want to create a history or wildcard transition.</li>
@@ -2804,6 +2911,31 @@ function manualContent() {
       <p>Default interfaces, default messages, and START cannot be deleted.</p>
       <h3>Undo / Redo</h3>
       <p>Every mutating action pushes onto the undo stack. Use the Undo/Redo buttons or <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd>.</p>
+      <h3>Copy / Paste elements</h3>
+      <p>You can copy a subgraph of states and choice-points from one component and paste it into another (including the same component, for quick duplication). Useful when two components share a common sub-pattern — a retry loop, an error-handling branch, a session-negotiation sequence — and you want to stamp it out once and then customise.</p>
+      <ol>
+        <li>Select one or more states and/or choice-points — typically by clicking on the canvas, but the lists on the right work too.</li>
+        <li>Click <strong>Copy</strong> or press <kbd>Ctrl</kbd>+<kbd>C</kbd>. The clipboard now holds the selected elements and every transition <em>fully internal</em> to that set — transitions whose source and target are both in the selection. Actions attached to those transitions come along too.</li>
+        <li>Switch to the target component (or stay on the current one).</li>
+        <li>Click <strong>Paste</strong> or press <kbd>Ctrl</kbd>+<kbd>V</kbd>. The pasted elements appear as a separate group, not wired up to anything else — connect them to the rest of the state machine by adding transitions in the usual way.</li>
+      </ol>
+      <p>If the target component already has a state or choice-point with the same name as something being pasted, the pasted copy is renamed <code>Name_1</code> (or <code>Name_2</code>, <code>Name_3</code>, &hellip;) until it's unique. Display names and questions are kept verbatim — rename them later if you want.</p>
+      <p>Some things are <em>not</em> copied, by design:</p>
+      <ul>
+        <li>Transitions whose source or target falls outside the selection — they'd dangle.</li>
+        <li>The initial transition (from START) — a component has at most one, and the target would be ambiguous.</li>
+        <li>History (<code>[H]</code>) and ANY (<code>*</code>) transitions — those are structural, bound to their own component's layout.</li>
+      </ul>
+      <h3>Copy / Paste messages</h3>
+      <p>Copy and Paste also work on interfaces and messages, useful when two interfaces should carry the same message shape — for example, replicating a <code>ReadReq / ReadInd / WriteReq / WriteInd</code> pattern under a second interface.</p>
+      <ol>
+        <li>Select one or more messages (or a whole interface, with none of its individual messages selected — that counts as "all messages of this interface").</li>
+        <li>Press <kbd>Ctrl</kbd>+<kbd>C</kbd> or click Copy. The message <em>names</em> are captured, not tied to any interface at this point.</li>
+        <li>Select the target interface — exactly one, and it must not be a default interface (<code>Timer</code> / <code>Logical</code> are locked down).</li>
+        <li>Press <kbd>Ctrl</kbd>+<kbd>V</kbd> or click Paste. The messages appear under the target interface, with any name collisions resolved by appending <code>_1</code>, <code>_2</code>, &hellip;</li>
+      </ol>
+      <p>Pasting into the interface the messages came from is allowed — every message collides with itself and gets <code>_1</code> suffixes, so this is a quick way to duplicate a message set within one interface.</p>
+      <p>The clipboard holds either elements or messages at a time — copying one supersedes a previous copy of the other. Its contents last for the current browser tab; closing the tab clears it.</p>
     </section>
 
     <section id="m-files">
@@ -2819,6 +2951,32 @@ function manualContent() {
       <h3>Copy transitions as Markdown</h3>
       <p>Under <em>Component → Copy transitions as Markdown table…</em>, Stadiæ produces a markdown table of the <em>active</em> component's transitions, with columns <em>Source</em>, <em>Target</em>, <em>Interface</em>, <em>Message</em>, and <em>Action</em>. Source and target use their display names / questions, and newlines inside cells become <code>&lt;br&gt;</code> so the markdown stays well-formed. Click <em>Copy to clipboard</em> or just select-all in the textarea and paste elsewhere.</p>
       <div class="tip">Exports always use the unselected (clean) version of the diagram — the red highlighting you may have on screen is not baked into the output.</div>
+    </section>
+
+    <section id="m-server">
+      <h2>PlantUML Server</h2>
+      <p>Stadiæ renders diagrams by sending PlantUML source to a <strong>PlantUML server</strong>, which returns a PNG. You can point Stadiæ at either the public server or a server running on your own machine.</p>
+
+      <h3>Switching between online and local</h3>
+      <p>Open the configuration dialog in one of two ways:</p>
+      <ul>
+        <li>Use <em>File → PlantUML server…</em>.</li>
+        <li>Click the small <strong>plantuml:</strong> badge at the bottom-right of the canvas, next to the <em>Show PlantUML</em> button. The badge shows a blue dot when online, green when local, and displays the current host.</li>
+      </ul>
+      <p>The dialog has two options:</p>
+      <ul>
+        <li><strong>Online — plantuml.com</strong> — the default. The public PlantUML server. No setup, requires internet access.</li>
+        <li><strong>Local server</strong> — a PlantUML server running on your machine or local network. When selected, the <em>Base URL</em> field becomes editable; enter the URL of your local server (for example <code>http://127.0.0.1:8080</code>).</li>
+      </ul>
+      <p>Stadiæ appends <code>/plantuml/png/&lt;encoded&gt;</code> to the base URL, matching the layout of the public server and of a local PlantUML server started with <code>-picoweb</code> or run as a Docker image. The dialog shows a live preview of the resulting request URL.</p>
+      <div class="tip">Your choice is saved in the browser and will be used next time you open Stadiæ. If the browser's local storage is unavailable the setting still works for the current session but won't persist.</div>
+
+      <h3>Running a local PlantUML server</h3>
+      <p>A local server is useful if you work offline, if your organisation blocks external services, or if you want faster rendering. Instructions for setting up a local PlantUML server on Linux are in the project's GitHub repository: <a href="https://github.com/computerguided/stadiae/blob/main/local_plantuml_server.md" target="_blank">local_plantuml_server.md</a>.</p>
+      <p>Once your server is running, open the <em>PlantUML server</em> dialog in Stadiæ, select <em>Local server</em>, enter its base URL, and click OK. Stadiæ re-renders immediately using the new server.</p>
+
+      <h3>When the server is unreachable</h3>
+      <p>If the configured server cannot be reached — the local daemon is down, the URL is wrong, or the network is unavailable — the canvas shows <em>"Could not render diagram."</em>. Open the <em>PlantUML server</em> dialog to verify or change the setting. Switching back to <em>Online</em> is a quick way to confirm whether the problem is your local setup or something else.</p>
     </section>
 
     <section id="m-rules">
@@ -2861,10 +3019,13 @@ function manualContent() {
         <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Save</td></tr>
         <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo</td></tr>
         <tr><td><kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Redo</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd></td><td>Copy selected states / choice-points (with internal transitions)</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>Paste copied elements into the active component</td></tr>
         <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>Delete selected</td></tr>
         <tr><td><kbd>Enter</kbd></td><td>Edit the selected element (opens the same dialog as the Edit button). Inside a dialog, confirm (same as clicking OK).</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>Close the current dialog (same as clicking Cancel).</td></tr>
         <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Change the direction of the selected transition. Repeatedly pressing <kbd>↑</kbd> or <kbd>↓</kbd> also extends the arrow length.</td></tr>
+        <tr><td><kbd>Ctrl</kbd>-click / <kbd>⌘</kbd>-click</td><td>Add the clicked item to the current selection (or remove it if already selected). Mainly needed when selecting multiple items <em>within the same panel</em> — clicks across different panels already add automatically.</td></tr>
       </table>
       <p>Shortcuts are suspended while you are typing in a dialog field so they don't interfere with editing.</p>
     </section>
@@ -2872,7 +3033,7 @@ function manualContent() {
     <section id="m-troubleshooting">
       <h2>Troubleshooting</h2>
       <h3>The canvas shows "Could not render diagram"</h3>
-      <p>Stadiæ renders diagrams by sending the PlantUML source to a public PlantUML server. If your network blocks the server, or the server is down, rendering fails. The rest of the editor still works — you can continue editing and the canvas will retry on every change.</p>
+      <p>Stadiæ renders diagrams by sending the PlantUML source to a PlantUML server — either the public <code>plantuml.com</code> server or a local one you've configured. If the server is unreachable the canvas shows this error; the rest of the editor still works, and rendering is retried on every change. Open the <em>PlantUML server</em> dialog (<em>File → PlantUML server…</em> or the badge at the bottom-right) to verify or change the setting. See <a href="#m-server" data-target="m-server">PlantUML Server</a>.</p>
       <h3>Add Transition is greyed out</h3>
       <p>The current selection doesn't match any of the valid patterns. Common causes: you haven't selected a message; you picked Yes/No from a non-choice-point source; the source already handles the message you picked; you have too many nodes selected.</p>
       <h3>Edit is greyed out</h3>
@@ -3492,6 +3653,312 @@ function actionRedirectTransitions() {
   refresh();
 }
 
+// ---------- Clipboard (in-memory copy/paste) ----------
+// Holds a deep copy of either a subgraph (states/choice-points plus internal
+// transitions) or a set of messages. Paste interprets the clipboard based
+// on its `kind`:
+//   "elements" — drops the subgraph into the active component's state
+//                machine as an isolated island, resolving name collisions
+//                with _1, _2, ... suffixes.
+//   "messages" — adds the messages under the currently-selected interface,
+//                resolving name collisions within that interface the same
+//                way.
+// Lifetime is the current tab; only one clipboard is kept, so copying
+// elements supersedes a previous message copy and vice versa.
+const Clipboard = {
+  kind: null,          // null | "elements" | "messages"
+  // For "elements":
+  states: null,
+  choicePoints: null,
+  transitions: null,
+  // For "messages":
+  messages: null,      // array of {name} — interface is assigned on paste
+  sourceInterface: null // the interface the messages were copied from (for context)
+};
+
+function clipboardHasContent() {
+  if (Clipboard.kind === "elements") {
+    return (Clipboard.states && Clipboard.states.length > 0) ||
+           (Clipboard.choicePoints && Clipboard.choicePoints.length > 0);
+  }
+  if (Clipboard.kind === "messages") {
+    return Clipboard.messages && Clipboard.messages.length > 0;
+  }
+  return false;
+}
+
+// Copy: enabled when either a subgraph or a set of messages is selected.
+// If any state/CP is selected, that takes priority (element copy). Otherwise
+// if the selection identifies some messages (individual messages, or
+// interfaces whose full message set should be copied), we do a message copy.
+function canCopy() {
+  if (Selection.states.size > 0 || Selection.choicePoints.size > 0) return true;
+  return collectMessagesForCopy().length > 0;
+}
+
+// Determine which concrete messages a "copy" action would operate on given
+// the current selection. Mirrors the isUsageMatch / interfaceHasAnySelectedMessage
+// convention: when an interface has any of its messages individually
+// selected, those specific messages are the selection; otherwise a bare
+// interface selection means "all messages of that interface". Default
+// interfaces and their messages are excluded (they aren't copy-worthy —
+// their message sets are structurally fixed).
+function collectMessagesForCopy() {
+  const out = [];
+  // Individually-selected messages (skipping defaults)
+  for (const key of Selection.messages) {
+    const [iface, name] = key.split(":");
+    if (isDefaultMessage(iface, name)) continue;
+    out.push({ interface: iface, name });
+  }
+  // Interfaces whose full message set should be included — only if no
+  // individual message of that interface is in the selection (matches
+  // interfaceHasAnySelectedMessage specificity rule).
+  for (const iname of Selection.interfaces) {
+    if (isDefaultInterface(iname)) continue;
+    if (interfaceHasAnySelectedMessage(iname)) continue;
+    for (const m of Model.messages) {
+      if (m.interface !== iname || m.isDefault) continue;
+      // Avoid duplicates just in case
+      if (!out.some(x => x.interface === iname && x.name === m.name)) {
+        out.push({ interface: iname, name: m.name });
+      }
+    }
+  }
+  return out;
+}
+
+function actionCopy() {
+  if (!canCopy()) return;
+
+  // Clear whatever's in the clipboard first — each copy replaces the
+  // previous one wholesale, regardless of kind.
+  Clipboard.kind = null;
+  Clipboard.states = null;
+  Clipboard.choicePoints = null;
+  Clipboard.transitions = null;
+  Clipboard.messages = null;
+  Clipboard.sourceInterface = null;
+
+  // Elements take priority over messages when both are in the selection.
+  if (Selection.states.size > 0 || Selection.choicePoints.size > 0) {
+    copyElements();
+  } else {
+    copyMessages();
+  }
+  updateToolbar();
+}
+
+function copyElements() {
+  // Collect names of selected states and CPs. The "in the selection set"
+  // check for transition endpoints uses the state/CP-as-referenced-in-
+  // transitions convention: state name raw, CP name prefixed with CP_.
+  const selectedNodeKeys = new Set();
+  for (const s of Selection.states) selectedNodeKeys.add(s);
+  for (const cp of Selection.choicePoints) selectedNodeKeys.add("CP_" + cp);
+
+  const states = [];
+  for (const s of Selection.states) {
+    const st = Component.states.find(x => x.name === s);
+    if (st) states.push({ name: st.name, displayName: st.displayName });
+  }
+  const choicePoints = [];
+  for (const cp of Selection.choicePoints) {
+    const c = Component.choicePoints.find(x => x.name === cp);
+    if (c) choicePoints.push({ name: c.name, question: c.question });
+  }
+
+  // Include only transitions fully internal to the selected set. That
+  // automatically excludes initial transitions (source === "START"), ANY
+  // wildcards (source === "*"), and history targets (target === "[H]"),
+  // since those sentinels aren't in selectedNodeKeys.
+  const transitions = [];
+  for (const t of Component.transitions) {
+    if (!selectedNodeKeys.has(t.source)) continue;
+    if (!selectedNodeKeys.has(t.target)) continue;
+    transitions.push({
+      source: t.source,
+      target: t.target,
+      connector: t.connector,
+      length: t.length,
+      messages: (t.messages || []).map(m => {
+        const copy = { interface: m.interface, name: m.name };
+        if (m.action) copy.action = m.action;
+        return copy;
+      })
+    });
+  }
+
+  Clipboard.kind = "elements";
+  Clipboard.states = states;
+  Clipboard.choicePoints = choicePoints;
+  Clipboard.transitions = transitions;
+}
+
+function copyMessages() {
+  const msgs = collectMessagesForCopy();
+  // De-duplicate by name (if the user selected messages from multiple
+  // interfaces, keep each unique message name once — the target is always
+  // a single interface so duplicate names would collide anyway). Preserve
+  // the order they appear in the model for predictable paste ordering.
+  const seen = new Set();
+  const names = [];
+  for (const m of msgs) {
+    if (seen.has(m.name)) continue;
+    seen.add(m.name);
+    names.push({ name: m.name });
+  }
+  // Record a source-interface hint only when the copy came from a single
+  // interface; otherwise leave null.
+  const ifaces = new Set(msgs.map(m => m.interface));
+  const sourceInterface = ifaces.size === 1 ? [...ifaces][0] : null;
+
+  Clipboard.kind = "messages";
+  Clipboard.messages = names;
+  Clipboard.sourceInterface = sourceInterface;
+}
+
+// Paste: enabled when the clipboard has something to offer AND the current
+// selection shape fits the clipboard's kind.
+function canPaste() {
+  if (!clipboardHasContent()) return false;
+  if (Clipboard.kind === "elements") return true;
+  if (Clipboard.kind === "messages") {
+    // Need exactly one non-default interface in the selection to act as
+    // target. (Messages of that interface may or may not also be selected
+    // — doesn't matter; the target interface is unambiguous.)
+    if (Selection.interfaces.size !== 1) return false;
+    const target = [...Selection.interfaces][0];
+    if (isDefaultInterface(target)) return false;
+    return true;
+  }
+  return false;
+}
+
+function actionPaste() {
+  if (!canPaste()) return;
+  if (Clipboard.kind === "elements") pasteElements();
+  else if (Clipboard.kind === "messages") pasteMessages();
+}
+
+function pasteElements() {
+  // Build a rename map: original -> new name. Applies to state names and
+  // CP names independently (both namespaces share the same uniqueness
+  // rule within a component, so collisions check against both).
+  //
+  // The map is keyed by state/CP name (without CP_ prefix). Transition
+  // source/target references get their CP_ prefix rewritten separately.
+  const renameMap = new Map();
+
+  const takenNames = new Set();
+  for (const s of Component.states) takenNames.add(s.name);
+  for (const c of Component.choicePoints) takenNames.add(c.name);
+
+  function pickFreeName(base) {
+    if (!takenNames.has(base)) return base;
+    for (let i = 1; i < 10000; i++) {
+      const candidate = base + "_" + i;
+      if (!takenNames.has(candidate)) return candidate;
+    }
+    // Fallback — extremely unlikely to reach
+    return base + "_" + Date.now();
+  }
+
+  // Clone states and CPs with resolved names
+  const newStates = Clipboard.states.map(s => {
+    const newName = pickFreeName(s.name);
+    takenNames.add(newName);
+    if (newName !== s.name) renameMap.set(s.name, newName);
+    return { name: newName, displayName: s.displayName };
+  });
+  const newCPs = Clipboard.choicePoints.map(c => {
+    const newName = pickFreeName(c.name);
+    takenNames.add(newName);
+    if (newName !== c.name) renameMap.set(c.name, newName);
+    return { name: newName, question: c.question };
+  });
+
+  // Rewrite transition endpoints with the rename map. The ordering below
+  // handles two cases: (1) a state whose literal name starts with "CP_" —
+  // rare but allowed — is looked up directly first; (2) the usual case,
+  // where a transition carries "CP_Foo" to refer to a choice-point named
+  // "Foo" in the model, needs the CP_ stripped before lookup and re-added
+  // on the way out.
+  function rewriteEndpoint(ref) {
+    if (renameMap.has(ref)) return renameMap.get(ref);
+    if (ref.startsWith("CP_")) {
+      const bare = ref.slice(3);
+      if (renameMap.has(bare)) return "CP_" + renameMap.get(bare);
+    }
+    return ref;
+  }
+
+  const newTransitions = Clipboard.transitions.map(t => ({
+    source: rewriteEndpoint(t.source),
+    target: rewriteEndpoint(t.target),
+    connector: t.connector,
+    length: t.length,
+    messages: (t.messages || []).map(m => {
+      const copy = { interface: m.interface, name: m.name };
+      if (m.action) copy.action = m.action;
+      return copy;
+    })
+  }));
+
+  pushHistory();
+  for (const s of newStates) Component.states.push(s);
+  for (const c of newCPs) Component.choicePoints.push(c);
+  for (const t of newTransitions) Component.transitions.push(t);
+
+  // Per design decision: clear selection after paste.
+  Selection.clearAll();
+  refresh();
+}
+
+function pasteMessages() {
+  // Target interface is the single currently-selected interface (guarded
+  // by canPaste — non-default, exactly one).
+  const targetIface = [...Selection.interfaces][0];
+
+  // Names already used under the target interface.
+  const takenNames = new Set();
+  for (const m of Model.messages) {
+    if (m.interface === targetIface) takenNames.add(m.name);
+  }
+
+  function pickFreeName(base) {
+    if (!takenNames.has(base)) return base;
+    for (let i = 1; i < 10000; i++) {
+      const candidate = base + "_" + i;
+      if (!takenNames.has(candidate)) return candidate;
+    }
+    return base + "_" + Date.now();
+  }
+
+  const toAdd = [];
+  for (const m of Clipboard.messages) {
+    const newName = pickFreeName(m.name);
+    takenNames.add(newName);
+    toAdd.push({ interface: targetIface, name: newName, isDefault: false });
+  }
+  if (toAdd.length === 0) return;
+
+  pushHistory();
+  for (const m of toAdd) Model.messages.push(m);
+
+  // Keep the target interface selected — the user was working on it,
+  // they almost certainly want to see the freshly-pasted messages appear
+  // in its message list. Clear only any incidental message selection
+  // that may have been present.
+  Selection.messages.clear();
+  Selection.transitions.clear();
+  Selection.states.clear();
+  Selection.choicePoints.clear();
+  Selection.start = false; Selection.history = false; Selection.any = false;
+  // (Selection.interfaces left as-is, holding the target interface)
+  refresh();
+}
+
 function actionDelete() {
   pushHistory();
 
@@ -3559,7 +4026,19 @@ function actionDelete() {
     Component.transitions = Component.transitions.filter(t => t.source !== prefixed && t.target !== prefixed);
   }
 
+  // Preserve only the interfaces that still exist in the model after the
+  // cascades above. This covers the common case of deleting a handful of
+  // messages: their parent interface is still in the selection because
+  // the list requires it for the messages to be visible, and clearing it
+  // would force the user to click back into it to keep working. Interfaces
+  // that we actually deleted fall out because they're no longer in
+  // Model.interfaces.
+  const survivingInterfaces = new Set();
+  for (const iname of Selection.interfaces) {
+    if (Model.interfaces.some(i => i.name === iname)) survivingInterfaces.add(iname);
+  }
   Selection.clearAll();
+  for (const iname of survivingInterfaces) Selection.interfaces.add(iname);
   refresh();
 }
 
@@ -4040,6 +4519,8 @@ document.getElementById("btn-save").onclick = save;
 document.getElementById("btn-undo").onclick = undo;
 document.getElementById("btn-redo").onclick = redo;
 document.getElementById("btn-delete").onclick = actionDelete;
+document.getElementById("btn-copy").onclick = actionCopy;
+document.getElementById("btn-paste").onclick = actionPaste;
 document.getElementById("btn-add-state").onclick = actionAddState;
 document.getElementById("btn-add-cp").onclick = actionAddCP;
 document.getElementById("btn-add-trans").onclick = actionAddTransition;
@@ -4228,6 +4709,8 @@ document.addEventListener("keydown", e => {
     else if (e.key === "s") { e.preventDefault(); save(); }
     else if (e.key === "n") { e.preventDefault(); newDiagram(); }
     else if (e.key === "o") { e.preventDefault(); openFile(); }
+    else if (e.key === "c") { if (canCopy()) { e.preventDefault(); actionCopy(); } }
+    else if (e.key === "v") { if (canPaste()) { e.preventDefault(); actionPaste(); } }
   } else if (e.key === "Delete" || e.key === "Backspace") {
     if (!document.getElementById("btn-delete").disabled) actionDelete();
   } else if (e.key === "Enter") {
