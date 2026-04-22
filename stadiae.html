@@ -1557,27 +1557,25 @@ function generatePlantUML(opts = {}) {
     }
     lines.push(line);
   }
-  // ANY pseudostate: one synthetic declaration per transition with source "*"
-  // So that each rendered "*" is distinct in the diagram.
-  const anyIdFor = new Map(); // transition -> synthetic id like "ANY_1"
-  let anyCounter = 0;
-  for (const t of Component.transitions) {
-    if (t.source === "*") {
-      anyCounter++;
-      const synthId = "ANY_" + anyCounter;
-      anyIdFor.set(t, synthId);
-      let line = `state ${synthId} as "*"`;
-      if (isMask) {
-        // Clicking any "*" selects the ANY pseudostate itself (like clicking
-        // "∗ (any)" in the states list). All rendered "*" nodes share the
-        // same mask id so they all resolve to the same ref.
-        const id = idAssigner("any", "any");
-        line += ` #${id};line:${id}`;
-      } else if (withSelection && Selection.any) {
-        line += " #line:FF0000;line.bold";
-      }
-      lines.push(line);
+  // ANY pseudostate: emit exactly one synthetic declaration in the
+  // component — every wildcard transition (source === "*") points out of
+  // this same node. This keeps the semantics unambiguous: there's only
+  // one "any" concept in a state machine, so the diagram shows only one.
+  // Skip the declaration entirely when there are no wildcard transitions,
+  // to avoid an orphan node.
+  const hasAny = Component.transitions.some(t => t.source === "*");
+  const ANY_ID = "ANY";
+  if (hasAny) {
+    let line = `state ${ANY_ID} as "*"`;
+    if (isMask) {
+      // Clicking the ANY node maps to the ANY pseudostate (same ref as
+      // clicking "∗ (any)" in the states list).
+      const id = idAssigner("any", "any");
+      line += ` #${id};line:${id}`;
+    } else if (withSelection && Selection.any) {
+      line += " #line:FF0000;line.bold";
     }
+    lines.push(line);
   }
   lines.push("");
   lines.push("'== Choice-points ==");
@@ -1615,7 +1613,7 @@ function generatePlantUML(opts = {}) {
     } else if (fullySelected) {
       arrow = arrow.replace(/^-/, "-[#FF0000,bold]");
     }
-    const srcRendered = (t.source === "*") ? anyIdFor.get(t) : t.source;
+    const srcRendered = (t.source === "*") ? ANY_ID : t.source;
     let line = `${srcRendered} ${arrow} ${t.target}`;
     if (t.messages && t.messages.length > 0) {
       const parts = t.messages.map(m => {
