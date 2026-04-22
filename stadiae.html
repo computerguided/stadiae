@@ -201,6 +201,42 @@
     font-size: 12px;
     white-space: pre-wrap;
   }
+  /* Transient banner shown once on startup when an autosaved draft was
+     restored. Floats at the top of the canvas so it's visible without
+     shifting the layout. Auto-dismisses after ~8s. */
+  .canvas-panel .restored-banner {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1px solid var(--accent-soft-hover, #c7d2fe);
+    border-radius: 999px;
+    box-shadow: var(--shadow-md);
+    font-size: 12px;
+    color: var(--text);
+    z-index: 40;
+    max-width: calc(100% - 48px);
+  }
+  .canvas-panel .restored-banner .msg { color: var(--text-muted); }
+  .canvas-panel .restored-banner button {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .canvas-panel .restored-banner button.keep { border-color: var(--accent); color: var(--accent); }
+  .canvas-panel .restored-banner button:hover { transform: translateY(-1px); }
   .right-panel {
     flex: 1;
     display: flex;
@@ -1233,6 +1269,119 @@ function activePlantUMLBaseUrl() {
   return PlantUMLServer.mode === "local" ? PlantUMLServer.localUrl : PlantUMLServer.onlineUrl;
 }
 
+// ---------- Autosave to localStorage ----------
+// Every mutation writes the current model to localStorage after a brief
+// debounce. On startup, if a draft is present, it's restored automatically
+// and the user is informed via a small, auto-dismissing banner above the
+// canvas (they can keep it or discard with one click).
+//
+// This is a safety net against tab close / crash / accidental navigation,
+// independent of whether the user has saved the file to disk. Saving to
+// disk does NOT clear the draft — the draft always reflects the latest
+// in-memory state so a crash right after a save still restores the newest
+// work. The draft is cleared only by File → New (with confirm) or by the
+// restoration banner's Discard button.
+const AUTOSAVE_KEY = "stadiae.draft";
+let draftSaveTimer = null;
+
+function saveDraft() {
+  try {
+    // Don't autosave a pristine "I just opened Stadiæ" state — otherwise
+    // the very first refresh after a fresh start writes an empty draft,
+    // and the next load would greet the user with a banner about
+    // "restoring work" that's indistinguishable from a blank slate.
+    if (isModelPristine()) {
+      clearDraft();
+      return;
+    }
+    const payload = {
+      model: buildSerializedModel(),
+      savedFilename: Model.savedFilename,
+      dirty: Model.dirty,
+      // ISO timestamp is mostly for humans debugging the storage; the
+      // restore logic doesn't use it. If we ever add "drafts older than N
+      // days are ignored", this is where it would live.
+      savedAt: new Date().toISOString()
+    };
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(payload));
+  } catch (_) {
+    // localStorage full / disabled / private mode — autosave silently
+    // fails. The session still works; just no persistence across reloads.
+  }
+}
+
+// Is the model in its factory-fresh state — nothing that would be lost if
+// we didn't autosave? A pristine model is: no user interfaces, no user
+// messages, and every component empty (no states, no CPs, no transitions).
+function isModelPristine() {
+  const hasUserIfaces = Model.interfaces.some(i => !i.isDefault);
+  const hasUserMsgs = Model.messages.some(m => !m.isDefault);
+  if (hasUserIfaces || hasUserMsgs) return false;
+  for (const c of Model.components) {
+    if ((c.states || []).length > 0) return false;
+    if ((c.choicePoints || []).length > 0) return false;
+    if ((c.transitions || []).length > 0) return false;
+  }
+  return true;
+}
+
+function scheduleDraftSave() {
+  if (draftSaveTimer) clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(() => {
+    draftSaveTimer = null;
+    saveDraft();
+  }, 400);
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    if (!payload || !payload.model) return null;
+    return payload;
+  } catch (_) {
+    return null;
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(AUTOSAVE_KEY);
+  } catch (_) { /* noop */ }
+}
+
+// Show a small banner at the top of the canvas panel announcing that an
+// autosaved draft was restored. Auto-dismisses after ~8 seconds; the user
+// can dismiss sooner ("Keep") or discard the restored work ("Discard").
+function showRestoredBanner() {
+  const panel = document.getElementById("canvas-panel");
+  if (!panel) return;
+  const banner = document.createElement("div");
+  banner.className = "restored-banner";
+  banner.innerHTML = `
+    <span class="msg">Restored unsaved work from your previous session.</span>
+    <button class="keep" type="button">Keep</button>
+    <button class="discard" type="button">Discard</button>
+  `;
+  panel.appendChild(banner);
+  const remove = () => { if (banner.parentNode) banner.parentNode.removeChild(banner); };
+  banner.querySelector(".keep").onclick = remove;
+  banner.querySelector(".discard").onclick = () => {
+    remove();
+    clearDraft();
+    // Reset to an empty default model inline (no "Component name" prompt
+    // — the user is just saying "I don't want this restored work").
+    resetModel("Component Name");
+    Selection.clearAll();
+    History.past = []; History.future = [];
+    Model.dirty = false;
+    Model.savedFilename = null;
+    refresh();
+  };
+  setTimeout(remove, 8000);
+}
+
 // Selection: arrays of identifiers
 const Selection = {
   states: new Set(),       // state names
@@ -2003,6 +2152,12 @@ function refresh() {
     refresh._lastVisual = visualFingerprint;
     scheduleRender();
   }
+
+  // Autosave (debounced) — writes the current model to localStorage so
+  // that the tab can be closed and re-opened without losing work. The
+  // debounce coalesces bursts (fast typing in the action panel, undo
+  // chains, etc.) into a single write.
+  scheduleDraftSave();
 }
 
 function buildActionPanel() {
@@ -2998,6 +3153,10 @@ function manualContent() {
       <p>Stadiæ saves the entire file — every component, every shared interface and message, and the active-tab indicator — as a compact <code>.json</code> file. Use <em>File → Save As</em> the first time; after that, <em>File → Save</em> writes to the same filename. The current file format is <code>stadiae-v2</code>.</p>
       <h3>Open</h3>
       <p><em>File → Open</em> loads a previously saved <code>.json</code> file. Older <code>stadiae-v1</code> (single-component) files are auto-migrated on load into a one-component v2 file; a subsequent save writes v2. If the current diagram has unsaved edits you'll be asked whether to discard them first.</p>
+      <h3>Autosave</h3>
+      <p>Stadiæ also keeps a working draft of the current diagram in the browser's local storage, updated automatically as you edit. If you close the tab, refresh the page, or lose the window to a crash, the draft is restored the next time you open Stadiæ. A small banner at the top of the canvas confirms the restoration and gives you a one-click <em>Discard</em> if you wanted to start over.</p>
+      <p>The draft is independent of your disk saves — it is always kept up-to-date with the latest in-memory state, so even a crash right after <em>Save</em> is covered. The draft is cleared when you explicitly <em>File → New</em> or click <em>Discard</em> on the restoration banner.</p>
+      <div class="tip">Autosave uses the browser's local storage, so it survives across sessions but is scoped to this browser on this machine. To share a diagram or move it to another computer, use <em>Save As</em> and transfer the <code>.json</code> file.</div>
       <h3>Export as PlantUML (.puml)</h3>
       <p>Writes the clean PlantUML source of the <em>active</em> component (no selection highlighting) to a <code>.puml</code> file. To export every component, switch tabs and export each one. Feed the files to any PlantUML tool, check them into source control, or paste them into an online PlantUML renderer.</p>
       <h3>Export as PNG</h3>
@@ -4120,7 +4279,7 @@ function actionEdit() {
 }
 
 // ---------- File operations ----------
-function newDiagram() {
+function newDiagram(skipConfirm) {
   const doNew = () => {
     showPrompt("New diagram", "Component name:", "Component Name", null, (name) => {
       resetModel(name);
@@ -4128,10 +4287,12 @@ function newDiagram() {
       History.past = []; History.future = [];
       Model.dirty = false;
       Model.savedFilename = null;
+      // Clear the autosave draft — "start fresh" is explicit intent.
+      clearDraft();
       refresh();
     });
   };
-  if (Model.dirty) {
+  if (Model.dirty && !skipConfirm) {
     showConfirm("Unsaved edits", "The current diagram has unsaved edits. Discard them?",
       doNew, () => {});
   } else {
@@ -4170,8 +4331,11 @@ function save() {
   Model.dirty = false;
   refresh();
 }
-function downloadJSON(filename) {
-  const data = {
+// Build the serialized model payload. Shared by disk-save (downloadJSON)
+// and autosave-to-localStorage so the on-disk and in-browser drafts are
+// byte-identical.
+function buildSerializedModel() {
+  return {
     format: "stadiae-v2",
     interfaces: Model.interfaces.filter(i => !i.isDefault),
     messages: Model.messages.filter(m => !m.isDefault),
@@ -4185,6 +4349,10 @@ function downloadJSON(filename) {
     })),
     activeComponentIndex: Model.activeComponentIndex
   };
+}
+
+function downloadJSON(filename) {
+  const data = buildSerializedModel();
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -4513,6 +4681,20 @@ function loadV2(data) {
   );
 }
 
+// Restore the model from an autosaved draft payload (the shape built by
+// saveDraft). Reuses loadV2's logic for the model body and then restores
+// the auxiliary fields (savedFilename, dirty) so the restored state is
+// byte-equivalent to what was in memory when it was saved.
+function restoreFromDraft(payload) {
+  loadV2(payload.model);
+  Selection.clearAll();
+  History.past = []; History.future = [];
+  Model.savedFilename = payload.savedFilename || null;
+  // If the draft was saved in a dirty state, restore as dirty. If it was
+  // saved right after a disk-save, restore as clean.
+  Model.dirty = !!payload.dirty;
+}
+
 // ---------- Menu wiring ----------
 document.querySelectorAll(".menubar .menu").forEach(menu => {
   menu.addEventListener("click", e => {
@@ -4789,6 +4971,24 @@ loadPlantUMLServerConfig();
 updateServerStatus();
 initActionPanel();
 resetModel("Component Name");
+
+// If an autosaved draft from a previous session exists, restore it and
+// show a transient banner so the user knows where the work came from and
+// can discard it in one click if they wanted a fresh start.
+(() => {
+  const payload = loadDraft();
+  if (!payload) return;
+  try {
+    restoreFromDraft(payload);
+    // The banner is positioned inside the canvas panel; the panel exists
+    // after the first refresh, so defer until then.
+    setTimeout(showRestoredBanner, 0);
+  } catch (err) {
+    console.warn("Stadiæ: could not restore autosaved draft — starting fresh.", err);
+    clearDraft();
+  }
+})();
+
 refresh();
 </script>
 </body>
