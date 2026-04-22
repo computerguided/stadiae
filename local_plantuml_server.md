@@ -1,4 +1,9 @@
 # Running PlantUML server locally
+_Stadiæ renders diagrams by sending PlantUML source to a PlantUML server, which returns a PNG. You can point Stadiæ at either the public server or a server running on your own machine. Below is an description on how you can install a PlantUML server locally on your Linux system._
+
+## Introduction
+
+PlantUML offers the possibility to run a PlantUML PicoWeb Server locally. This is described on their website: https://plantuml.com/picoweb. This is a fairly simple way of bypassing the dependency of requiring online access. Below the requirements and installation is described which is fairly straightforward.
 
 ## Requirements
 
@@ -6,13 +11,13 @@
 
 Check if Java is installed on your system:
 
-```
+```console
 which java
 ```
 
 Otherwise, install it:
 
-```
+```console
 sudo apt update
 sudo apt install default-jdk
 ```
@@ -22,13 +27,13 @@ To run the PlantUML server, Graphviz (https://graphviz.org) is required, which i
 
 Check if it is installed on your system:
 
-```
+```console
 which dot
 ```
 
 If not present, install it:
 
-```
+```console
 sudo apt install graphviz
 ```
 
@@ -38,13 +43,13 @@ sudo apt install graphviz
 
 Download PlantUML picoserver and rename the downloaded file to `plantuml.jar`.
 
-```
+```console
 sudo curl -L -o plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2026.2/plantuml-epl-1.2026.2.jar
 ```
 
 The server can now be run in the terminal.
 
-```
+```console
 java -jar plantuml.jar -picoweb:8080
 ```
 
@@ -54,13 +59,13 @@ However, a more convenient solution is to start it as a permanent service as des
 
 Create the `plantuml.service` file:
 
-```
+```console
 sudo nano /etc/systemd/system/plantuml.service
 ```
 
 Add the following - change the path and username accordingly:
 
-```
+```console
 [Unit]
 Description=PlantUML PicoWeb Server
 After=network.target
@@ -77,14 +82,14 @@ WantedBy=multi-user.target
 
 Then
 
-```
+```console
 sudo systemctl daemon-reload
 sudo systemctl enable --now plantuml.service
 ```
 
 Check it's running:
 
-```
+```console
 sudo systemctl status plantuml.service
 curl http://localhost:8080
 ```
