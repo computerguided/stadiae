@@ -184,6 +184,55 @@
     min-width: 300px;
     box-shadow: var(--shadow-sm);
   }
+  /* Inner wrapper that holds the swappable diagram image. The
+     canvas-panel is the positioning parent for floating chrome (the
+     System button, the restored-banner); canvas-content is what
+     renderDiagram wipes and repopulates on each render. */
+  .canvas-content {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+    align-self: stretch;
+  }
+  /* Floating System button in the canvas's top-left corner. Toggles
+     between the state-machine view (of the active component) and the
+     system-level component diagram. Sits above the diagram because
+     controlling-what-is-shown belongs where the effect happens, not in
+     the list chrome on the right. When the system view is active the
+     button styles as accent-filled so users have a persistent "you are
+     here" cue. */
+  .canvas-system-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 20;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-style: italic;
+    font-family: inherit;
+    transition: all 0.15s;
+    box-shadow: var(--shadow-sm);
+  }
+  .canvas-system-btn:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  body.view-system .canvas-system-btn {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
   .canvas-panel img {
     max-width: 100%;
     max-height: 100%;
@@ -327,40 +376,6 @@
   .list-box .header-add:disabled:hover {
     background: transparent;
     color: var(--text-muted);
-  }
-  /* The System button sits at the left of the Components list header.
-     It switches the canvas to the system-level component diagram.
-     Styled like a small pill, accented when the system view is active. */
-  .list-box .header-system-btn {
-    all: unset;
-    cursor: pointer;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    padding: 3px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    font-style: italic;
-    transition: all 0.12s;
-    flex: 0 0 auto;
-  }
-  .list-box .header-system-btn:hover {
-    background: var(--accent-soft);
-    color: var(--accent);
-    border-color: var(--accent);
-  }
-  body.view-system .list-box .header-system-btn {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-  }
-  /* When the System button is alongside a header label, use a light
-     separator style so the two feel like peers rather than label+button. */
-  .list-box .header-sep {
-    flex: 1 1 auto;
-    text-align: left;
-    margin-left: 8px;
   }
   /* Active-row marker for the Components list — a small chevron on the
      row whose state machine is currently showing. Every row reserves
@@ -1217,15 +1232,17 @@
 
 <div class="main">
   <div class="canvas-panel" id="canvas-panel">
-    <div class="loading">Rendering diagram...</div>
+    <button class="canvas-system-btn" id="btn-system" title="Show the system diagram (component view)">◇ System</button>
+    <div class="canvas-content" id="canvas-content">
+      <div class="loading">Rendering diagram...</div>
+    </div>
   </div>
   <div class="right-panel">
     <div class="system-panel" id="system-panel">
       <div class="system-grid">
         <div class="list-box">
           <div class="header">
-            <button class="header-system-btn" id="btn-system" title="Show the system diagram">◇ System</button>
-            <span class="header-sep">Components</span>
+            <span>Components</span>
             <button class="header-add" id="btn-add-comp" title="Add component">+</button>
           </div>
           <ul id="list-comps"></ul>
@@ -2129,7 +2146,11 @@ let renderSeq = 0;
 
 function renderDiagram() {
   const myRenderSeq = ++renderSeq;
-  const panel = document.getElementById("canvas-panel");
+  // The System button and any other persistent floating chrome live in
+  // #canvas-panel; the swappable image content goes into the inner
+  // #canvas-content so we can wipe + repopulate it without touching the
+  // chrome.
+  const panel = document.getElementById("canvas-content");
 
   // Dispatch on the current view. System view renders the component
   // diagram; component view renders the active component's state machine.
@@ -3789,7 +3810,7 @@ function manualContent() {
       <p>Shows the rendered PNG of the <em>active</em> component. States, choice-points, and transitions can be selected by clicking them directly on the canvas. Clicking on empty canvas clears the current selection.</p>
       <h3>System catalogue (top right)</h3>
       <p>The top section of the right panel holds three side-by-side lists for the system-wide vocabulary: <strong>Components</strong>, <strong>Interfaces</strong>, and <strong>Messages</strong>. Every entry in these lists is shared across the whole file. Each list has a small <code>+</code> button in its header to add a new entry. Click an interface to toggle its selection; messages of the selected interface(s) then appear in the Messages list.</p>
-      <p>The Components list also carries a pinned <code>◇ System</code> button at the top-left of its header. Click it to switch to the <a href="#m-system-diagram" data-target="m-system-diagram">system diagram</a> view; the button stays accent-coloured while system view is active. To return to a state-machine view, click any component row in the list.</p>
+      <p>The entry point to the <a href="#m-system-diagram" data-target="m-system-diagram">system diagram</a> view is the floating <code>◇ System</code> button in the top-left corner of the diagram canvas; the button stays accent-coloured while system view is active. To return to a state-machine view, click any component row in the Components list.</p>
       <h3>Components list</h3>
       <p>One row per component. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas. Click a row to switch the lower panels and canvas to that component. <strong>Double-click</strong> a row to drill in even from system view (equivalent to double-clicking the component box on the system canvas). To rename a component, select it and click <strong>Edit</strong>; to delete it, select it and click <strong>Delete</strong>. Component names must be unique. The minimum is one component — the last one cannot be deleted.</p>
       <h3>Component panel (bottom right)</h3>
@@ -3837,7 +3858,7 @@ function manualContent() {
       <p>Above the state machines sits the <strong>system diagram</strong>: a single picture of your whole file showing components as boxes and interfaces as lollipops, with lines marking which component uses which interface. This is Stadiæ's view of the system's decomposition — the "one level up" from individual component behaviour.</p>
 
       <h3>Opening the system view</h3>
-      <p>A pinned <code>◇ System</code> button sits at the top-left of the Components list header. Click it to switch from a state-machine view to the system diagram; the button stays accent-coloured while the system view is active. The States, Choice-points, Transitions, and Action panels hide in this view — they don't apply at the system level. The Components, Interfaces, and Messages lists stay visible.</p>
+      <p>A floating <code>◇ System</code> button at the top-left of the diagram canvas switches from a state-machine view to the system diagram; the button stays accent-coloured while the system view is active. The States, Choice-points, Transitions, and Action panels hide in this view — they don't apply at the system level. The Components, Interfaces, and Messages lists stay visible.</p>
       <p>Click any component row in the Components list to return to a state machine, or <strong>double-click a component box on the system canvas</strong> (or a component row in the list) to jump directly into that component's state machine.</p>
 
       <h3>Connecting components to interfaces</h3>
@@ -3870,7 +3891,7 @@ function manualContent() {
       <ol>
         <li><strong>Name the first component</strong> via <em>Component → Change name</em>, or start a fresh file via <em>File → New</em>. For a multi-component system, add more components with the <code>+</code> in the Components list header.</li>
         <li><strong>Define the shared vocabulary</strong>: add interfaces (<code>+</code> in the Interfaces list header), then messages per interface. These are shared across every component, so define them once.</li>
-        <li><strong>Wire the system diagram</strong>: click the <code>◇ System</code> button at the top of the Components list, then select a component + an interface and click Add Connection. Repeat for every component-interface relationship in your architecture.</li>
+        <li><strong>Wire the system diagram</strong>: click the floating <code>◇ System</code> button at the top-left of the canvas, then select a component + an interface and click Add Connection. Repeat for every component-interface relationship in your architecture.</li>
         <li><strong>Lay out each component</strong>: click the component you want to edit in the Components list, then add states and choice-points.</li>
         <li><strong>Wire up transitions</strong>: select a source state, a target, and a message, then click Add Transition.</li>
         <li><strong>Pick the initial state</strong>: select START and the intended first state, then Add Transition.</li>

@@ -655,17 +655,19 @@ The layout is a standard CSS flex/grid arrangement; no layout framework is used.
 ├──────────────────────────────────────────────────────────────────────┤
 │ Toolbar (dark chrome)                                                │
 ├────────────────────────────────┬─────────────────────────────────────┤
-│                                │ ┌── System catalogue (shared) ────┐ │
-│                                │ │ ◇System Components │ Ifaces │   │ │
-│                                │ │   ▸ Comp A     +   │  RTx     +  │ │
-│                                │ │     Comp B         │  Storage    │ │
-│                                │ │                    │   ─────     │ │
-│                                │ │                    │   Messages +│ │
+│ ┌──────────┐                   │ ┌── System catalogue (shared) ────┐ │
+│ │ ◇ System │  (floating)       │ │ Components + │ Ifaces + │ Msgs+ │ │
+│ └──────────┘                   │ │   ▸ Comp A   │  RTx     │       │ │
+│                                │ │     Comp B   │  Storage │       │ │
 │                                │ └─────────────────────────────────┘ │
 │                                │ ──── resize handle ────             │
-│ Canvas panel                   │ ┌── Component panel (active) ────┐  │
-│ (rendered PlantUML PNG of      │ │ States +  │  Choice-points +   │  │
-│  the active component)         │ ├────────────────────────────────┤  │
+│                                │ ┌── Description (active component)─┐│
+│ Canvas panel                   │ │ [ free-text textarea ]           ││
+│ (rendered PlantUML PNG of      │ └──────────────────────────────────┘│
+│  the active component, or      │ ──── resize handle ────             │
+│  the system diagram)           │ ┌── Component panel (active) ────┐  │
+│                                │ │ States +  │  Choice-points +   │  │
+│                                │ ├────────────────────────────────┤  │
 │                                │ │ ──── resize handle ────        │  │
 │                                │ │ Transitions table              │  │
 │                                │ │ • │ Source │ Target │ Iface │… │  │
@@ -676,12 +678,15 @@ The layout is a standard CSS flex/grid arrangement; no layout framework is used.
 └────────────────────────────────┴─────────────────────────────────────┘
 ```
 
-The right panel is vertically subdivided into two regions:
+The canvas panel hosts the rendered diagram plus a small amount of floating chrome — the `◇ System` button in its top-left, occasionally a restored-draft banner along the top. The button is absolutely positioned so it persists across the image-replacement cycle that happens on every render.
 
-- **System catalogue** at the top holds the file's shared vocabulary as three side-by-side lists: Components, Interfaces, and Messages. Each list's header has a `+` button to add an entry. The Components list also carries a pinned `◇ System` button at the top-left of its header that switches to the system-diagram view; while system view is active the button is accent-filled. A small chevron `▸` on the active row of the Components list shows which component's state machine is currently displayed below.
-- **Component panel** at the bottom shows the active component's States + Choice-points (each with `+` in its header), the Transitions table, and the Action panel. Hidden in system view.
+The right panel is vertically subdivided into three regions:
 
-There are three user-draggable resize handles in this stack: between the system catalogue and the component panel, between the States/Choice-points grid and the transitions table, and between the transitions table and the Action panel. Each handle double-clicks to reset.
+- **System catalogue** at the top holds the file's shared vocabulary as three side-by-side lists: Components, Interfaces, and Messages. Each list's header has a `+` button to add an entry. A small chevron `▸` on the active row of the Components list shows which component's state machine is currently displayed below.
+- **Description panel** sits beneath the catalogue and is always visible. It binds to the active component in component view, or to the selected component in system view (falling back to active when no component or many are selected). Live-saves to `Component.description` per keystroke; never reaches PlantUML.
+- **Component panel** at the bottom shows the active component's States + Choice-points (each with `+` in its header), the Transitions table, and the Action panel. Hidden in system view, where the description panel grows to fill the available space.
+
+There are four user-draggable resize handles in this stack: between the system catalogue and the description panel, between the description panel and the component panel, between the States/Choice-points grid and the transitions table, and between the transitions table and the Action panel. Each handle double-clicks to reset.
 
 Design decisions worth noting:
 
@@ -737,15 +742,21 @@ For mask and selection modes, the decoration is injected between the leading `-`
 
 Orphan interfaces (declared in the catalogue but not wired to anything) are omitted from the component-diagram render to keep it uncluttered. They remain visible in the Interfaces list on the right.
 
-### 14.4 Components list with a pinned System button
+### 14.4 Components list and the floating System button
 
 The Components list lives in the top-right system catalogue alongside the Interfaces and Messages lists. `buildComponentList()` emits one row per component; a small chevron `▸` marker on the row whose `idx === Model.activeComponentIndex` and `Model.activeView === "component"` shows which component is "showing its body" on the canvas. The marker space is reserved on every row (zero opacity for non-active rows) so the list doesn't reflow as the active component changes.
 
-A pinned `◇ System` button at the top-left of the Components list header (`#btn-system`) calls `switchToSystem()`, which flips `Model.activeView` to `"system"`, clears the selection, and refreshes. CSS gives the button an accent fill while `body.view-system` is set, so its state is unambiguously visible. The component-row click handler dispatches on the active view: in component view it calls `switchToComponent(idx)` (flips view back to `"component"` and sets `activeComponentIndex`); in system view it adds/removes the component from `Selection.components`, the same semantic as clicking the component box on the system canvas — this lets users build connections without having to locate the canvas box. Double-clicking a row always calls `switchToComponent(idx)`, mirroring the canvas double-click drill-down.
+A floating `◇ System` button (`#btn-system`) lives at the top-left of the diagram canvas. It is absolutely positioned over `#canvas-panel` with `z-index: 20`, sitting above the rendered PNG. Clicking it calls `switchToSystem()`, which flips `Model.activeView` to `"system"`, clears the selection, and refreshes. CSS gives the button an accent fill while `body.view-system` is set, so its state is unambiguously visible (`background: var(--accent); color: white;`).
+
+The button isn't part of `#canvas-content` — that's the inner wrapper `renderDiagram` rebuilds on every render. The button needs to persist across renders without being torn out, so it's a sibling of `#canvas-content` inside `#canvas-panel`. The same arrangement holds the `restored-banner` (autosave restoration prompt) and would hold any future canvas-floating chrome.
+
+Why the canvas, not the right panel: controlling-what-is-shown belongs spatially close to the thing being controlled. The button replaced an earlier pill in the Components list header that competed with the `Components` label and the `+` button for narrow header space. Moving it to the canvas freed the header for symmetric `[label] [+]` styling matching Interfaces and Messages, and put the toggle where the user's attention already is when they decide to switch views.
+
+The component-row click handler dispatches on the active view: in component view it calls `switchToComponent(idx)` (flips view back to `"component"` and sets `activeComponentIndex`); in system view it adds/removes the component from `Selection.components`, the same semantic as clicking the component box on the system canvas — this lets users build connections without having to locate the canvas box. Double-clicking a row always calls `switchToComponent(idx)`, mirroring the canvas double-click drill-down.
 
 The `activeView` and `activeComponentIndex` are both included in the visual fingerprint used by `refresh()` to decide when to re-render, so view and component changes correctly invalidate the cached PNG.
 
-This layout was a refactor from an earlier tab-bar UI. Tabs broke down at scale: more than ~5–8 components forced horizontal scroll or label truncation. A vertical list scrolls cleanly to any size, sits naturally next to the other system-wide lists, and integrates the Edit/Delete toolbar workflow that already exists for every other entity kind. The System button replaced what was previously a pinned `◇ System` tab.
+This layout was a refactor from an earlier tab-bar UI. Tabs broke down at scale: more than ~5–8 components forced horizontal scroll or label truncation. A vertical list scrolls cleanly to any size, sits naturally next to the other system-wide lists, and integrates the Edit/Delete toolbar workflow that already exists for every other entity kind. The System button replaced what was previously a pinned `◇ System` tab, then briefly lived in the Components list header before moving to the canvas.
 
 ### 14.5 View-scoped UI
 

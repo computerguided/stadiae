@@ -500,7 +500,7 @@ footer.foot .links a + a { margin-left: 18px; }
     </ul>
 
     <div class="meta">
-      <div><span class="k">format</span> stadiae-v2</div>
+      <div><span class="k">format</span> stadiae-v3</div>
       <div><span class="k">deps</span> &lt;browser&gt;</div>
       <div><span class="k">size</span> ~1 MB</div>
       <div><span class="k">license</span> proprietary</div>
@@ -514,7 +514,7 @@ footer.foot .links a + a { margin-left: 18px; }
       <div class="crumb"><span class="accent">$</span> man stadi&aelig;</div>
       <h1>stadi&aelig; <span class="mono-accent">&mdash; state&mdash;diagrams</span></h1>
       <p class="tagline">
-        A browser-based state-diagram editor for embedded systems architects. Edits the <span class="hl">domain model</span> directly &mdash; states, choice-points, interfaces, messages, transitions &mdash; and emits clean, diffable PlantUML. One HTML file. No install. No lock-in.
+        A browser-based system- and state-diagram editor for embedded systems architects. Edits the <span class="hl">domain model</span> directly &mdash; components, interfaces, messages, states, choice-points, transitions &mdash; and emits clean, diffable PlantUML. One HTML file. No install. No lock-in.
       </p>
 
       <div class="hero-actions">
@@ -565,9 +565,49 @@ footer.foot .links a + a { margin-left: 18px; }
     </section>
 
     <!-- 2. Why -->
+    <!-- 2. Two levels -->
+    <section class="block" id="two-levels">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 02 /// decomposition</div>
+        <h2>Two levels, <span class="mono-accent">one file</span>.</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <p>
+            A Stadi&aelig; file captures two levels of a design side by side: the <b>system diagram</b> &mdash; components as boxes, interfaces as lollipops, lines marking who talks to whom &mdash; and one <b>state machine</b> per component, describing its behaviour.
+          </p>
+          <p>
+            Interfaces and messages are the shared vocabulary that binds the two levels. Rename an interface and every component's state machine, every transition message, and every connection in the system diagram updates together. There is no way for the two levels to drift apart silently.
+          </p>
+
+          <div class="code-label"><span class="dot"></span> sample output &middot; generated PlantUML (system diagram)</div>
+          <pre class="code"><span class="kw">skinparam</span> componentStyle rectangle
+
+<span class="com">'== Interfaces ==</span>
+<span class="punct">()</span> <span class="id">I_0</span> <span class="kw">as</span> <span class="str">"RTx"</span>
+<span class="punct">()</span> <span class="id">I_1</span> <span class="kw">as</span> <span class="str">"Storage"</span>
+
+<span class="com">'== Components ==</span>
+<span class="kw">component</span> <span class="id">C_0</span> <span class="kw">as</span> <span class="str">"Advertising"</span>
+<span class="kw">component</span> <span class="id">C_1</span> <span class="kw">as</span> <span class="str">"Session"</span>
+
+<span class="com">'== Connections ==</span>
+<span class="id">C_0</span> <span class="punct">-</span> <span class="id">I_0</span>
+<span class="id">C_1</span> <span class="punct">-</span> <span class="id">I_0</span>
+<span class="id">C_1</span> <span class="punct">-</span> <span class="id">I_1</span></pre>
+
+          <p>
+            A pinned <code>&diams; System</code> button at the top of the Components list switches to the system view. Double-click a component box (or a row in the list) to drill into its state machine. Stadi&aelig; flags every transition that references an interface the component isn't connected to &mdash; an advisory amber <code>!</code>, not a block &mdash; so the two levels stay in sync without ceremony.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Why -->
     <section class="block" id="why">
       <div class="sec-head">
-        <div class="num"><span class="hash">#</span> 02 /// motivation</div>
+        <div class="num"><span class="hash">#</span> 03 /// motivation</div>
         <h2>Why not just draw it somewhere else?</h2>
       </div>
       <div class="sec-body">
@@ -625,7 +665,7 @@ footer.foot .links a + a { margin-left: 18px; }
     <!-- 3. Model -->
     <section class="block" id="model">
       <div class="sec-head">
-        <div class="num"><span class="hash">#</span> 03 /// data model</div>
+        <div class="num"><span class="hash">#</span> 04 /// data model</div>
         <h2>The entire state fits on one page.</h2>
       </div>
       <div class="sec-body">
@@ -635,14 +675,16 @@ footer.foot .links a + a { margin-left: 18px; }
             A Stadi&aelig; file holds a list of components, all sharing one set of interfaces and messages. This matches the reality of embedded systems: components are independent state machines, but they speak a common protocol.
           </p>
 
-          <div class="code-label"><span class="dot"></span> stadiae-v2.json &middot; save format</div>
+          <div class="code-label"><span class="dot"></span> stadiae-v3.json &middot; save format</div>
           <pre class="code"><span class="punct">{</span>
-  <span class="kw">"format"</span><span class="punct">:</span> <span class="str">"stadiae-v2"</span><span class="punct">,</span>
+  <span class="kw">"format"</span><span class="punct">:</span> <span class="str">"stadiae-v3"</span><span class="punct">,</span>
   <span class="kw">"interfaces"</span><span class="punct">:</span> <span class="punct">[</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">},</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"Data"</span><span class="punct">}</span> <span class="punct">],</span>
   <span class="kw">"messages"</span><span class="punct">:</span>   <span class="punct">[</span> <span class="punct">{</span><span class="kw">"interface"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">,</span> <span class="kw">"name"</span><span class="punct">:</span><span class="str">"ConnectReq"</span><span class="punct">},</span> <span class="com">/* ... */</span> <span class="punct">],</span>
   <span class="kw">"components"</span><span class="punct">:</span> <span class="punct">[</span>
     <span class="punct">{</span>
       <span class="kw">"name"</span><span class="punct">:</span> <span class="str">"Node"</span><span class="punct">,</span>
+      <span class="kw">"displayName"</span><span class="punct">:</span> <span class="str">"BLE Node"</span><span class="punct">,</span>
+      <span class="kw">"description"</span><span class="punct">:</span> <span class="str">"Connects to whitelisted servers, retries on failure."</span><span class="punct">,</span>
       <span class="kw">"states"</span><span class="punct">:</span>       <span class="punct">[</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"Advertising"</span><span class="punct">,</span> <span class="kw">"displayName"</span><span class="punct">:</span><span class="str">"Advertising"</span><span class="punct">},</span> <span class="com">/* ... */</span> <span class="punct">],</span>
       <span class="kw">"choicePoints"</span><span class="punct">:</span> <span class="punct">[</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"Whitelisted"</span><span class="punct">,</span> <span class="kw">"question"</span><span class="punct">:</span><span class="str">"Is Server\nWhitelisted?"</span><span class="punct">}</span> <span class="punct">],</span>
       <span class="kw">"transitions"</span><span class="punct">:</span>  <span class="punct">[</span>
@@ -658,6 +700,9 @@ footer.foot .links a + a { margin-left: 18px; }
       <span class="punct">]</span>
     <span class="punct">}</span>
   <span class="punct">],</span>
+  <span class="kw">"connections"</span><span class="punct">:</span> <span class="punct">[</span>
+    <span class="punct">{</span> <span class="kw">"component"</span><span class="punct">:</span><span class="str">"Node"</span><span class="punct">,</span> <span class="kw">"interface"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">,</span> <span class="kw">"connector"</span><span class="punct">:</span><span class="str">"Right"</span><span class="punct">,</span> <span class="kw">"length"</span><span class="punct">:</span> <span class="num">1</span> <span class="punct">}</span>
+  <span class="punct">],</span>
   <span class="kw">"activeComponentIndex"</span><span class="punct">:</span> <span class="num">0</span>
 <span class="punct">}</span></pre>
 
@@ -669,7 +714,7 @@ footer.foot .links a + a { margin-left: 18px; }
     <!-- 4. Output -->
     <section class="block" id="output">
       <div class="sec-head">
-        <div class="num"><span class="hash">#</span> 04 /// output</div>
+        <div class="num"><span class="hash">#</span> 05 /// output</div>
         <h2>Every artefact is plain text.</h2>
       </div>
       <div class="sec-body">
@@ -686,7 +731,7 @@ footer.foot .links a + a { margin-left: 18px; }
             <tbody>
               <tr>
                 <td class="name">.json</td>
-                <td class="desc">Full round-trip save. Every component, every shared interface/message, every action note. Re-open and continue editing. Version: <code>stadiae-v2</code> with auto-migration from v1.</td>
+                <td class="desc">Full round-trip save. Every component (with its display name and description), every shared interface/message, every system-diagram connection, every action note. Re-open and continue editing. Version: <code>stadiae-v3</code> with auto-migration from v1 and v2.</td>
               </tr>
               <tr>
                 <td class="name">.puml</td>
@@ -704,7 +749,7 @@ footer.foot .links a + a { margin-left: 18px; }
           </table>
 
           <p style="margin-top:22px">
-            The <code>action</code> field on each transition row is where the behavioural description lives &mdash; "post ConnectReq to RTx; arm retry timer" &mdash; stored in the JSON save, surfaced in the Markdown export, <em>omitted</em> from PlantUML so the diagram stays uncluttered. Behaviour and visualisation, separated.
+            The <code>action</code> field on each transition row is where the behavioural description lives &mdash; "post ConnectReq to RTx; arm retry timer" &mdash; stored in the JSON save, surfaced in the Markdown export, <em>omitted</em> from PlantUML so the diagram stays uncluttered. Each component also carries a free-text <code>description</code>, edited live in a panel below the system catalogue. Behaviour and visualisation, separated.
           </p>
         </div>
       </div>
@@ -713,7 +758,7 @@ footer.foot .links a + a { margin-left: 18px; }
     <!-- 5. Layout -->
     <section class="block" id="layout">
       <div class="sec-head">
-        <div class="num"><span class="hash">#</span> 05 /// interface</div>
+        <div class="num"><span class="hash">#</span> 06 /// interface</div>
         <h2>The working surface.</h2>
       </div>
       <div class="sec-body">
@@ -734,7 +779,7 @@ footer.foot .links a + a { margin-left: 18px; }
           </figure>
 
           <p>
-            Interfaces and messages live in the <em>system panel</em>; they're shared across all components. Below that, a tab bar switches between components &mdash; <code>Node</code>, <code>Gateway</code>, <code>Session</code>, whatever your subsystem contains. Each component has its own states, choice-points, transitions, and action notes, but the protocol vocabulary is shared.
+            Components, interfaces, and messages live in the <em>system catalogue</em> at the top of the right panel; all three are shared across the file. The Components list switches between components with one click &mdash; <code>Node</code>, <code>Gateway</code>, <code>Session</code>, whatever your subsystem contains. Each component has its own states, choice-points, transitions, and action notes, but the protocol vocabulary is shared.
           </p>
         </div>
       </div>
@@ -743,7 +788,7 @@ footer.foot .links a + a { margin-left: 18px; }
     <!-- 6. Shortcuts -->
     <section class="block" id="shortcuts">
       <div class="sec-head">
-        <div class="num"><span class="hash">#</span> 06 /// interaction</div>
+        <div class="num"><span class="hash">#</span> 07 /// interaction</div>
         <h2>Keyboard-driven where it counts.</h2>
       </div>
       <div class="sec-body">
@@ -771,7 +816,7 @@ footer.foot .links a + a { margin-left: 18px; }
     <!-- 7. VCS -->
     <section class="block" id="vcs">
       <div class="sec-head">
-        <div class="num"><span class="hash">#</span> 07 /// workflow</div>
+        <div class="num"><span class="hash">#</span> 08 /// workflow</div>
         <h2>Diagrams as <span class="mono-accent">source code</span>.</h2>
       </div>
       <div class="sec-body">
@@ -820,7 +865,7 @@ footer.foot .links a + a { margin-left: 18px; }
     <!-- 8. Install -->
     <section class="block" id="install">
       <div class="sec-head">
-        <div class="num"><span class="hash">#</span> 08 /// installation</div>
+        <div class="num"><span class="hash">#</span> 09 /// installation</div>
         <h2>There is no installation.</h2>
       </div>
       <div class="sec-body">
@@ -857,7 +902,7 @@ footer.foot .links a + a { margin-left: 18px; }
     <!-- 9. PlantUML server -->
     <section class="block" id="server">
       <div class="sec-head">
-        <div class="num"><span class="hash">#</span> 09 /// rendering</div>
+        <div class="num"><span class="hash">#</span> 10 /// rendering</div>
         <h2>Public server or <span class="mono-accent">your own</span>.</h2>
       </div>
       <div class="sec-body">
@@ -899,7 +944,7 @@ footer.foot .links a + a { margin-left: 18px; }
 </div>
 
 <footer class="foot">
-  <div>stadi&aelig; &middot; &copy; computerguided systems &middot; v2</div>
+  <div>stadi&aelig; &middot; &copy; computerguided systems &middot; v3</div>
   <div class="links">
     <a href="stadiae.html">open</a>
     <a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github &#8599;</a>
