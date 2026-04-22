@@ -3067,7 +3067,7 @@ function manualContent() {
         <li>Select one or more messages (not <code>Yes</code>/<code>No</code>).</li>
         <li>Click Add Transition.</li>
       </ol>
-      <p>Each ANY-source transition renders as its own separate <code>∗</code> node in the diagram, so multiple wildcard transitions do not converge on a single point. A given message can only be used on one ANY-source transition at a time — otherwise the behaviour would be ambiguous.</p>
+      <p>Each ANY-source transition renders from a <em>single</em> shared <code>∗</code> node in the diagram — all wildcard arrows originate from that one node, so the reader sees at a glance that there is just one "any" concept in play. A given message can only be used on one ANY-source transition at a time — otherwise the behaviour would be ambiguous.</p>
       <p>ANY can be combined with H: a transition from <code>∗</code> to <code>[H]</code> means "from any state, go back to the last active one".</p>
     </section>
 
