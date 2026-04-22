@@ -63,7 +63,9 @@ Model = {
   // Components
   components: [
     {
-      name: String,           // "Node", "Component Name", …
+      name: String,           // identifier-safe, unique. "Node", "Session_A"
+      displayName: String,    // optional free text (may include `\n`)
+      description: String,    // optional free-text developer documentation
       arrowFontSize: Number,  // default 9
       stateFontSize: Number,  // default 12
       states:       [ {name, displayName} ],
@@ -73,6 +75,16 @@ Model = {
     ...
   ],
   activeComponentIndex: Number,
+  // System-level component diagram — see §16. Each entry wires one
+  // component to one non-default interface. Connector direction/length
+  // use the same vocabulary as transitions but without arrowheads.
+  connections: [
+    { component: String, interface: String,
+      connector: "Right"|"Left"|"Up"|"Down", length: Number }
+  ],
+  // Which view the canvas is rendering: "component" shows the active
+  // component's state machine, "system" shows the component diagram.
+  activeView: "component"|"system",
   // Save metadata
   dirty: Boolean,             // unsaved edits?
   savedFilename: String|null
@@ -101,6 +113,8 @@ Some subtleties worth noting:
 - **Interfaces and messages are system-wide.** They live on `Model` rather than in each component. Every component references the same interfaces and messages by name. Rename/delete of an interface or message cascades to every component's transitions — see the cascade-handling in `openInterfaceDialog`, `openMessageDialog` and `actionDelete`. This models the real-world semantic: an interface like `RTx` is a contract between components, not a per-component detail.
 
 - **States, choice-points, and transitions are component-local.** A transition cannot reference a state in another component — transitions always stay within the component that owns them.
+
+- **Components have `name` plus optional `displayName`.** Same convention as states. `name` is identifier-safe and stable (it's what `Model.connections[*].component` refers to, what mask-id keys are built from, what `Selection.components` stores). `displayName` is free text shown on the rendered diagram (system-view component box, state-machine outer wrapper) and may contain `\n` markers that PlantUML interprets as line breaks. The Components list shows the display label with `\n` collapsed to spaces, so the entry stays single-line. When `displayName` is empty, the canvas falls back to `name`. Files saved before this split stored free text directly in `name`; the loader migrates them by slugging the original into a valid `name` and promoting the original text to `displayName`. Connections referring to the old name are re-keyed via a rename map built during the migration. See §4.3.
 
 - **Choice-point names don't include `CP_`.** Users enter `Whitelisted`, the model stores `Whitelisted`, but every appearance in PlantUML is rewritten as `CP_Whitelisted`. Inside transitions, however, the prefix is already baked in — `t.source === "CP_Whitelisted"`. This asymmetry is intentional: it keeps the user-visible names clean while mapping unambiguously to PlantUML tokens.
 
@@ -157,11 +171,11 @@ A Stadiæ file may contain multiple components. This section describes how that 
 
 ### 4.1 Active component and selection semantics
 
-Only one component is *active* at a time. The canvas, the States and Choice-points lists, the transitions table, and the Action panel all reflect the active component. The tab bar above them selects which component is active.
+Only one component is *active* at a time. The canvas, the States and Choice-points lists, the transitions table, and the Action panel all reflect the active component. The **Components list** in the top-right system catalogue selects which component is active — clicking a row calls `switchToComponent(idx)` and a small chevron `▸` marks the active row. A pinned `◇ System` button at the top of the list switches to the system view; in that mode no row is marked active because the canvas is showing the system diagram, not any single component's state machine.
 
-`Selection` is intentionally *not* partitioned per component. It's a single global set of selected elements. When the user switches tabs (`switchToComponent`), `Selection.clearAll()` is called, so a new tab always starts with nothing selected. This sidesteps all the edge cases that "per-tab selection" would produce — stale references to a hidden component's elements, different toolbar-enablement states, canvas highlighting inconsistencies.
+`Selection` is intentionally *not* partitioned per component. It's a single global set of selected elements. When the user switches components (`switchToComponent`), `Selection.clearAll()` is called, so the new active component always starts with nothing selected. This sidesteps all the edge cases that "per-component selection" would produce — stale references to a hidden component's elements, different toolbar-enablement states, canvas highlighting inconsistencies.
 
-The `Component` proxy introduced in §3.1 makes every piece of code that worked on "the one component" continue to work without change. References like `Component.states`, `Component.transitions`, `Component.name` automatically follow the active tab.
+The `Component` proxy introduced in §3.1 makes every piece of code that worked on "the one component" continue to work without change. References like `Component.states`, `Component.transitions`, `Component.name` automatically follow the active component.
 
 ### 4.2 Shared vocabulary
 
@@ -177,18 +191,20 @@ By contrast, state and choice-point names are unique only *within* their compone
 
 ### 4.3 Component lifecycle
 
-Four operations manipulate the components array:
+Four operations manipulate the components array. All flow through a single dialog `openComponentDialog(existing)` for the create/edit cases — same shape as `openStateDialog`, with a Name field validated by `isValidIdentifier` + `isUniqueComponentName`, and an optional Display name field for free-text labelling on the canvas.
 
-- **Add** (`addComponent`): prompts for a name, appends a new empty component via `makeEmptyComponent`, switches to it, pushes history.
-- **Rename** (`renameComponent`): via tab double-click or `Component → Change name…`. A plain `showPrompt` that writes to `Component.name`.
-- **Delete** (`deleteComponent`): confirmation dialog; removes the component and adjusts `activeComponentIndex` so the UI stays on a valid tab. Deletion is blocked when only one component remains — the file must always have at least one.
-- **Switch** (`switchToComponent`): sets `activeComponentIndex`, clears selection, triggers a refresh.
+- **Add** (`addComponent` → `openComponentDialog(null)`): prompts for name + display name, validates, appends via `makeEmptyComponent`, switches to it, pushes history. New components get a unique identifier `name`; the optional `displayName` is rendered on the canvas via `componentDisplayLabel(c)`.
+- **Rename** (`renameComponent(idx)` → `openComponentDialog(existing)`): the same dialog with both fields pre-filled. On OK with a changed `name`, the cascade helper `onComponentRenamed` updates every entry in `Model.connections` whose `component` field referenced the old name. Selection keys keyed by component name (`Selection.components`, `Selection.connections`) are also re-keyed in place so a rename doesn't drop the user's selection. The `Component → Change name…` menu action opens the same dialog for the active component.
+- **Delete** (`deleteComponent`): triggered by selecting a component row and clicking Delete (or via the toolbar Delete keyboard shortcut, with the same single-component-selection check). Confirmation dialog quotes the display label, not the identifier (more readable). Removes the component, adjusts `activeComponentIndex` so the UI stays on a valid component, and calls `onComponentDeleted` to prune any matching connections. Deletion is blocked when only one component remains — the file must always have at least one. The toolbar `actionDelete` short-circuits to this flow when the selection contains exactly one component and nothing else, since deleting a whole state machine warrants its own confirm-first handling distinct from the bulk-delete path used for states and transitions.
+- **Switch** (`switchToComponent`): sets `activeComponentIndex`, sets `Model.activeView` to `"component"`, clears selection, triggers a refresh.
 
-All four push a history snapshot before mutating so undo correctly restores component order, names, and the active-component pointer.
+All four push a history snapshot before mutating so undo correctly restores component order, names, display names, and the active-component pointer. Component-name uniqueness is essential because mask-id keys (`"comp:" + name`) and connection-cascade lookups all assume it; the validator at every entry point keeps the invariant holding.
+
+**Migration of pre-displayName files.** Older saves stored arbitrary text (including `\n` markers and spaces) in `name`. The loader (`loadV2`) walks `data.components` and, for any entry whose `name` isn't a valid identifier, slugs the original via `slugifyComponentName` (replace non-identifier chars with `_`, prepend `C_` if it doesn't start with a letter), promotes the original text to `displayName` if no displayName was already supplied, and disambiguates slug collisions with `_2`, `_3`, etc. A `renameMap` tracks any `oldName → newName` rewrites; `data.connections` is rewritten through that map before being loaded. The result is byte-identical visible output (the canvas renders displayName) with a clean, reference-stable `name` underneath.
 
 ### 4.4 Exports operate per-active-component
 
-PlantUML, PNG, and Markdown exports use whatever the active component is at the time. To export every component, the user switches tabs and exports each one. The file-level save operation (`.json`) is the only one that covers the full file.
+PlantUML, PNG, and Markdown exports use whatever the active component is at the time. To export every component, the user switches the active component (one click in the Components list) and exports each one. The file-level save operation (`.json`) is the only one that covers the full file (all components, the shared vocabulary, and the system diagram).
 
 ---
 
@@ -198,7 +214,8 @@ Any change to the model or selection calls `refresh()`, which rebuilds the UI. C
 
 ```
 refresh()
-  ├── buildTabBar()            — one tab per component, + button, × buttons
+  ├── document.body.classList toggle  — view-system / view-component
+  ├── buildComponentList()     — one row per component, chevron on active
   ├── buildStateList()         — repopulate <ul> for States (+ START, H, *)
   ├── buildCPList()            — repopulate <ul> for Choice-points
   ├── buildInterfaceList()     — repopulate <ul> for Interfaces (system-wide)
@@ -209,7 +226,7 @@ refresh()
   └── (re-render if the visual fingerprint changed)
 ```
 
-`scheduleRender` uses a 150ms debounce so rapid list-click selection doesn't trigger a server round-trip per keystroke. A canvas re-render is the only step that involves network I/O — so to save round-trips, `refresh` computes a "visual fingerprint" (a string covering everything that affects what's painted: full model, the active component index, every selection set) and only calls `scheduleRender` when that fingerprint changed.
+`scheduleRender` uses a 150ms debounce so rapid list-click selection doesn't trigger a server round-trip per keystroke. A canvas re-render is the only step that involves network I/O — so to save round-trips, `refresh` computes a "visual fingerprint" (a string covering everything that affects what's painted: full model, the active view, the active component index, every selection set) and only calls `scheduleRender` when that fingerprint changed.
 
 ---
 
@@ -563,6 +580,20 @@ The transitions table has a narrow first column that is otherwise empty. A row w
 
 The panel has a fixed default height of 140 px and lives at the bottom of the right-panel flex column. A second resize handle (`#resize-handle-action`) sits between the transitions table and the Action panel, mirroring the existing lists/table handle. Dragging changes the Action panel's height; the transitions table consumes the remaining space via its existing `flex: 1 1 auto`. Double-click resets to 140 px.
 
+### 10.5 The Description panel (sibling pattern)
+
+Components have a free-text `description` field that the user edits via a **Description panel**. Architecturally identical to the Action panel: a textarea wired with live-save and per-session history coalescing; one undo step per typing run per component; the field is persisted in the saved JSON but never written to the generated PlantUML.
+
+Three things make it distinct from the Action panel:
+
+- **Always visible.** Unlike the Action panel — which appears empty/placeholder unless exactly one transition row is selected — the Description panel always has a bound component because there is always an active component. There is no placeholder mode.
+- **Binding rule.** `resolveDescriptionTarget()` picks the component whose description the panel reflects. In component view, always the active component. In system view, the selected component if `Selection.components.size === 1`, otherwise the active component. The header carries an italic suffix showing the bound component's display label so the user always knows what they are documenting.
+- **Layout.** The panel sits *between* the system catalogue (top of the right panel) and the `.component-panel` (everything else). Default height 100 px. In system view, where `.component-panel` is hidden by CSS, the description panel grows to fill via `flex: 1 1 auto`; the resize handle below it is also hidden, since there is nothing below to resize against.
+
+The Components list shows a small accent-coloured dot at the right of any row whose component has a non-empty description — same visual weight and convention as the action-dot in the transitions table, so users learn one pattern and recognise it everywhere.
+
+The component-rename cascade re-keys the textarea's `dataset.compName` on the next refresh — the input handler reads the bound name from the dataset rather than capturing it in a closure, so a rename mid-typing-session correctly continues writing to the renamed component (the rename is a model mutation, not a re-binding).
+
 ---
 
 ## 11. Dialogs and validation
@@ -602,7 +633,7 @@ Export as `.puml` writes the clean (unselected) PlantUML source of the active co
 
 Export as `.png` re-renders the clean PlantUML source via the public server, fetches the resulting image as a blob, and downloads it. Crucially, exports always call `generatePlantUML({ withSelection: false, includeSalt: false })` so the user's on-screen red highlighting is never baked into the output.
 
-Both exports apply to the *active* component. To export every component in a multi-component file, switch tabs and export each one.
+Both exports apply to the *active* component. To export every component in a multi-component file, switch the active component (one click in the Components list) and export each one.
 
 ### 12.3 Export — Transitions as Markdown
 
@@ -624,16 +655,17 @@ The layout is a standard CSS flex/grid arrangement; no layout framework is used.
 ├──────────────────────────────────────────────────────────────────────┤
 │ Toolbar (dark chrome)                                                │
 ├────────────────────────────────┬─────────────────────────────────────┤
-│                                │ ┌── System panel (shared) ────────┐ │
-│                                │ │ Interfaces +  │  Messages +     │ │
+│                                │ ┌── System catalogue (shared) ────┐ │
+│                                │ │ ◇System Components │ Ifaces │   │ │
+│                                │ │   ▸ Comp A     +   │  RTx     +  │ │
+│                                │ │     Comp B         │  Storage    │ │
+│                                │ │                    │   ─────     │ │
+│                                │ │                    │   Messages +│ │
 │                                │ └─────────────────────────────────┘ │
 │                                │ ──── resize handle ────             │
-│                                │ ┌── Tab bar ──────────────────────┐ │
-│                                │ │ [Comp A] [Comp B] [+]           │ │
-│ Canvas panel                   │ └─────────────────────────────────┘ │
-│ (rendered PlantUML PNG of      │ ┌── Component panel (active) ────┐  │
-│  the active component)         │ │ States +  │  Choice-points +   │  │
-│                                │ ├────────────────────────────────┤  │
+│ Canvas panel                   │ ┌── Component panel (active) ────┐  │
+│ (rendered PlantUML PNG of      │ │ States +  │  Choice-points +   │  │
+│  the active component)         │ ├────────────────────────────────┤  │
 │                                │ │ ──── resize handle ────        │  │
 │                                │ │ Transitions table              │  │
 │                                │ │ • │ Source │ Target │ Iface │… │  │
@@ -644,27 +676,115 @@ The layout is a standard CSS flex/grid arrangement; no layout framework is used.
 └────────────────────────────────┴─────────────────────────────────────┘
 ```
 
-The right panel is vertically subdivided into three regions by the multi-component model:
+The right panel is vertically subdivided into two regions:
 
-- **System panel** at the top holds the shared vocabulary — Interfaces and Messages. Each list's header has a `+` button to add an entry.
-- **Tab bar** below switches between components. `+` at the end adds a new component; each tab has a `×` to delete (when more than one exists). Double-click a tab to rename.
-- **Component panel** at the bottom shows the active component's States + Choice-points (each with `+` in its header), the Transitions table, and the Action panel.
+- **System catalogue** at the top holds the file's shared vocabulary as three side-by-side lists: Components, Interfaces, and Messages. Each list's header has a `+` button to add an entry. The Components list also carries a pinned `◇ System` button at the top-left of its header that switches to the system-diagram view; while system view is active the button is accent-filled. A small chevron `▸` on the active row of the Components list shows which component's state machine is currently displayed below.
+- **Component panel** at the bottom shows the active component's States + Choice-points (each with `+` in its header), the Transitions table, and the Action panel. Hidden in system view.
 
-There are three user-draggable resize handles in this stack: between the system panel and the tab bar, between the States/Choice-points grid and the transitions table, and between the transitions table and the Action panel. Each handle double-clicks to reset.
+There are three user-draggable resize handles in this stack: between the system catalogue and the component panel, between the States/Choice-points grid and the transitions table, and between the transitions table and the Action panel. Each handle double-clicks to reset.
 
 Design decisions worth noting:
 
 - **Dark chrome, light workspace.** The menu bar and toolbar sit on a deep slate background (`--chrome: #1e2230`), contrasting with the white workspace beneath. This pattern (used by Linear, Figma, VS Code) anchors the canvas visually.
-- **One accent colour.** The Computerguided Systems indigo (`#2b2a8f`) from the logo is the only accent, used for primary buttons, hover states, selection highlights, the active tab border/text, and the logo in the About dialog.
+- **One accent colour.** The Computerguided Systems indigo (`#2b2a8f`) from the logo is the only accent, used for primary buttons, hover states, selection highlights, the active component chevron, the System button's "view active" fill, and the logo in the About dialog.
 - **Section headers with subtle fills.** The right-panel list headers and the transition-table header use small-caps uppercase labels on a light grey fill — restrained, but enough to read as "sections". The `+` buttons sit in those same headers, flush right, visually integrated.
-- **Tabs emphasise the active one.** Active tabs get a surface-white background and the accent colour on their border + label; inactive tabs are flat and muted. The tab-bar bottom border aligns with the active tab's bottom, making the "this tab is the one you're editing" relationship spatially obvious.
+- **Active component is one chevron, not selection.** The active row uses a chevron marker rather than the selection-style background fill, so "active" and "selected" can coexist visually without conflict in system view (where a component can be selected for the Add Connection workflow without being the active state-machine subject).
 - **Inter font.** Loaded from Google Fonts. All typography uses Inter in various weights, which reads cleaner than the default system fonts at small sizes.
 
 The CSS uses custom properties extensively (`--bg`, `--surface`, `--accent`, etc.), which makes future re-theming straightforward.
 
 ---
 
-## 14. Known limitations
+## 14. System diagram (FCM component view)
+
+The system-level component diagram is a second "view" layered on top of the same `Model`. Where the per-component view renders a state machine on the canvas, the system view renders the components as boxes and the interfaces they are wired to as "lollipop" circles, with lines joining each component to each interface it uses. This corresponds to the top-level component diagram of the **FCM methodology** (Functional Components Method): components expose and connect to explicit interfaces, and their state machines handle messages arriving on those interfaces.
+
+The two views share data: the same interfaces, the same messages, the same components. The wiring between them — which component connects to which interface — lives in `Model.connections` and is editable only in the system view.
+
+### 14.1 `Model.connections` and `Model.activeView`
+
+Two fields on `Model` carry the new state:
+
+- `Model.connections: [ {component, interface, connector, length} ]` — flat list of wirings. `component` and `interface` are string references into `Model.components[*].name` and `Model.interfaces[*].name`. `connector` and `length` reuse the same vocabulary as state-machine transitions (see §3.1). Default interfaces (`Timer`, `Logical`) are deliberately never listed — they represent internal service concepts, not inter-component wiring.
+- `Model.activeView: "component" | "system"` — controls canvas rendering and UI visibility. Defaults to `"component"`.
+
+Cascade helpers (`onComponentRenamed`, `onComponentDeleted`, `onInterfaceRenamed`, `onInterfaceDeleted`) keep `Model.connections` consistent when the names they reference change or the referenced element is deleted. These are invoked from the same rename/delete paths that handle the existing cascades into `Component.transitions[*].messages[*]`, so one user action updates both "levels" atomically and the undo snapshot captures the combined state.
+
+### 14.2 Save format: `stadiae-v3`
+
+Adding `connections[]` to the saved file bumped the format version from `stadiae-v2` to `stadiae-v3`. The loader accepts both:
+
+- **v3** passes through: the loader populates `Model.connections` from the file, dropping any entries whose component or interface no longer exists.
+- **v2** loads with `Model.connections = []`. This is the "empty on migration" decision: the user wires the diagram manually from scratch. The alternative — inferring wiring from transition messages — was rejected because it would commit the user to design choices they hadn't explicitly made. A migrated v2 file lights up with warning badges on every non-default interface used by a transition, which correctly flags the unspecified architecture.
+- **v1** (single-component legacy format) also loads with empty connections.
+
+`resetModel()`, `loadV1()`, `loadV2()` (which handles both v2 and v3) all ensure `Model.connections` and `Model.activeView` are set to clean defaults, so switching between files never leaks state across loads.
+
+### 14.3 Generator dispatch
+
+A second PlantUML emitter, `generateComponentDiagramPlantUML(opts)`, mirrors the signature of `generatePlantUML(opts)` — the same `{ withSelection, mode, idAssigner, includeSalt, salt }` contract — but emits component-diagram source instead of a state machine. Element naming uses synthetic ids `C_<index>` and `I_<index>` with the user-facing names in quoted `as "…"` labels, so user-chosen names with spaces or punctuation work without breaking PlantUML's identifier rules.
+
+`renderDiagram()` dispatches to one of the two emitters based on `Model.activeView`. The visible and mask PlantUML sources are both produced by the same emitter in one render pass, so the mask's element ids align with the visible diagram's geometry. This is the same §7 mechanism that enables canvas-click selection; it required no change to the mask-reading code, only new `kind` values (`"comp"`, `"iface"`, `"connection"`) flowing through `idAssigner` and `toggleSelection`.
+
+Connection direction/length uses the same vocabulary as transitions, but without arrowheads (a wiring is undirected). The generator produces:
+
+- `Right` → `-`
+- `Left` → `-left-`
+- `Up` → `-up` + N dashes (N = length)
+- `Down` → `-` + N dashes
+
+For mask and selection modes, the decoration is injected between the leading `-` and the rest of the connector using a `String.replace(/^-/, …)` — the same pattern that works for state-machine arrows.
+
+Orphan interfaces (declared in the catalogue but not wired to anything) are omitted from the component-diagram render to keep it uncluttered. They remain visible in the Interfaces list on the right.
+
+### 14.4 Components list with a pinned System button
+
+The Components list lives in the top-right system catalogue alongside the Interfaces and Messages lists. `buildComponentList()` emits one row per component; a small chevron `▸` marker on the row whose `idx === Model.activeComponentIndex` and `Model.activeView === "component"` shows which component is "showing its body" on the canvas. The marker space is reserved on every row (zero opacity for non-active rows) so the list doesn't reflow as the active component changes.
+
+A pinned `◇ System` button at the top-left of the Components list header (`#btn-system`) calls `switchToSystem()`, which flips `Model.activeView` to `"system"`, clears the selection, and refreshes. CSS gives the button an accent fill while `body.view-system` is set, so its state is unambiguously visible. The component-row click handler dispatches on the active view: in component view it calls `switchToComponent(idx)` (flips view back to `"component"` and sets `activeComponentIndex`); in system view it adds/removes the component from `Selection.components`, the same semantic as clicking the component box on the system canvas — this lets users build connections without having to locate the canvas box. Double-clicking a row always calls `switchToComponent(idx)`, mirroring the canvas double-click drill-down.
+
+The `activeView` and `activeComponentIndex` are both included in the visual fingerprint used by `refresh()` to decide when to re-render, so view and component changes correctly invalidate the cached PNG.
+
+This layout was a refactor from an earlier tab-bar UI. Tabs broke down at scale: more than ~5–8 components forced horizontal scroll or label truncation. A vertical list scrolls cleanly to any size, sits naturally next to the other system-wide lists, and integrates the Edit/Delete toolbar workflow that already exists for every other entity kind. The System button replaced what was previously a pinned `◇ System` tab.
+
+### 14.5 View-scoped UI
+
+`refresh()` sets either `body.view-system` or `body.view-component` on the document body. CSS rules keyed off these classes:
+
+- Hide `.component-panel` (States, Choice-points, Transitions table, Action panel) in system view. These concepts don't apply to the component diagram.
+- Hide the state-machine toolbar buttons (Add Transition, Redirect) in system view and the component-diagram button (Add Connection) in component view.
+
+`updateToolbar()` additionally disables Add State and Add Choice-point in system view, belt-and-braces in case a button gets clicked via keyboard focus. Add Interface / Add Message remain live in both views, because interfaces and messages are system-wide vocabulary.
+
+The canvas click handler uses the view to pick the selection context: `"canvas"` (clears states, choice-points, transitions, START/H/ANY) or `"sysCanvas"` (clears components, interfaces, connections, messages). Both contexts feed the same `selectClick()` rules — the context is only used for the plain-click-replaces-in-same-panel behaviour.
+
+### 14.6 Double-click drill-down
+
+Double-clicking a component box on the system canvas switches to that component's state machine. The detection is done in JavaScript, not via the browser's native `dblclick` event — a single click mutates the selection, which re-renders the canvas, which swaps the `<img>` element out. By the time the second click arrives, the element identity has changed and the browser no longer recognises the pair as a `dblclick`. Instead, `onDiagramClick()` tracks the time and position of the last click in module-scope state (`lastCanvasClick`) and treats a subsequent click within 400 ms and 6 pixels as a double-click. On match, the first click's selection change is "wasted" (a harmless re-render in flight) but the navigation succeeds.
+
+The timestamp is zeroed after a consumed double-click so a rapid third click doesn't combine with the second to look like another double-click.
+
+### 14.7 Warning-badge system
+
+Because a component's state machine uses interfaces for its transition messages, the system diagram's wiring should agree with what the state machines actually use. Stadiæ surfaces the mismatch advisory-only:
+
+- **Interfaces list, in component view.** Non-default interfaces are dimmed when not wired to the active component (`.unwired` class) — a hint that they are out of scope. When an unwired interface is actually used by one of the active component's transitions, the entry switches to a warning style (`.unwired-warning` class) with a circular amber `!` badge. Tooltip text explains the inconsistency.
+- **Transitions table, in component view.** Rows whose interface is non-default and not wired to the active component render with an extra `!` marker in the first indicator column (via a `::after` pseudo-element on the existing `.action-dot` cell). Both the action-dot and the warning `!` can coexist for rows that have an action AND use an unwired interface; the column was widened from 18px to 28px to accommodate.
+
+The warnings are *advisory*, not prescriptive — users can continue to work and save regardless. The design alternative ("dim unwired interfaces, allow use with a warning badge") was chosen explicitly during the Phase A design conversation; the stronger alternative ("block unwired usage") was rejected as too rigid for the "sketch, then formalise" workflow this tool supports.
+
+Warnings are not shown in system view — the concept of "wired to the active component" doesn't apply when the active thing is the system diagram itself.
+
+### 14.8 Editing connections
+
+- `actionAddConnection()` requires system view, exactly one component selected (from the Components list or by clicking the component's box on the canvas — both routes write to `Selection.components`), and exactly one non-default interface selected (from the Interfaces list — the interface doesn't need to be on the canvas yet). Pushes history, appends `{component, interface, connector: "Right", length: 1}`, adds the new connection to the selection so it renders highlighted.
+- `openConnectionDialog(existing)` mirrors the transition Edit dialog: component/interface are read-only; connector type dropdown (Right/Left/Up/Down) and length input; length input shows only for Up and Down. Entered from the Edit toolbar button or `Enter` key when exactly one connection is selected.
+- `changeTransitionDirectionByKey(direction)` was generalised via an `adjustDirection(obj, sessionKey, direction)` helper, shared between transitions and connections. Arrow keys adjust a sole selected transition or a sole selected connection; repeated ↑/↓ extends the length with session coalescing for undo.
+- `actionDelete()` handles `Selection.connections`: each entry in the set is filtered out of `Model.connections` by matching `{component, interface}`.
+
+---
+
+## 15. Known limitations
 
 - **Public PlantUML server dependency.** Rendering requires the server at `plantuml.com` to be reachable. The export-as-`.puml` path works fully offline.
 - **Canvas selection depends on CORS.** If the PlantUML server ever stops sending `Access-Control-Allow-Origin: *`, the mask pixel read becomes impossible in the browser and canvas-click selection silently fails (list-based selection continues to work).
@@ -674,7 +794,7 @@ The CSS uses custom properties extensively (`--bg`, `--surface`, `--accent`, etc
 
 ---
 
-## 15. Pointers for extension
+## 16. Pointers for extension
 
 If you want to:
 
@@ -682,7 +802,7 @@ If you want to:
 
 - **Add a new per-transition-row field** (like the `action` field): extend the message objects in `Component.transitions[*].messages`, add UI for viewing/editing it below the transitions table (following the Action panel pattern — live save with per-session history via `pushHistory`, suppressed diagram re-renders since it doesn't affect PlantUML), and surface presence in the table via an indicator column or cell.
 
-- **Change visual theming**: edit the CSS custom properties block at the top of `<style>`. The accent colour threads through toolbar hover, selection, primary buttons, tab-active styling, and the logo — one variable.
+- **Change visual theming**: edit the CSS custom properties block at the top of `<style>`. The accent colour threads through toolbar hover, selection, primary buttons, the active component chevron, the System button's view-active fill, and the logo — one variable.
 
 - **Add a new menu item**: add `<div class="item" data-action="...">` under the right `<div class="menu">`, then a `case` in the menu click-dispatch switch.
 

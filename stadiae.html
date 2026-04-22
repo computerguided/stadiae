@@ -328,7 +328,82 @@
     background: transparent;
     color: var(--text-muted);
   }
-  /* === System panel (interfaces + messages, shared across components) === */
+  /* The System button sits at the left of the Components list header.
+     It switches the canvas to the system-level component diagram.
+     Styled like a small pill, accented when the system view is active. */
+  .list-box .header-system-btn {
+    all: unset;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-style: italic;
+    transition: all 0.12s;
+    flex: 0 0 auto;
+  }
+  .list-box .header-system-btn:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  body.view-system .list-box .header-system-btn {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  /* When the System button is alongside a header label, use a light
+     separator style so the two feel like peers rather than label+button. */
+  .list-box .header-sep {
+    flex: 1 1 auto;
+    text-align: left;
+    margin-left: 8px;
+  }
+  /* Active-row marker for the Components list — a small chevron on the
+     row whose state machine is currently showing. Every row reserves
+     the same horizontal slot so selection highlighting doesn't jump as
+     the active marker moves. */
+  .list-box li.comp-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .list-box li.comp-row .active-marker {
+    flex: 0 0 auto;
+    width: 10px;
+    color: var(--accent);
+    font-weight: 700;
+    text-align: center;
+    opacity: 0;
+  }
+  .list-box li.comp-row.is-active .active-marker { opacity: 1; }
+  /* Tiny dot at the right of a component row indicating that the
+     component has a non-empty description. Mirrors the action-dot in
+     the transitions table — same accent colour, same opacity, same
+     visual weight, so users learn the convention once. */
+  .list-box li.comp-row .comp-desc-dot {
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.75;
+    margin-left: 4px;
+  }
+  .list-box li.comp-row .comp-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    /* Single line; `\n` markers in the user's displayName are collapsed
+       to spaces in the JS that builds this element. Long labels truncate
+       with ellipsis — the full text is in the row's title attribute. */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* === System catalogue (components + interfaces + messages, shared across components) === */
   .system-panel {
     flex: 0 0 auto;
     height: 160px;
@@ -338,79 +413,10 @@
   }
   .system-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 12px;
     flex: 1;
     min-height: 0;
-  }
-  /* === Tab bar (component switcher) === */
-  .tab-bar {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: stretch;
-    gap: 2px;
-    overflow-x: auto;
-    border-bottom: 1px solid var(--border-strong);
-    padding: 0 4px;
-  }
-  .tab {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 14px 7px 14px;
-    background: transparent;
-    border: 1px solid transparent;
-    border-bottom: none;
-    border-radius: 6px 6px 0 0;
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--text-muted);
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.12s;
-    position: relative;
-    top: 1px;
-  }
-  .tab:hover {
-    background: var(--accent-soft);
-    color: var(--text);
-  }
-  .tab.active {
-    background: var(--surface);
-    border-color: var(--border-strong);
-    color: var(--accent);
-    font-weight: 600;
-  }
-  .tab-close {
-    all: unset;
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    padding: 2px 4px;
-    border-radius: 3px;
-    color: var(--text-faint);
-    opacity: 0.5;
-  }
-  .tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
-  .tab-close:hover {
-    background: rgba(220, 50, 50, 0.15);
-    color: #c33;
-  }
-  .tab-add {
-    all: unset;
-    cursor: pointer;
-    padding: 8px 12px 7px 12px;
-    font-size: 14px;
-    line-height: 1;
-    color: var(--text-muted);
-    border-radius: 6px 6px 0 0;
-    align-self: stretch;
-    display: flex;
-    align-items: center;
-  }
-  .tab-add:hover {
-    background: var(--accent);
-    color: white;
   }
   /* === Component panel (per-component states/CPs/transitions/action) === */
   .component-panel {
@@ -420,6 +426,24 @@
     gap: 12px;
     min-height: 0;
   }
+  /* In system view the component-level panels have no meaning — hide them.
+     The system-view panels (Components list, etc.) take their place and
+     are shown via the inverse rule in their own block. */
+  body.view-system .component-panel { display: none; }
+  /* In system view the description panel takes over the bottom area
+     since the component-level panels are hidden — flex-grow from its
+     fixed ~100px to the available height of the column. */
+  body.view-system .desc-panel {
+    flex: 1 1 auto;
+    height: auto;
+  }
+  /* Toolbar buttons scoped to a specific view: the state-machine editing
+     buttons are only visible in component view; the system-diagram
+     editing button is only visible in system view. Hidden (not just
+     disabled) to keep the toolbar uncluttered. */
+  body.view-system #btn-add-trans,
+  body.view-system #btn-redirect { display: none; }
+  body.view-component #btn-add-conn { display: none; }
   .list-box ul {
     list-style: none;
     margin: 0; padding: 4px;
@@ -447,6 +471,39 @@
   }
   .list-box li.default-item { color: var(--text-muted); font-style: italic; }
   .list-box li.default-item.selected { color: var(--accent); }
+  /* Interface list items when the active component isn't wired to that
+     interface in the system diagram. Two flavours:
+     - .unwired:         interface not used by this component either.
+                         Dimmed to signal "out of scope".
+     - .unwired-warning: interface IS used in this component's transitions
+                         but isn't wired. Flagged as a spec inconsistency
+                         with a small ! marker.
+     Selection / hover still work as normal; these classes only affect
+     the default (unselected) appearance. */
+  .list-box li.unwired {
+    color: var(--text-faint);
+    opacity: 0.65;
+  }
+  .list-box li.unwired-warning {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .list-box li.unwired-warning .iface-warn {
+    flex: 0 0 auto;
+    font-weight: 700;
+    font-size: 12px;
+    color: #d97706;
+    width: 14px;
+    height: 14px;
+    line-height: 14px;
+    text-align: center;
+    border: 1px solid #d97706;
+    border-radius: 50%;
+    background: #fffbeb;
+  }
+  .list-box li.unwired-warning .iface-label { flex: 1 1 auto; }
 
   /* === Transition table === */
   .trans-panel {
@@ -506,11 +563,15 @@
   .trans-panel tbody tr.selected td:first-child {
     box-shadow: inset 2px 0 0 var(--accent);
   }
-  /* Transition row "has action" indicator dot (first column) */
+  /* Transition row "has action" indicator dot (first column). The cell
+     also carries a warning marker for transitions whose interface isn't
+     wired to the active component in the system diagram — the `::before`
+     slot renders the action dot, the `::after` slot renders the warning. */
   .trans-panel td.action-dot {
-    width: 18px;
-    padding: 0;
+    width: 28px;
+    padding: 0 2px;
     text-align: center;
+    white-space: nowrap;
   }
   .trans-panel td.action-dot::before {
     content: "";
@@ -523,7 +584,17 @@
     opacity: 0;
   }
   .trans-panel td.action-dot.has-action::before { opacity: 0.75; }
-  .trans-panel th:first-child { width: 18px; padding-left: 6px; padding-right: 0; }
+  .trans-panel td.action-dot.unwired-warning::after {
+    content: "!";
+    display: inline-block;
+    font-weight: 700;
+    font-size: 11px;
+    color: #d97706;
+    margin-left: 4px;
+    vertical-align: middle;
+    line-height: 1;
+  }
+  .trans-panel th:first-child { width: 28px; padding-left: 6px; padding-right: 0; }
   /* Cells whose interface or message matches the current selection */
   .trans-panel td.match { font-weight: 600; color: var(--text); }
 
@@ -578,6 +649,74 @@
     background: var(--surface);
     box-shadow: inset 0 0 0 2px var(--accent-soft);
   }
+
+  /* === Description panel === */
+  /* Sits between the system catalogue and the component panel. Always
+     visible; in component view, the States/CPs/Transitions/Action stack
+     sits underneath it via .component-panel. The Action panel's CSS
+     above is mirrored here for visual coherence. */
+  .desc-panel {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    height: 100px;
+    min-height: 60px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .desc-panel .header {
+    background: var(--surface-3);
+    padding: 8px 14px;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    /* Header carries an inline indicator on the right of which component
+       this binds to (so the user knows which thing they're documenting,
+       since the panel can follow selection in system view). */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .desc-panel .header .desc-target {
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 11.5px;
+    color: var(--text);
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60%;
+  }
+  .desc-textarea {
+    flex: 1;
+    border: none;
+    outline: none;
+    resize: none;
+    padding: 10px 14px;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--surface);
+  }
+  .desc-textarea:focus {
+    background: var(--surface);
+    box-shadow: inset 0 0 0 2px var(--accent-soft);
+  }
+  /* The resize handle below the description is only meaningful in
+     component view, where there is something below it to resize against.
+     In system view the description is the last thing in the column and
+     there is nothing below; hide the handle. */
+  body.view-system #resize-handle-desc { display: none; }
 
   /* === Modal / dialog === */
   .modal-overlay {
@@ -1071,6 +1210,7 @@
   <div class="sep"></div>
   <button id="btn-add-trans" title="Add transition">Add Transition</button>
   <button id="btn-redirect" title="Redirect selected transition rows to a new target">Redirect</button>
+  <button id="btn-add-conn" title="Add connection between component and interface">Add Connection</button>
   <div class="sep"></div>
   <button id="btn-edit" title="Edit selected">Edit</button>
 </div>
@@ -1082,6 +1222,14 @@
   <div class="right-panel">
     <div class="system-panel" id="system-panel">
       <div class="system-grid">
+        <div class="list-box">
+          <div class="header">
+            <button class="header-system-btn" id="btn-system" title="Show the system diagram">◇ System</button>
+            <span class="header-sep">Components</span>
+            <button class="header-add" id="btn-add-comp" title="Add component">+</button>
+          </div>
+          <ul id="list-comps"></ul>
+        </div>
         <div class="list-box">
           <div class="header">
             <span>Interfaces</span>
@@ -1099,7 +1247,12 @@
       </div>
     </div>
     <div class="resize-handle" id="resize-handle-system" title="Drag to resize"></div>
-    <div class="tab-bar" id="tab-bar"></div>
+    <div class="desc-panel" id="desc-panel">
+      <div class="header" id="desc-header">Description</div>
+      <textarea id="desc-textarea" class="desc-textarea"
+                placeholder="Description of the component (developer documentation, saved with the diagram)"></textarea>
+    </div>
+    <div class="resize-handle" id="resize-handle-desc" title="Drag to resize"></div>
     <div class="component-panel" id="component-panel">
       <div class="lists-grid" id="lists-grid">
         <div class="list-box">
@@ -1176,9 +1329,21 @@
 // at the currently active component. Reading `Component.states` is exactly
 // `Model.components[Model.activeComponentIndex].states`; writing to it works
 // the same. This keeps the code that manipulates one component readable.
-function makeEmptyComponent(name) {
+function makeEmptyComponent(name, displayName) {
   return {
-    name: name || "Component Name",
+    // Identifier-safe name. Used as a stable reference across the model
+    // (connection cascades, mask-id keys, find-by-name lookups). Must be
+    // a valid identifier and unique within Model.components.
+    name: name || "Component_Name",
+    // Optional free-text display label, can contain the literal `\n`
+    // sequence for line breaks on the rendered diagram. When empty, the
+    // canvas falls back to `name`. Same convention as state.displayName.
+    displayName: displayName || "",
+    // Optional free-text description of what this component does. Pure
+    // developer documentation — persisted in JSON, never emitted to
+    // PlantUML. Edited via the Description panel below the system
+    // catalogue. Same role as `transition.action` is to a transition.
+    description: "",
     arrowFontSize: 9,
     stateFontSize: 12,
     states: [],          // {name, displayName}
@@ -1207,6 +1372,18 @@ const Model = {
   // Components
   components: [ makeEmptyComponent("Component Name") ],
   activeComponentIndex: 0,
+  // System-level component diagram. Each entry is a connection between a
+  // component and an interface — the component "touches" that interface.
+  // Default interfaces (Timer, Logical) are intentionally excluded from
+  // this list; they're internal service concepts, not inter-component
+  // wiring. Multiple components may touch the same interface (that's how
+  // they communicate via it).
+  connections: [],
+  // Which view is showing on the canvas: the system-level component
+  // diagram ("system") or the state machine of the active component
+  // ("component"). The leftmost pinned tab sets "system"; clicking any
+  // component tab sets "component".
+  activeView: "component",
   // Save metadata
   dirty: false,
   savedFilename: null
@@ -1317,6 +1494,7 @@ function isModelPristine() {
   const hasUserIfaces = Model.interfaces.some(i => !i.isDefault);
   const hasUserMsgs = Model.messages.some(m => !m.isDefault);
   if (hasUserIfaces || hasUserMsgs) return false;
+  if (Model.connections && Model.connections.length > 0) return false;
   for (const c of Model.components) {
     if ((c.states || []).length > 0) return false;
     if ((c.choicePoints || []).length > 0) return false;
@@ -1391,12 +1569,18 @@ const Selection = {
   // transitions: keys "source|target|interface|name" for each individual message on a transition,
   // or "source|target||" for the initial (no-message) transition.
   transitions: new Set(),
+  // System-diagram selections: components (by name) and connections
+  // (keyed "Component|Interface"). Only meaningful while Model.activeView
+  // is "system", but cleared on every view switch so they never leak.
+  components: new Set(),
+  connections: new Set(),
   start: false,            // START icon selected
   history: false,          // H (history) pseudostate selected
   any: false,              // * (any) pseudostate selected (wildcard source)
   clearAll() {
     this.states.clear(); this.choicePoints.clear(); this.interfaces.clear();
     this.messages.clear(); this.transitions.clear();
+    this.components.clear(); this.connections.clear();
     this.start = false; this.history = false; this.any = false;
   }
 };
@@ -1409,7 +1593,8 @@ function snapshot() {
     interfaces: Model.interfaces,
     messages: Model.messages,
     components: Model.components,
-    activeComponentIndex: Model.activeComponentIndex
+    activeComponentIndex: Model.activeComponentIndex,
+    connections: Model.connections
   });
 }
 function restore(str) {
@@ -1418,6 +1603,7 @@ function restore(str) {
   Model.messages = d.messages;
   Model.components = d.components;
   Model.activeComponentIndex = d.activeComponentIndex;
+  Model.connections = Array.isArray(d.connections) ? d.connections : [];
   // Clamp index defensively
   if (Model.activeComponentIndex >= Model.components.length) {
     Model.activeComponentIndex = Math.max(0, Model.components.length - 1);
@@ -1479,6 +1665,154 @@ function nextRenderSalt() {
   return SESSION_PREFIX + "-" + renderSalt.toString(36);
 }
 
+// Generate PlantUML source for the system-level component diagram.
+// Mirrors the options of generatePlantUML:
+//   mode:          "visible" (for rendering) or "mask" (for hit detection)
+//   withSelection: highlight selected components/interfaces/connections in red
+//   idAssigner:    required in mask mode; maps element -> unique color ID
+//   includeSalt:   true for renders (cache-bust), false for exports
+//
+// Naming: components get synthetic ids C_<index> and interfaces get
+// I_<index> so their user-facing names can contain spaces or punctuation
+// without breaking PlantUML. All `<name>:...` labels use the escaped
+// user-facing name.
+function generateComponentDiagramPlantUML(opts = {}) {
+  const { withSelection = false, mode = "visible", idAssigner = null, includeSalt = true, salt = null } = opts;
+  const isMask = mode === "mask";
+  const lines = [];
+  lines.push("@startuml");
+  if (includeSalt) {
+    const tag = salt || nextRenderSalt();
+    lines.push(`' mode: ${isMask ? "selection-mask" : "visible"} render: ${tag}`);
+  }
+  lines.push("skinparam componentStyle rectangle");
+  lines.push("skinparam {");
+  lines.push("  InterfaceFontSize 11");
+  lines.push("  ComponentFontSize 12");
+  if (isMask) {
+    lines.push("  InterfaceFontColor #00000000");
+    lines.push("  ComponentFontColor #00000000");
+  }
+  lines.push("}");
+  lines.push("");
+
+  // Interfaces that appear on the component diagram: non-default
+  // interfaces that have at least one connection. Orphan interfaces
+  // (declared in the catalogue but not wired to anything) are omitted —
+  // they'd appear as floating circles with no purpose. Users can still
+  // see them in the Interfaces panel on the right; they just don't clutter
+  // the diagram.
+  const ifaceIdx = new Map();   // name -> index
+  const wiredInterfaces = [];
+  for (const iface of Model.interfaces) {
+    if (iface.isDefault) continue;
+    const hasConnection = Model.connections.some(c => c.interface === iface.name);
+    if (!hasConnection) continue;
+    ifaceIdx.set(iface.name, wiredInterfaces.length);
+    wiredInterfaces.push(iface.name);
+  }
+
+  const compIdx = new Map();    // name -> index
+  Model.components.forEach((c, i) => compIdx.set(c.name, i));
+
+  lines.push("'== Interfaces ==");
+  wiredInterfaces.forEach((name, i) => {
+    const id = "I_" + i;
+    let line = `() ${id} as "${plantUMLEscape(name)}"`;
+    if (isMask) {
+      const maskId = idAssigner("iface:" + name, "iface");
+      line += ` #${maskId};line:${maskId}`;
+    } else if (withSelection && Selection.interfaces.has(name)) {
+      line += ` #line:FF0000;line.bold`;
+    }
+    lines.push(line);
+  });
+  lines.push("");
+
+  lines.push("'== Components ==");
+  Model.components.forEach((c, i) => {
+    const id = "C_" + i;
+    let line = `component ${id} as "${plantUMLEscape(componentDisplayLabel(c))}"`;
+    if (isMask) {
+      const maskId = idAssigner("comp:" + c.name, "comp");
+      line += ` #${maskId};line:${maskId}`;
+    } else if (withSelection && isComponentSelected(c.name)) {
+      line += ` #line:FF0000;line.bold`;
+    }
+    lines.push(line);
+  });
+  lines.push("");
+
+  lines.push("'== Connections ==");
+  for (const conn of Model.connections) {
+    if (!compIdx.has(conn.component)) continue;
+    if (!ifaceIdx.has(conn.interface)) continue;
+    const cId = "C_" + compIdx.get(conn.component);
+    const iId = "I_" + ifaceIdx.get(conn.interface);
+    // Component-diagram connectors share the same Left/Right/Up/Down +
+    // length mechanism as state-machine transitions, but without
+    // arrowheads (the connection is undirected). Length is only
+    // meaningful for Up and Down.
+    //
+    //   Right: `-`            (default)
+    //   Left:  `-left-`
+    //   Up:    `-up` + N*`-`  (N dashes to stretch)
+    //   Down:  `-` + N*`-`
+    const direction = conn.connector || "Right";
+    const len = Math.max(1, conn.length || 1);
+    let base;
+    switch (direction) {
+      case "Left":  base = "-left-"; break;
+      case "Up":    base = "-up" + "-".repeat(len); break;
+      case "Down":  base = "-" + "-".repeat(len); break;
+      default:      base = "-"; break; // Right
+    }
+    let connector;
+    if (isMask) {
+      const maskId = idAssigner("conn:" + conn.component + "|" + conn.interface, "connection");
+      // Inject the decoration after the leading `-` of the base.
+      connector = base.replace(/^-/, `-[#${maskId},thickness=8]`);
+    } else if (withSelection && isConnectionSelected(conn.component, conn.interface)) {
+      connector = base.replace(/^-/, "-[#FF0000,bold]");
+    } else {
+      connector = base;
+    }
+    lines.push(`${cId} ${connector} ${iId}`);
+  }
+  lines.push("");
+  lines.push("@enduml");
+  return lines.join("\n");
+}
+
+// Helpers. A name can contain arbitrary characters in Stadiæ (the
+// identifier rule is only enforced for state/choice-point names used as
+// PlantUML ids); the user-facing label gets quoted and escaped.
+// Escape a user-supplied string for use inside a PlantUML quoted label.
+// Preserves the two-character sequence `\n` so it reaches PlantUML
+// intact — PlantUML interprets `\n` inside a label as a line break,
+// which Stadiæ exposes to users for multi-line state displayNames and
+// component names. Other stray backslashes are doubled (so they render
+// literally rather than being interpreted by PlantUML), and embedded
+// double quotes are escaped so they don't terminate the label early.
+function plantUMLEscape(s) {
+  return String(s)
+    // Double every backslash that isn't immediately followed by `n`.
+    // Negative lookahead keeps `\n` sequences as-is.
+    .replace(/\\(?!n)/g, "\\\\")
+    .replace(/"/g, '\\"');
+}
+
+// Selection predicates for component-diagram elements. These mirror the
+// existing Selection.* sets for state-machine elements but live on
+// Selection.components / Selection.connections. Populated in Phase B3.
+function isComponentSelected(name) {
+  return Selection.components && Selection.components.has(name);
+}
+function isConnectionSelected(component, iface) {
+  if (!Selection.connections) return false;
+  return Selection.connections.has(component + "|" + iface);
+}
+
 function generatePlantUML(opts = {}) {
   const { withSelection = false, mode = "visible", idAssigner = null, includeSalt = true, salt = null } = opts;
   const isMask = mode === "mask";
@@ -1533,7 +1867,7 @@ function generatePlantUML(opts = {}) {
   }
   lines.push("");
   lines.push("'== Component ==");
-  lines.push(`state component as "${Component.name}" {`);
+  lines.push(`state component as "${plantUMLEscape(componentDisplayLabel(Model.components[Model.activeComponentIndex]))}" {`);
   if (isMask) {
     // START always has its own ID so clicking the start dot is selectable.
     const startId = idAssigner("START", "start");
@@ -1707,8 +2041,63 @@ function isUniqueInterfaceName(name, excludeName=null) {
 function isUniqueMessageName(iface, name, excludeName=null) {
   return !Model.messages.some(m => m.interface === iface && m.name === name && m.name !== excludeName);
 }
+// Component names must be unique across the whole file. Mask-ids,
+// connection cascades, and every "find this component by name"
+// operation assume it. The check is on the trimmed form — leading or
+// trailing whitespace would never round-trip through the UI anyway.
+function isUniqueComponentName(name, excludeName=null) {
+  const trimmed = (name || "").trim();
+  return !Model.components.some(c => c.name === trimmed && c.name !== excludeName);
+}
+
+// Visible label for a component — what shows on the canvas (component
+// box in system view, outer wrapper in state-machine view), in the
+// Components list, and in tooltips. Falls back to the identifier-safe
+// `name` when no `displayName` is set, matching the state.displayName
+// convention.
+function componentDisplayLabel(c) {
+  return (c && c.displayName && c.displayName.length > 0) ? c.displayName : c.name;
+}
+
+// Convert a free-text component name into an identifier-safe slug.
+// Used at load time to migrate legacy v3 files where `name` could be
+// arbitrary text (and even contain `\n` markers). Strategy: strip
+// `\n` markers, replace runs of non-identifier chars with `_`, ensure
+// the first char is a letter, and trim trailing underscores. If the
+// input is empty after stripping, defaults to "C".
+function slugifyComponentName(name) {
+  let s = String(name || "")
+    .replace(/\\n/g, "_")
+    .replace(/[^A-Za-z0-9_]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  // Identifier rule: must start with a letter. Prepend "C_" if not.
+  if (!/^[A-Za-z]/.test(s)) s = "C_" + s;
+  if (!s) s = "C";
+  return s;
+}
 function isValidIdentifier(name) {
   return /^[A-Za-z][A-Za-z0-9_]*$/.test(name);
+}
+
+// Build a file-system friendly base name from a user-facing component
+// name. Component names can contain spaces, punctuation, and the literal
+// two-character sequence `\n` used to break labels into multiple lines
+// on the canvas. For a filename we:
+//   - collapse each `\n` marker to `_` (so "New\nComponent" → "New_Component")
+//   - collapse runs of whitespace to `_`
+//   - drop characters that are problematic on common filesystems
+//     (\ / : * ? " < > | and controls), keeping letters/digits/-/_/.
+// Returns "" if nothing usable remains, so callers can fall back to
+// a generic default like "diagram".
+function nameToFilename(name) {
+  if (!name) return "";
+  return String(name)
+    .replace(/\\n/g, "_")
+    .replace(/\s+/g, "_")
+    .replace(/[\\/:*?"<>|\x00-\x1f]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 // ---------- Rendering ----------
@@ -1742,8 +2131,14 @@ function renderDiagram() {
   const myRenderSeq = ++renderSeq;
   const panel = document.getElementById("canvas-panel");
 
+  // Dispatch on the current view. System view renders the component
+  // diagram; component view renders the active component's state machine.
+  const gen = (Model.activeView === "system")
+    ? generateComponentDiagramPlantUML
+    : generatePlantUML;
+
   // === Build visible source (with selection highlighting) ===
-  const visibleSrc = generatePlantUML({ withSelection: true });
+  const visibleSrc = gen({ withSelection: true });
   document.getElementById("code-panel").textContent = visibleSrc;
 
   // === Build mask source (unique colors per element) ===
@@ -1791,7 +2186,7 @@ function renderDiagram() {
     nextId++;
     return hex;
   }
-  const maskSrc = generatePlantUML({ mode: "mask", idAssigner });
+  const maskSrc = gen({ mode: "mask", idAssigner });
 
   const visibleUrl = plantUMLImageURL(visibleSrc);
   const maskUrl = plantUMLImageURL(maskSrc);
@@ -1926,6 +2321,19 @@ function onDiagramMouseMove(e) {
   });
 }
 
+// Manual double-click detection for canvas clicks.
+//
+// We can't rely on the browser's built-in `dblclick` event here: when the
+// user single-clicks a component, it changes the selection, which triggers
+// a re-render, which swaps the <img> element out from under the browser.
+// Between the two clicks the element identity changes, so the browser no
+// longer recognises the pair as a double-click and the `dblclick` event
+// never fires. We therefore track (time, x, y) of the last canvas click
+// in script state and detect the double-click ourselves.
+const DBLCLICK_WINDOW_MS = 400;
+const DBLCLICK_SLOP_PX = 6;
+let lastCanvasClick = { t: 0, x: 0, y: 0 };
+
 function onDiagramClick(e) {
   const img = e.currentTarget;
   const rect = img.getBoundingClientRect();
@@ -1938,6 +2346,36 @@ function onDiagramClick(e) {
 
   const hit = lookupMaskAt(natX, natY);
 
+  // Double-click detection first: if this is the second click in quick
+  // succession on roughly the same spot, treat as a double-click. In
+  // system view, double-clicking a component drills into its state
+  // machine. We use display (client) coords, not natural coords, so a
+  // dragging-while-clicking tolerance of a few pixels is independent of
+  // image zoom level.
+  const now = Date.now();
+  const dt = now - lastCanvasClick.t;
+  const dx = Math.abs(e.clientX - lastCanvasClick.x);
+  const dy = Math.abs(e.clientY - lastCanvasClick.y);
+  const isDoubleClick = dt < DBLCLICK_WINDOW_MS && dx < DBLCLICK_SLOP_PX && dy < DBLCLICK_SLOP_PX;
+  // Reset the click timestamp AFTER the check. If we consumed this click
+  // as a double-click we zero it out so a fast triple-click doesn't read
+  // as two successive double-clicks.
+  if (isDoubleClick) {
+    lastCanvasClick = { t: 0, x: 0, y: 0 };
+    if (Model.activeView === "system" && hit.ref && hit.ref.kind === "comp") {
+      const name = hit.ref.key.replace(/^comp:/, "");
+      const idx = Model.components.findIndex(c => c.name === name);
+      if (idx >= 0) {
+        e.preventDefault();
+        switchToComponent(idx);
+        return;
+      }
+    }
+    // Any other double-click: fall through to normal single-click logic.
+  } else {
+    lastCanvasClick = { t: now, x: e.clientX, y: e.clientY };
+  }
+
   if (!hit.ref) {
     // Only clear selection if the click was on genuinely-white background.
     // Edge/chrome pixels that don't match any element are ignored, so a
@@ -1948,14 +2386,23 @@ function onDiagramClick(e) {
     }
     return;
   }
-  selectClick(e, "canvas", () => toggleSelection(hit.ref), isRefSelected(hit.ref));
+  const ctx = Model.activeView === "system" ? "sysCanvas" : "canvas";
+  selectClick(e, ctx, () => toggleSelection(hit.ref), isRefSelected(hit.ref));
   refresh();
 }
+
+// Double-click on the canvas is now handled directly in onDiagramClick
+// via script-level timing (see DBLCLICK_WINDOW_MS above). This avoids
+// a reliability problem with the browser's native `dblclick` event: a
+// single-click causes a re-render that swaps the <img> out, breaking the
+// element-identity requirement for the browser to recognise a subsequent
+// click as part of a double-click pair.
 
 function hasAnySelection() {
   return Selection.states.size || Selection.choicePoints.size ||
          Selection.interfaces.size || Selection.messages.size ||
          Selection.transitions.size ||
+         Selection.components.size || Selection.connections.size ||
          Selection.start || Selection.history || Selection.any;
 }
 
@@ -2017,6 +2464,18 @@ function clearSelectionForContext(ctx) {
       Selection.start = false;
       Selection.history = false;
       Selection.any = false;
+      break;
+    case "sysCanvas":
+      // Canvas-selectable things in the system (component-diagram) view:
+      // components, interfaces (the lollipop circles), and connections.
+      // Interfaces here share their key space with the Interfaces list,
+      // so clearing also drops any interface selection made via the list.
+      Selection.components.clear();
+      Selection.interfaces.clear();
+      Selection.connections.clear();
+      // Messages depend on interfaces for visibility, so when interfaces
+      // go, messages go too.
+      Selection.messages.clear();
       break;
   }
 }
@@ -2094,6 +2553,22 @@ function toggleSelection(ref) {
     } else {
       for (const k of rows) Selection.transitions.add(k);
     }
+  } else if (kind === "comp") {
+    // System-diagram component box
+    const name = key.replace(/^comp:/, "");
+    if (Selection.components.has(name)) Selection.components.delete(name);
+    else Selection.components.add(name);
+  } else if (kind === "iface") {
+    // System-diagram interface lollipop — selects the interface itself
+    // (same key space as the Interfaces list selection).
+    const name = key.replace(/^iface:/, "");
+    if (Selection.interfaces.has(name)) Selection.interfaces.delete(name);
+    else Selection.interfaces.add(name);
+  } else if (kind === "connection") {
+    // System-diagram connection line. Key is "conn:Component|Interface".
+    const id = key.replace(/^conn:/, "");
+    if (Selection.connections.has(id)) Selection.connections.delete(id);
+    else Selection.connections.add(id);
   }
 }
 
@@ -2116,35 +2591,50 @@ function isRefSelected(ref) {
     const rows = transRowKeys(t);
     return rows.length > 0 && rows.every(k => Selection.transitions.has(k));
   }
+  if (kind === "comp") return Selection.components.has(key.replace(/^comp:/, ""));
+  if (kind === "iface") return Selection.interfaces.has(key.replace(/^iface:/, ""));
+  if (kind === "connection") return Selection.connections.has(key.replace(/^conn:/, ""));
   return false;
 }
 
 // ---------- UI building ----------
 function refresh() {
+  // Reflect the current view on <body> so view-scoped CSS rules (hiding
+  // per-component panels in system view, etc.) can key off it.
+  document.body.classList.toggle("view-system", Model.activeView === "system");
+  document.body.classList.toggle("view-component", Model.activeView === "component");
+
   // Selection changes end any in-progress arrow-key adjustment session.
   const currentTransKey = [...Selection.transitions].sort().join(",");
   if (refresh._lastTransSelection !== currentTransKey) {
     arrowKeySession = { key: null, direction: null };
     refresh._lastTransSelection = currentTransKey;
   }
-  buildTabBar();
+  buildComponentList();
   buildStateList();
   buildCPList();
   buildInterfaceList();
   buildMessageList();
   buildTransitionTable();
   buildActionPanel();
+  buildDescriptionPanel();
   updateToolbar();
 
   // Only re-render the diagram when something visible has changed. Includes
   // interface and message selections because they bold matching message
-  // labels on the rendered diagram.
-  const visualFingerprint = snapshot() + "|cmp:" + Model.activeComponentIndex + "|sel:" +
+  // labels on the rendered diagram. Also includes the active view and the
+  // system-diagram selections, so switching between state-machine and
+  // system view (or changing a component/connection selection in system
+  // view) invalidates the cached render.
+  const visualFingerprint = snapshot() + "|view:" + Model.activeView +
+    "|cmp:" + Model.activeComponentIndex + "|sel:" +
     [...Selection.states].sort().join(",") + "|cps:" +
     [...Selection.choicePoints].sort().join(",") + "|trs:" +
     currentTransKey + "|ifs:" +
     [...Selection.interfaces].sort().join(",") + "|msgs:" +
-    [...Selection.messages].sort().join(",") + "|flags:" +
+    [...Selection.messages].sort().join(",") + "|comps:" +
+    [...Selection.components].sort().join(",") + "|conns:" +
+    [...Selection.connections].sort().join(",") + "|flags:" +
     (Selection.start?"s":"") + (Selection.history?"h":"") + (Selection.any?"a":"");
   if (refresh._lastVisual !== visualFingerprint) {
     refresh._lastVisual = visualFingerprint;
@@ -2234,47 +2724,106 @@ function initActionPanel() {
   });
 }
 
-function buildTabBar() {
-  const bar = document.getElementById("tab-bar");
-  bar.innerHTML = "";
-  const canDelete = Model.components.length > 1;
-  Model.components.forEach((c, idx) => {
-    const tab = document.createElement("div");
-    tab.className = "tab" + (idx === Model.activeComponentIndex ? " active" : "");
-    tab.title = c.name;
-    const label = document.createElement("span");
-    label.textContent = c.name;
-    tab.appendChild(label);
-    if (canDelete) {
-      const close = document.createElement("button");
-      close.className = "tab-close";
-      close.textContent = "×";
-      close.title = "Delete this component";
-      close.addEventListener("click", (e) => {
-        e.stopPropagation();
-        deleteComponent(idx);
-      });
-      tab.appendChild(close);
+// Resolve which component the Description panel is currently bound to.
+//
+//   component view  → always the active component.
+//   system view     → the selected component if exactly one is selected,
+//                     otherwise the active component.
+//
+// Returns {idx, component}. Always returns a valid component because
+// `activeComponentIndex` is always valid (the file invariant guarantees
+// at least one component).
+function resolveDescriptionTarget() {
+  if (Model.activeView === "system" && Selection.components.size === 1) {
+    const name = [...Selection.components][0];
+    const idx = Model.components.findIndex(c => c.name === name);
+    if (idx >= 0) return { idx, component: Model.components[idx] };
+  }
+  return {
+    idx: Model.activeComponentIndex,
+    component: Model.components[Model.activeComponentIndex]
+  };
+}
+
+// Render the Description panel. Live-saves into the bound component's
+// `description` field; the bound component is determined by
+// resolveDescriptionTarget(). The header shows which component is being
+// described, so users always know what their typing is going to.
+function buildDescriptionPanel() {
+  const target = resolveDescriptionTarget();
+  const c = target.component;
+  if (!c) return;
+
+  const header = document.getElementById("desc-header");
+  // Header rebuild — keep the "DESCRIPTION" label, append the bound
+  // component's display label as a quiet italic suffix on the right.
+  header.innerHTML = "";
+  const label = document.createElement("span");
+  label.textContent = "Description";
+  header.appendChild(label);
+  const target_label = document.createElement("span");
+  target_label.className = "desc-target";
+  target_label.textContent = componentDisplayLabel(c).replace(/\\n/g, " ");
+  target_label.title = (componentDisplayLabel(c) === c.name)
+    ? c.name
+    : `${componentDisplayLabel(c).replace(/\\n/g, " ")}  (${c.name})`;
+  header.appendChild(target_label);
+
+  const textarea = document.getElementById("desc-textarea");
+  // Only set .value if it differs — avoids resetting the cursor while
+  // the user is mid-typing, same trick the action textarea uses.
+  const current = c.description || "";
+  if (textarea.value !== current) textarea.value = current;
+  // Stash the bound component's name so the input handler knows which
+  // component to write back to. Reading Model.activeComponentIndex from
+  // inside the input handler would race against subsequent UI events.
+  textarea.dataset.compName = c.name;
+}
+
+// Wire the description textarea once, at startup. Mirrors the Action
+// panel's per-session history coalescing — one undo step per typing run
+// per component, not one per keystroke.
+let descEditSession = { compName: null, pushed: false };
+function initDescriptionPanel() {
+  const textarea = document.getElementById("desc-textarea");
+  textarea.addEventListener("input", () => {
+    const compName = textarea.dataset.compName;
+    if (!compName) return;
+    const c = Model.components.find(x => x.name === compName);
+    if (!c) return;
+    if (descEditSession.compName !== compName || !descEditSession.pushed) {
+      pushHistory();
+      descEditSession = { compName, pushed: true };
     }
-    // Click to activate; double-click to rename
-    tab.addEventListener("click", () => switchToComponent(idx));
-    tab.addEventListener("dblclick", (e) => {
-      e.preventDefault();
-      renameComponent(idx);
-    });
-    bar.appendChild(tab);
+    const newVal = textarea.value;
+    if ((c.description || "") !== newVal) {
+      c.description = newVal;
+      // Components list shows an indicator dot for components with a
+      // non-empty description; rebuild it so the dot appears/disappears
+      // live as the user types.
+      buildComponentList();
+      // Diagram doesn't change (description never reaches PlantUML),
+      // so no scheduleRender is needed.
+      updateToolbar();
+    }
   });
-  const addBtn = document.createElement("button");
-  addBtn.className = "tab-add";
-  addBtn.textContent = "+";
-  addBtn.title = "Add a new component";
-  addBtn.addEventListener("click", addComponent);
-  bar.appendChild(addBtn);
+  textarea.addEventListener("blur", () => {
+    descEditSession = { compName: null, pushed: false };
+  });
+}
+
+function switchToSystem() {
+  if (Model.activeView === "system") return;
+  Model.activeView = "system";
+  Selection.clearAll();
+  refresh();
 }
 
 function switchToComponent(idx) {
-  if (idx === Model.activeComponentIndex) return;
   if (idx < 0 || idx >= Model.components.length) return;
+  const wasSystemView = Model.activeView === "system";
+  if (idx === Model.activeComponentIndex && !wasSystemView) return;
+  Model.activeView = "component";
   Model.activeComponentIndex = idx;
   // Clear all selections — a new component means new context.
   Selection.clearAll();
@@ -2282,41 +2831,102 @@ function switchToComponent(idx) {
 }
 
 function addComponent() {
-  showPrompt("Add component", "Component name:", "New Component",
-    v => v.trim() ? null : "Name cannot be empty",
-    (name) => {
-      pushHistory();
-      Model.components.push(makeEmptyComponent(name.trim()));
-      Model.activeComponentIndex = Model.components.length - 1;
-      Selection.clearAll();
-      refresh();
-    });
+  openComponentDialog(null);
 }
 
 function renameComponent(idx) {
-  const c = Model.components[idx];
-  showPrompt("Rename component", "Component name:", c.name,
-    v => v.trim() ? null : "Name cannot be empty",
-    (name) => {
-      pushHistory();
-      c.name = name.trim();
-      refresh();
-    });
+  openComponentDialog(Model.components[idx]);
+}
+
+// Add or edit a component. Same shape as openStateDialog: a Name field
+// for the identifier-safe handle and a Display name field for the free
+// text shown on the canvas. The display name is optional and may
+// contain `\n` for line breaks; the canvas renders it verbatim, the
+// Components list collapses `\n` to space.
+function openComponentDialog(existing) {
+  const title = existing ? "Component properties" : "Add component";
+  modalContainer.innerHTML = `
+    <div class="title">${title}</div>
+    <div class="body">
+      <label>Name:</label>
+      <input type="text" id="cm-name" value="${escapeHTML(existing?.name||'')}">
+      <label>Display name:</label>
+      <input type="text" id="cm-dn" value="${escapeHTML(existing?.displayName||'')}">
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const nameI = document.getElementById("cm-name");
+  const dnI = document.getElementById("cm-dn");
+  const ok = document.getElementById("ok");
+  const update = () => { ok.disabled = !nameI.value.trim(); };
+  nameI.addEventListener("input", update); update();
+  nameI.focus(); nameI.select();
+  ok.onclick = () => {
+    const name = nameI.value.trim();
+    if (!isValidIdentifier(name)) {
+      showAlert("Error", "Component name must be a single word (letters, digits, underscore)."); return;
+    }
+    if (!isUniqueComponentName(name, existing?.name)) {
+      showAlert("Error", "A component with this name already exists."); return;
+    }
+    const dn = dnI.value;
+    pushHistory();
+    if (existing) {
+      const oldName = existing.name;
+      existing.name = name;
+      existing.displayName = dn;
+      if (oldName !== name) {
+        // Cascade the rename through connections (and any other model
+        // store that holds the component name as a reference).
+        onComponentRenamed(oldName, name);
+        // Selection keys for system view also key by component name —
+        // re-key so a rename doesn't deselect the user's component.
+        if (Selection.components.has(oldName)) {
+          Selection.components.delete(oldName);
+          Selection.components.add(name);
+        }
+        const newConnKeys = new Set();
+        for (const key of Selection.connections) {
+          const [cn, ifn] = key.split("|");
+          newConnKeys.add(((cn === oldName) ? name : cn) + "|" + ifn);
+        }
+        Selection.connections = newConnKeys;
+      }
+    } else {
+      Model.components.push(makeEmptyComponent(name, dn));
+      Model.activeComponentIndex = Model.components.length - 1;
+      Selection.clearAll();
+    }
+    hideModal();
+    refresh();
+  };
+  document.getElementById("cancel").onclick = hideModal;
 }
 
 function deleteComponent(idx) {
   if (Model.components.length <= 1) return;
   const c = Model.components[idx];
+  // Use the display label for readable prose. The identifier-safe
+  // `name` would print as e.g. "My_Component"; the displayName (when
+  // set) reads as "My Component". Collapse `\n` markers to spaces
+  // because this is inline prose, not a multi-line label.
+  const displayName = componentDisplayLabel(c).replace(/\\n/g, " ");
   showConfirm("Delete component",
-    `Delete component "${c.name}" and all its states, choice-points, and transitions? Interfaces and messages are shared across all components and will not be affected.`,
+    `Delete component "${displayName}" and all its states, choice-points, and transitions? Interfaces and messages are shared across all components and will not be affected.`,
     () => {
       pushHistory();
+      const removedName = c.name;
       Model.components.splice(idx, 1);
       if (Model.activeComponentIndex >= Model.components.length) {
         Model.activeComponentIndex = Model.components.length - 1;
       } else if (idx < Model.activeComponentIndex) {
         Model.activeComponentIndex--;
       }
+      onComponentDeleted(removedName);
       Selection.clearAll();
       refresh();
     },
@@ -2397,15 +3007,133 @@ function buildCPList() {
     ul.appendChild(li);
   }
 }
+
+// Build the Components list in the top-right catalogue. Each row
+// represents one component; a chevron marks which one is currently
+// "active" (state-machine view shows its body). Click semantics depend
+// on the current view: in component view, click = switch to that
+// component's state machine; in system view, click = toggle selection
+// (for Add Connection). Double-click always drills into the component's
+// state machine, which works in both views.
+function buildComponentList() {
+  const ul = document.getElementById("list-comps");
+  ul.innerHTML = "";
+  // Components preserve model order — users think of the order as
+  // stable. No alphabetic sort.
+  Model.components.forEach((c, idx) => {
+    const li = document.createElement("li");
+    li.classList.add("comp-row");
+    const isActive = Model.activeView === "component" && idx === Model.activeComponentIndex;
+    if (isActive) li.classList.add("is-active");
+    if (Selection.components.has(c.name)) li.classList.add("selected");
+
+    // Active-row chevron marker (always present to hold horizontal space)
+    const marker = document.createElement("span");
+    marker.className = "active-marker";
+    marker.textContent = "▸";
+    li.appendChild(marker);
+
+    // Label uses the displayLabel (free-text displayName, falling back
+    // to the identifier `name`). Rendered single-line — `\n` markers
+    // collapse to spaces here, the same convention the States list uses
+    // for state.displayName. Multi-line labels are still rendered on
+    // the canvas, where the space exists for them.
+    const label = document.createElement("span");
+    label.className = "comp-label";
+    label.textContent = componentDisplayLabel(c).replace(/\\n/g, " ");
+    li.appendChild(label);
+
+    // Tooltip shows the full display label and, when distinct, the
+    // underlying identifier — useful when the displayName has been
+    // truncated on screen and you want to confirm which one this is.
+    const display = componentDisplayLabel(c).replace(/\\n/g, " ");
+    li.title = (display === c.name) ? display : `${display}  (${c.name})`;
+
+    // Quiet indicator dot for components that have a description —
+    // mirrors the action-dot in the transitions table. Cheap discovery
+    // hint: scan the list and you can see at a glance which components
+    // are documented.
+    if (c.description && c.description.length > 0) {
+      const dot = document.createElement("span");
+      dot.className = "comp-desc-dot";
+      dot.title = "Has a description";
+      li.appendChild(dot);
+    }
+
+    // Click: system view = toggle selection; component view = switch to.
+    li.addEventListener("click", (e) => {
+      if (Model.activeView === "system") {
+        // Select the component, same semantics as clicking its box on
+        // the canvas — enables the Add Connection workflow without
+        // forcing the user to locate the box.
+        selectClick(e, "sysCanvas", () => {
+          if (Selection.components.has(c.name)) Selection.components.delete(c.name);
+          else Selection.components.add(c.name);
+        }, Selection.components.has(c.name));
+        refresh();
+      } else {
+        // Component view — switching is the obvious intent. Even if the
+        // row is already active, we still run switchToComponent so any
+        // stale selection state from prior edits clears.
+        switchToComponent(idx);
+      }
+    });
+    // Double-click always drills into the component's state machine,
+    // mirroring the dblclick-on-canvas-box behaviour in system view.
+    li.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      switchToComponent(idx);
+    });
+    ul.appendChild(li);
+  });
+}
+
 function buildInterfaceList() {
   const ul = document.getElementById("list-ifaces");
   ul.innerHTML = "";
   const sorted = [...Model.interfaces].sort((a,b) => a.name.localeCompare(b.name));
+  // Wiring checks only apply in component view; in system view every
+  // interface renders plainly since the whole concept of "wired to the
+  // active component" doesn't exist there.
+  const inComponentView = Model.activeView === "component";
+  const activeCompName = inComponentView ? Component.name : null;
   for (const i of sorted) {
     const li = document.createElement("li");
-    li.textContent = i.name;
+    // Label inside its own span so the optional warning marker can sit
+    // next to it without nesting quirks.
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "iface-label";
+    labelSpan.textContent = i.name;
+    li.appendChild(labelSpan);
+
     if (i.isDefault) li.classList.add("default-item");
     if (Selection.interfaces.has(i.name)) li.classList.add("selected");
+
+    // Wiring-based visual state. Defaults are exempt (they don't need
+    // wiring). Non-default interfaces fall into three cases:
+    //   (a) wired to this component: render plain.
+    //   (b) unwired, not used in this component's transitions: dim —
+    //       signals "not part of this component's vocabulary".
+    //   (c) unwired, used in this component's transitions: warning —
+    //       signals a spec inconsistency the user should resolve.
+    if (inComponentView && !i.isDefault) {
+      const wired = isWired(activeCompName, i.name);
+      if (!wired) {
+        const used = componentUsesInterface(Model.activeComponentIndex, i.name);
+        if (used) {
+          li.classList.add("unwired-warning");
+          const badge = document.createElement("span");
+          badge.className = "iface-warn";
+          badge.textContent = "!";
+          badge.title = `Interface "${i.name}" is used by this component's state machine but not connected to it in the system diagram.`;
+          li.appendChild(badge);
+        } else {
+          li.classList.add("unwired");
+          li.title = `Not connected to "${activeCompName}" in the system diagram.`;
+        }
+      }
+    }
+
     li.addEventListener("click", (e) => {
       selectClick(e, "ifaces", () => {
         if (Selection.interfaces.has(i.name)) {
@@ -2488,12 +3216,26 @@ function buildTransitionTable() {
       const m = r.t.messages.find(mm => mm.interface === r.iface && mm.name === r.msg);
       if (m && m.action && m.action.trim().length > 0) hasAction = true;
     }
+    // Does this row use an interface that isn't wired to the active
+    // component in the system diagram? Default interfaces (Timer, Logical)
+    // and the initial transition (empty iface) are exempt.
+    let unwiredWarning = false;
+    if (r.iface !== "" && !isDefaultInterface(r.iface)) {
+      unwiredWarning = !isWired(Component.name, r.iface);
+    }
     // Highlight cells whose interface/message matches the current selection,
     // making it easy to scan where an interface or message is used.
     // (When messages are individually selected, only those rows match —
     // not every row of the same interface.)
     const matched = isUsageMatch(r.iface, r.msg);
-    tr.innerHTML = `<td class="action-dot${hasAction ? " has-action" : ""}" title="${hasAction ? "Has action" : ""}"></td>
+    const indicatorClasses = ["action-dot"];
+    if (hasAction) indicatorClasses.push("has-action");
+    if (unwiredWarning) indicatorClasses.push("unwired-warning");
+    const titleParts = [];
+    if (hasAction) titleParts.push("Has action");
+    if (unwiredWarning) titleParts.push(`Interface "${r.iface}" is not connected to "${Component.name}" in the system diagram`);
+    const indicatorTitle = titleParts.join(" — ");
+    tr.innerHTML = `<td class="${indicatorClasses.join(' ')}" title="${escapeHTML(indicatorTitle)}"></td>
                     <td>${escapeHTML(nodeLabel(r.t.source))}</td>
                     <td>${escapeHTML(nodeLabel(r.t.target))}</td>
                     <td${matched ? ' class="match"' : ''}>${escapeHTML(r.iface)}</td>
@@ -2510,6 +3252,8 @@ function buildTransitionTable() {
 }
 
 function updateToolbar() {
+  const inSystem = Model.activeView === "system";
+
   // Save: only if saved before AND dirty
   document.getElementById("btn-save").disabled = !(Model.savedFilename && Model.dirty);
   document.getElementById("btn-undo").disabled = History.past.length === 0;
@@ -2522,7 +3266,9 @@ function updateToolbar() {
                     const [i,n] = k.split(":");
                     return !isDefaultMessage(i, n);
                  }) ||
-                 Selection.transitions.size;
+                 Selection.transitions.size ||
+                 Selection.connections.size ||
+                 Selection.components.size;
   const includesProtected = Selection.start ||
                  [...Selection.interfaces].some(isDefaultInterface) ||
                  [...Selection.messages].some(k => {
@@ -2533,19 +3279,21 @@ function updateToolbar() {
   document.getElementById("btn-copy").disabled = !canCopy();
   document.getElementById("btn-paste").disabled = !canPaste();
 
-  // Add state / cp / interface: always
-  document.getElementById("btn-add-state").disabled = false;
-  document.getElementById("btn-add-cp").disabled = false;
+  // Add state / cp: only in component view (no meaning in system view).
+  document.getElementById("btn-add-state").disabled = inSystem;
+  document.getElementById("btn-add-cp").disabled = inSystem;
+  // Add interface: always — interfaces are system-wide vocabulary.
   document.getElementById("btn-add-iface").disabled = false;
 
   // Add message: exactly one interface selected
   document.getElementById("btn-add-msg").disabled = Selection.interfaces.size !== 1;
 
-  // Add transition:
-  document.getElementById("btn-add-trans").disabled = !canAddTransition();
+  // Add transition / Redirect: only meaningful in component view.
+  document.getElementById("btn-add-trans").disabled = inSystem || !canAddTransition();
+  document.getElementById("btn-redirect").disabled = inSystem || !canRedirectTransitions();
 
-  // Redirect transition:
-  document.getElementById("btn-redirect").disabled = !canRedirectTransitions();
+  // Add connection: only meaningful in system view.
+  document.getElementById("btn-add-conn").disabled = !canAddConnection();
 
   // Edit: depends on single selected element of editable type
   document.getElementById("btn-edit").disabled = !canEdit();
@@ -2557,6 +3305,54 @@ function isDefaultInterface(name) {
 function isDefaultMessage(iface, name) {
   return (iface === "Timer" && name === "Timeout") ||
          (iface === "Logical" && (name === "Yes" || name === "No"));
+}
+
+// ---------- Component-diagram connection helpers ----------
+// Connections live in Model.connections as {component, interface} pairs.
+// Component names reference Model.components[*].name; interface names
+// reference Model.interfaces[*].name. Default interfaces (Timer, Logical)
+// are never listed here — they're internal service concepts, not
+// inter-component wiring, and get skipped anywhere this matters.
+
+// Is component `cname` wired to interface `iname` in the system diagram?
+function isWired(cname, iname) {
+  return Model.connections.some(c => c.component === cname && c.interface === iname);
+}
+
+// Does the specified component's state machine have any transition that
+// carries a message from interface `iname`? Answers the "is this interface
+// part of this component's actual message vocabulary?" question. Used
+// together with isWired to detect spec inconsistency — a used-but-unwired
+// interface is flagged in the UI.
+function componentUsesInterface(componentIndex, iname) {
+  const c = Model.components[componentIndex];
+  if (!c) return false;
+  for (const t of c.transitions) {
+    if (!t.messages) continue;
+    for (const m of t.messages) {
+      if (m.interface === iname) return true;
+    }
+  }
+  return false;
+}
+
+// Cascade: when a component or an interface is renamed or deleted,
+// update or prune the matching connection entries.
+function onComponentRenamed(oldName, newName) {
+  for (const c of Model.connections) {
+    if (c.component === oldName) c.component = newName;
+  }
+}
+function onComponentDeleted(name) {
+  Model.connections = Model.connections.filter(c => c.component !== name);
+}
+function onInterfaceRenamed(oldName, newName) {
+  for (const c of Model.connections) {
+    if (c.interface === oldName) c.interface = newName;
+  }
+}
+function onInterfaceDeleted(name) {
+  Model.connections = Model.connections.filter(c => c.interface !== name);
 }
 
 // Helpers for the "where is this interface/message used" highlighting.
@@ -2576,6 +3372,35 @@ function isUsageMatch(iface, name) {
   if (Selection.messages.has(iface + ":" + name)) return true;
   if (Selection.interfaces.has(iface) && !interfaceHasAnySelectedMessage(iface)) return true;
   return false;
+}
+
+// Can we add a connection between a component and an interface?
+// Valid when we're in system view, exactly one component and exactly one
+// non-default interface are selected, and a matching connection doesn't
+// already exist. Default interfaces (Timer/Logical) are excluded because
+// they're not inter-component wiring.
+function canAddConnection() {
+  if (Model.activeView !== "system") return false;
+  if (Selection.components.size !== 1) return false;
+  if (Selection.interfaces.size !== 1) return false;
+  const iname = [...Selection.interfaces][0];
+  if (isDefaultInterface(iname)) return false;
+  const cname = [...Selection.components][0];
+  if (Model.connections.some(c => c.component === cname && c.interface === iname)) return false;
+  return true;
+}
+
+function actionAddConnection() {
+  if (!canAddConnection()) return;
+  const cname = [...Selection.components][0];
+  const iname = [...Selection.interfaces][0];
+  pushHistory();
+  Model.connections.push({ component: cname, interface: iname, connector: "Right", length: 1 });
+  // Select the new connection so its line is immediately highlighted.
+  // Component + interface stay selected too — matches how adding a
+  // transition leaves source/target/message selected for chaining.
+  Selection.connections.add(cname + "|" + iname);
+  refresh();
 }
 
 function canAddTransition() {
@@ -2666,14 +3491,24 @@ function sourceAlreadyHandlesAnyOf(source, msgs) {
 
 function canEdit() {
   // single state (not START) OR single CP OR single non-default iface OR single non-default msg
-  // OR all rows of exactly one transition are selected
+  // OR all rows of exactly one transition are selected OR exactly one
+  // connection (system-diagram) is selected OR exactly one component
+  // (system-diagram) is selected.
   const s = Selection.states.size;
   const c = Selection.choicePoints.size;
   const i = Selection.interfaces.size;
   const m = Selection.messages.size;
   const t = Selection.transitions.size;
+  const cn = Selection.connections.size;
+  const co = Selection.components.size;
   const otherTotal = s + c + i + m + (Selection.start?1:0);
   if (Selection.start) return false;
+  // Component: exactly one component selected, nothing else.
+  if (co === 1 && otherTotal === 0 && t === 0 && cn === 0) return true;
+  // Connection: exactly one connection selected, nothing else.
+  if (cn === 1 && otherTotal === 0 && t === 0 && co === 0) {
+    return true;
+  }
   if (s === 1 && otherTotal === 1 && t === 0) return true;
   if (c === 1 && otherTotal === 1 && t === 0) return true;
   if (i === 1 && otherTotal === 1 && t === 0) {
@@ -2827,7 +3662,7 @@ function showAbout() {
       <div class="logo">${logoSVG}</div>
       <div class="text">
         <strong>Stadiæ</strong> — State Diagram Editor.<br><br>
-        A GUI front-end for authoring PlantUML state diagrams, developed by Computerguided Systems.
+        A GUI front-end for authoring PlantUML system and state diagrams, developed by Computerguided Systems.
       </div>
     </div>
     <div class="actions"><button id="about-ok">OK</button></div>`;
@@ -2842,6 +3677,7 @@ function showManual() {
     {id: "concepts", title: "Core Concepts"},
     {id: "interface", title: "The Interface"},
     {id: "components", title: "Components"},
+    {id: "system-diagram", title: "System Diagram"},
     {id: "workflow", title: "Typical Workflow"},
     {id: "states", title: "States"},
     {id: "choicepoints", title: "Choice-points"},
@@ -2912,15 +3748,15 @@ function manualContent() {
   return `
     <section id="m-intro">
       <h2>Introduction</h2>
-      <p>Stadiæ is a graphical editor for <strong>state diagrams</strong> of functional components. It is a front-end for <a href="https://plantuml.com" target="_blank">PlantUML</a>: every edit you make is translated to PlantUML source code and rendered by a PlantUML server — either the public server at <code>plantuml.com</code> or a server running on your own machine. You get the convenience of a GUI plus a clean, version-controllable <code>.puml</code> file you can export at any time.</p>
-      <p>A single Stadiæ file can contain multiple components, each with its own state machine, all sharing a common vocabulary of interfaces and messages — so you can model a whole subsystem side-by-side in one file.</p>
-      <p>State diagrams in Stadiæ describe a component's <em>behaviour</em> — the states it can be in, the messages it handles, the choices it makes, and how it transitions between states.</p>
+      <p>Stadiæ is a graphical editor for the structure and behaviour of functional components. It is a front-end for <a href="https://plantuml.com" target="_blank">PlantUML</a>: every edit you make is translated to PlantUML source code and rendered by a PlantUML server — either the public server at <code>plantuml.com</code> or a server running on your own machine. You get the convenience of a GUI plus a clean, version-controllable <code>.puml</code> file you can export at any time.</p>
+      <p>A Stadiæ file captures two levels of a design in one place: a <strong>system diagram</strong> showing how components relate to each other via shared interfaces, and one <strong>state machine</strong> per component showing that component's behaviour. Interfaces and messages are shared across all components, so the vocabulary stays consistent as you move between levels.</p>
+      <p>State diagrams in Stadiæ describe a component's <em>behaviour</em> — the states it can be in, the messages it handles, the choices it makes, and how it transitions between states. The system diagram describes the component <em>decomposition</em> — which components exist and which interfaces they speak over.</p>
     </section>
 
     <section id="m-concepts">
       <h2>Core Concepts</h2>
       <h3>Components</h3>
-      <p>A Stadiæ file can contain one or more <strong>components</strong>. Each component is a complete state machine with its own states, choice-points, transitions, and name. Components share the system's <em>interfaces</em> and <em>messages</em> — that's the contract vocabulary they communicate with. Components are selected through the tab bar at the top of the right panel; the canvas and lower lists always show the active component. See <a href="#m-components" data-target="m-components">Components</a>.</p>
+      <p>A Stadiæ file can contain one or more <strong>components</strong>. Each component is a complete state machine with its own states, choice-points, transitions, and name. Components share the system's <em>interfaces</em> and <em>messages</em> — that's the contract vocabulary they communicate with. Components are selected through the <strong>Components list</strong> in the top-right catalogue; clicking a row switches the canvas and the lower panels to that component's state machine. See <a href="#m-components" data-target="m-components">Components</a>.</p>
       <h3>States</h3>
       <p>A <strong>state</strong> is a distinct situation the component can be in (e.g. <code>Advertising</code>, <code>Connecting</code>). Each state has a <em>name</em> (single word, unique <em>within the component</em>, used in PlantUML) and an optional <em>display name</em> (free text, can use <code>\\n</code> for line breaks) shown on the rendered diagram.</p>
       <h3>Choice-points</h3>
@@ -2951,14 +3787,15 @@ function manualContent() {
       <p>All common actions are one click away. A button is greyed out when the current selection does not make the action meaningful. Hover the Add Transition or Edit button when it is disabled and check your selection — the rules in <a href="#m-rules" data-target="m-rules">Rules Reference</a> explain each enablement condition.</p>
       <h3>Diagram canvas (left)</h3>
       <p>Shows the rendered PNG of the <em>active</em> component. States, choice-points, and transitions can be selected by clicking them directly on the canvas. Clicking on empty canvas clears the current selection.</p>
-      <h3>System panel (top right)</h3>
-      <p>The top section of the right panel holds <strong>Interfaces</strong> and <strong>Messages</strong>, which are shared across every component in the file. Each list has a small <code>+</code> button in its header to add a new entry. Click an interface to toggle its selection; messages of the selected interface(s) then appear in the Messages list.</p>
-      <h3>Tab bar</h3>
-      <p>Below the system panel, the tab bar shows one tab per component. Click a tab to switch to it; double-click to rename. The <code>+</code> button at the end adds a new component. When more than one component exists, each tab has a small <code>×</code> to delete it. Switching tabs clears the current selection.</p>
+      <h3>System catalogue (top right)</h3>
+      <p>The top section of the right panel holds three side-by-side lists for the system-wide vocabulary: <strong>Components</strong>, <strong>Interfaces</strong>, and <strong>Messages</strong>. Every entry in these lists is shared across the whole file. Each list has a small <code>+</code> button in its header to add a new entry. Click an interface to toggle its selection; messages of the selected interface(s) then appear in the Messages list.</p>
+      <p>The Components list also carries a pinned <code>◇ System</code> button at the top-left of its header. Click it to switch to the <a href="#m-system-diagram" data-target="m-system-diagram">system diagram</a> view; the button stays accent-coloured while system view is active. To return to a state-machine view, click any component row in the list.</p>
+      <h3>Components list</h3>
+      <p>One row per component. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas. Click a row to switch the lower panels and canvas to that component. <strong>Double-click</strong> a row to drill in even from system view (equivalent to double-clicking the component box on the system canvas). To rename a component, select it and click <strong>Edit</strong>; to delete it, select it and click <strong>Delete</strong>. Component names must be unique. The minimum is one component — the last one cannot be deleted.</p>
       <h3>Component panel (bottom right)</h3>
-      <p>The rest of the right panel shows the active component's <em>States</em> and <em>Choice-points</em> lists (with the START / H / ∗ pseudo-states at the top of States), the transitions table, and the Action panel. Each list has a small <code>+</code> button in its header to add an entry. Each section is resizable via the thin bars between them — drag to adjust, double-click to reset.</p>
+      <p>The rest of the right panel shows the active component's <em>States</em> and <em>Choice-points</em> lists (with the START / H / ∗ pseudo-states at the top of States), the transitions table, and the Action panel. These panels are hidden in system view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. Each section is resizable via the thin bars between them — drag to adjust, double-click to reset.</p>
       <h3>Transition table</h3>
-      <p>Lists every transition of the active component, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. A small dot in the first column marks rows that have an action description.</p>
+      <p>Lists every transition of the active component, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. A small dot in the first column marks rows that have an action description. A small amber <code>!</code> next to it marks rows whose interface isn't wired to the active component in the system diagram — see <a href="#m-system-diagram" data-target="m-system-diagram">System Diagram</a>.</p>
       <h3>Action panel</h3>
       <p>Below the transitions table, a free-text area shows the <em>action</em> of the currently selected transition row. Actions are developer documentation that is saved with the diagram but not rendered into the PlantUML — see <a href="#m-transitions" data-target="m-transitions">Transitions</a>.</p>
       <div class="tip">A "Show PlantUML" button at the bottom-right opens a live view of the generated source for the active component. Useful for sanity-checking or for learning PlantUML.</div>
@@ -2967,27 +3804,78 @@ function manualContent() {
     <section id="m-components">
       <h2>Components</h2>
       <p>A single <code>.json</code> file can hold multiple components — one for each state machine in the system you are modelling. All components share the same pool of interfaces and messages, because those represent the contract vocabulary between components. States, choice-points, transitions, and action notes belong to a single component and cannot cross component boundaries.</p>
-      <p>The tab bar at the top of the right panel lets you switch between components. The canvas, the States / Choice-points lists, the transition table, and the Action panel always reflect the <em>active</em> component (the highlighted tab). The Interfaces and Messages lists above the tab bar are shared — editing them affects every component.</p>
+      <p>The <strong>Components list</strong> in the top-right catalogue is the place to see, switch, and manage components. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas; the lower panels (States, Choice-points, transitions, Action) always reflect that <em>active</em> component. The Interfaces and Messages lists alongside it are shared — editing them affects every component.</p>
       <h3>Add, rename, delete</h3>
-      <p>Click the <code>+</code> at the end of the tab bar to add a new component. Double-click any tab to rename it, or use <em>Component → Change name…</em>. Each tab has a small <code>×</code> (visible when more than one component exists) to delete that component after a confirmation — its states, choice-points, and transitions are removed, but the shared interfaces and messages are not touched. You cannot delete the last remaining component.</p>
+      <p>Click the <code>+</code> in the Components list header to add a new component. To rename one, select its row in the list and click <strong>Edit</strong>; the same dialog is available via <em>Component → Change name…</em> for the active component. To delete a component, select its row and click <strong>Delete</strong> — its states, choice-points, and transitions are removed after a confirmation, but the shared interfaces and messages are not touched. You cannot delete the last remaining component.</p>
+      <h3>Name vs. display name</h3>
+      <p>Components have two name fields, exactly like states:</p>
+      <ul>
+        <li><strong>Name</strong> — a single identifier-safe word (letters, digits, underscores; must start with a letter). This is the stable handle used throughout the model — in connections, in PlantUML ids, in references — so it must be unique across the file. The dialogs reject duplicates and any name that isn't an identifier.</li>
+        <li><strong>Display name</strong> — optional free text shown on the rendered diagram (component box on the system canvas, outer wrapper on the state-machine view). May contain the literal sequence <code>\\n</code> for line breaks. When empty, the diagram falls back to the identifier name.</li>
+      </ul>
+      <p>The Components list always shows the display name on a single line (with any <code>\\n</code> markers collapsed to spaces). The full label and, when distinct, the underlying identifier are visible on hover.</p>
+      <p>Opening an older save file that stored free text directly in <em>Name</em> auto-migrates: the original text is moved into <em>Display name</em> and a slugged identifier becomes the <em>Name</em>. Connections referring to the old name are re-keyed in step. The diagram looks identical because it always reads the display label.</p>
       <h3>Switching components</h3>
-      <p>Clicking a tab switches the active component and <strong>clears the current selection</strong>, so you always start in a clean state in the new component. The diagram re-renders for the new component; interfaces and messages stay as they were.</p>
+      <p>Clicking a row in the Components list switches the active component and <strong>clears the current selection</strong>, so you always start in a clean state in the new component. The diagram re-renders for the new component; interfaces and messages stay as they were. Double-click a row to drill in even from system view (equivalent to double-clicking the component box on the system canvas).</p>
+      <h3>Description</h3>
+      <p>Each component has a free-text <strong>Description</strong> — developer documentation explaining what the component does, what it owns, why it exists. The Description panel sits between the system catalogue and the rest of the right-hand column and is always visible. Type into it and the change is saved live to the model; one undo step per typing run per component (matching the Action panel's behaviour for transitions).</p>
+      <p>Which component the panel binds to depends on the view:</p>
+      <ul>
+        <li><strong>Component view</strong> — always the active component (the one with the chevron).</li>
+        <li><strong>System view</strong> — the selected component if exactly one is selected; otherwise the active component.</li>
+      </ul>
+      <p>The header of the Description panel always shows the bound component's display label as a quiet italic suffix on the right, so you can confirm at a glance what your typing will go into. A small accent-coloured dot appears next to a component's name in the Components list when its description is non-empty — same convention as the action-dot in the transitions table.</p>
+      <p>Descriptions are persisted in the saved <code>.json</code> file but never written to the generated PlantUML — they are pure documentation, not part of the rendered diagram.</p>
       <h3>Interfaces and messages are shared</h3>
       <p>Adding, renaming, or deleting an interface (or message) updates it everywhere. For example, renaming <code>RTx</code> to <code>Transport</code> updates every transition in every component that references it. Deleting a message cascades through every component's transitions and drops any transitions that end up empty. This keeps the contract vocabulary consistent across the whole system — no manual sync needed.</p>
       <h3>Exports</h3>
-      <p>PlantUML, PNG, and Markdown exports all apply to the <em>active</em> component only. Switch tabs and export again to get the artefact for each component. The <code>.json</code> save covers the whole file (all components plus the shared interfaces/messages).</p>
+      <p>PlantUML, PNG, and Markdown exports all apply to the <em>active</em> component only. Switch components and export again to get the artefact for each. The <code>.json</code> save covers the whole file (all components plus the shared interfaces/messages and the system diagram).</p>
+    </section>
+
+    <section id="m-system-diagram">
+      <h2>System Diagram</h2>
+      <p>Above the state machines sits the <strong>system diagram</strong>: a single picture of your whole file showing components as boxes and interfaces as lollipops, with lines marking which component uses which interface. This is Stadiæ's view of the system's decomposition — the "one level up" from individual component behaviour.</p>
+
+      <h3>Opening the system view</h3>
+      <p>A pinned <code>◇ System</code> button sits at the top-left of the Components list header. Click it to switch from a state-machine view to the system diagram; the button stays accent-coloured while the system view is active. The States, Choice-points, Transitions, and Action panels hide in this view — they don't apply at the system level. The Components, Interfaces, and Messages lists stay visible.</p>
+      <p>Click any component row in the Components list to return to a state machine, or <strong>double-click a component box on the system canvas</strong> (or a component row in the list) to jump directly into that component's state machine.</p>
+
+      <h3>Connecting components to interfaces</h3>
+      <p>In the system view, wire a component to an interface to say "this component sends or receives messages over this interface."</p>
+      <ol>
+        <li>Select a component — either by clicking its box on the canvas, or by clicking its row in the Components list.</li>
+        <li>Select a non-default interface from the Interfaces list. (Interfaces appear on the system canvas only once they are wired to something, so the first connection to any interface is always made via the list.)</li>
+        <li>Click <strong>Add Connection</strong>. A line appears between the component and the interface's lollipop circle.</li>
+      </ol>
+      <p>Multiple components wired to the same interface render with that single interface sitting between them — that's how point-to-point or broadcast communication is drawn.</p>
+      <p>To remove a wiring, click the connection line and press <kbd>Delete</kbd>.</p>
+      <p>Default interfaces <code>Timer</code> and <code>Logical</code> never appear on the system diagram and cannot be connected — they are internal service concepts, not inter-component wiring.</p>
+
+      <h3>Connection direction and length</h3>
+      <p>Select a connection and click <strong>Edit</strong> (or press <kbd>Enter</kbd>) to open its properties dialog. Connections use the same <em>Right / Left / Up / Down</em> + length controls as state-machine transitions, without arrowheads (connections aren't directed). Use length with Up and Down to stretch a crowded layout.</p>
+      <p><strong>Shortcut:</strong> with a connection selected, the arrow keys (<kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd>) change the direction directly. Repeated <kbd>↑</kbd> or <kbd>↓</kbd> extends the length by one dash each press.</p>
+
+      <h3>Consistency with state machines</h3>
+      <p>Because a component's state machine uses interfaces for its transition messages, the system diagram's wiring should agree with what the state machines actually use. Stadiæ surfaces any mismatch without blocking it:</p>
+      <ul>
+        <li>In the Interfaces list, interfaces <em>not</em> wired to the active component render dimmed — a hint that they are "out of scope" for this component.</li>
+        <li>If an unwired interface is actually <em>used</em> in one of the active component's transitions, its list entry gets a small amber <code>!</code> badge. The transitions table shows the same <code>!</code> in the indicator column next to every row that references an unwired interface.</li>
+      </ul>
+      <p>To clear a warning: either switch to the system view and add the missing connection, or switch to the state machine and stop using that interface.</p>
+      <div class="tip">The system diagram is stored in the same <code>.json</code> save file as the state machines. Opening an older <code>stadiae-v2</code> file loads every component with no connections — you'll see warnings until you wire things up in the system view. This is intentional: the diagram starts as a blank slate so you can declare your architecture deliberately.</div>
     </section>
 
     <section id="m-workflow">
       <h2>Typical Workflow</h2>
       <ol>
-        <li><strong>Name the first component</strong> via <em>Component → Change name</em>, or start a fresh file via <em>File → New</em>. For a multi-component system, add more tabs with the <code>+</code> at the end of the tab bar.</li>
+        <li><strong>Name the first component</strong> via <em>Component → Change name</em>, or start a fresh file via <em>File → New</em>. For a multi-component system, add more components with the <code>+</code> in the Components list header.</li>
         <li><strong>Define the shared vocabulary</strong>: add interfaces (<code>+</code> in the Interfaces list header), then messages per interface. These are shared across every component, so define them once.</li>
-        <li><strong>Lay out each component</strong>: switch to the tab you want to edit, then add states and choice-points.</li>
-        <li><strong>Wire it up</strong>: select a source state, a target, and a message, then click Add Transition.</li>
+        <li><strong>Wire the system diagram</strong>: click the <code>◇ System</code> button at the top of the Components list, then select a component + an interface and click Add Connection. Repeat for every component-interface relationship in your architecture.</li>
+        <li><strong>Lay out each component</strong>: click the component you want to edit in the Components list, then add states and choice-points.</li>
+        <li><strong>Wire up transitions</strong>: select a source state, a target, and a message, then click Add Transition.</li>
         <li><strong>Pick the initial state</strong>: select START and the intended first state, then Add Transition.</li>
         <li><strong>Refine</strong>: select elements and click Edit to change properties; adjust connector direction on transitions for a cleaner layout.</li>
-        <li><strong>Save</strong>: <em>File → Save As</em> (JSON, reloadable). The file captures every component plus the shared vocabulary. Export to <code>.puml</code> or <code>.png</code> per active tab when you want to share individual diagrams outside the tool.</li>
+        <li><strong>Save</strong>: <em>File → Save As</em> (JSON, reloadable). The file captures every component plus the shared vocabulary and the system diagram. Export to <code>.puml</code> or <code>.png</code> per active component when you want to share individual diagrams outside the tool.</li>
       </ol>
     </section>
 
@@ -3156,7 +4044,7 @@ function manualContent() {
       <p>The draft is independent of your disk saves — it is always kept up-to-date with the latest in-memory state, so even a crash right after <em>Save</em> is covered. The draft is cleared when you explicitly <em>File → New</em> or click <em>Discard</em> on the restoration banner.</p>
       <div class="tip">Autosave uses the browser's local storage, so it survives across sessions but is scoped to this browser on this machine. To share a diagram or move it to another computer, use <em>Save As</em> and transfer the <code>.json</code> file.</div>
       <h3>Export as PlantUML (.puml)</h3>
-      <p>Writes the clean PlantUML source of the <em>active</em> component (no selection highlighting) to a <code>.puml</code> file. To export every component, switch tabs and export each one. Feed the files to any PlantUML tool, check them into source control, or paste them into an online PlantUML renderer.</p>
+      <p>Writes the clean PlantUML source of the <em>active</em> component (no selection highlighting) to a <code>.puml</code> file. To export every component, switch the active component (one click in the Components list) and export each one. Feed the files to any PlantUML tool, check them into source control, or paste them into an online PlantUML renderer.</p>
       <h3>Export as PNG</h3>
       <p>Downloads the currently rendered active-component diagram as a PNG image. Useful for embedding in reports and slides.</p>
       <h3>Copy transitions as Markdown</h3>
@@ -3425,6 +4313,8 @@ function openInterfaceDialog(existing=null) {
       for (const c of Model.components) {
         c.transitions.forEach(t => t.messages.forEach(m => { if (m.interface === old) m.interface = name; }));
       }
+      // update component-diagram connections
+      onInterfaceRenamed(old, name);
       // update selection keys that referenced the old interface name
       if (Selection.interfaces.has(old)) {
         Selection.interfaces.delete(old);
@@ -3569,6 +4459,58 @@ function openTransitionDialog(existing) {
       t.length = Math.max(1, parseInt(lenI.value,10)||1);
     } else {
       t.length = 1;
+    }
+    hideModal();
+    refresh();
+  };
+  document.getElementById("cancel").onclick = hideModal;
+}
+
+// Edit dialog for a system-diagram connection. Mirrors the transition
+// dialog's connector + length controls: Left / Right / Up / Down, with
+// length only meaningful for Up and Down (same convention as transitions,
+// since a connection is geometrically the same "source-to-target" shape).
+// Component and interface names are read-only here — to rename them,
+// edit the component's tab or the interface itself.
+function openConnectionDialog(existing) {
+  modalContainer.innerHTML = `
+    <div class="title">Connection properties</div>
+    <div class="body">
+      <label>Component:</label><span class="static-value">${escapeHTML(existing.component)}</span>
+      <label>Interface:</label><span class="static-value">${escapeHTML(existing.interface)}</span>
+      <label>Connector type:</label>
+      <select id="conn-type">
+        <option value="Right">Right</option>
+        <option value="Left">Left</option>
+        <option value="Down">Down</option>
+        <option value="Up">Up</option>
+      </select>
+      <label id="conn-len-label">Connector length:</label>
+      <input type="number" id="conn-len" min="1" max="20" value="${existing.length||1}">
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const typeI = document.getElementById("conn-type");
+  const lenI = document.getElementById("conn-len");
+  const lenLabel = document.getElementById("conn-len-label");
+  typeI.value = existing.connector || "Right";
+  const updateLenVisible = () => {
+    const show = (typeI.value === "Up" || typeI.value === "Down");
+    lenLabel.style.display = show ? "" : "none";
+    lenI.style.display = show ? "" : "none";
+  };
+  typeI.addEventListener("change", updateLenVisible); updateLenVisible();
+  document.getElementById("ok").onclick = () => {
+    pushHistory();
+    existing.connector = typeI.value;
+    if (existing.connector === "Up" || existing.connector === "Down") {
+      existing.length = Math.max(1, parseInt(lenI.value, 10) || 1);
+    } else {
+      existing.length = 1;
     }
     hideModal();
     refresh();
@@ -4171,6 +5113,29 @@ function pasteMessages() {
 }
 
 function actionDelete() {
+  // Component deletion is a different, confirm-first flow (possible data
+  // loss: a whole state machine). Short-circuit if the selection is
+  // exactly one component and nothing else. Multi-component deletion
+  // isn't supported yet — it would need a combined confirm dialog.
+  const onlyComponent =
+    Selection.components.size === 1 &&
+    Selection.states.size === 0 &&
+    Selection.choicePoints.size === 0 &&
+    Selection.interfaces.size === 0 &&
+    Selection.messages.size === 0 &&
+    Selection.transitions.size === 0 &&
+    Selection.connections.size === 0;
+  if (onlyComponent) {
+    if (Model.components.length <= 1) {
+      showAlert("Cannot delete", "A file must have at least one component.");
+      return;
+    }
+    const name = [...Selection.components][0];
+    const idx = Model.components.findIndex(c => c.name === name);
+    if (idx >= 0) deleteComponent(idx);
+    return;
+  }
+
   pushHistory();
 
   // Delete transition rows: each key is source|target|iface|name
@@ -4222,6 +5187,8 @@ function actionDelete() {
       });
       c.transitions = c.transitions.filter(t => t.source==="START" || t.messages.length>0);
     }
+    // Drop any system-diagram connections to this now-deleted interface.
+    onInterfaceDeleted(iname);
   }
 
   // Delete states
@@ -4235,6 +5202,14 @@ function actionDelete() {
     const prefixed = "CP_" + cname;
     Component.choicePoints = Component.choicePoints.filter(c => c.name !== cname);
     Component.transitions = Component.transitions.filter(t => t.source !== prefixed && t.target !== prefixed);
+  }
+
+  // Delete system-diagram connections
+  for (const connKey of Selection.connections) {
+    const [cname, iname] = connKey.split("|");
+    Model.connections = Model.connections.filter(
+      c => !(c.component === cname && c.interface === iname)
+    );
   }
 
   // Preserve only the interfaces that still exist in the model after the
@@ -4255,6 +5230,35 @@ function actionDelete() {
 
 function actionEdit() {
   if (!canEdit()) return;
+  // Component check first — exactly one component selected, nothing
+  // else. Opens the rename prompt for that component.
+  if (Selection.components.size === 1 &&
+      Selection.states.size === 0 &&
+      Selection.choicePoints.size === 0 &&
+      Selection.interfaces.size === 0 &&
+      Selection.messages.size === 0 &&
+      Selection.transitions.size === 0 &&
+      Selection.connections.size === 0) {
+    const name = [...Selection.components][0];
+    const idx = Model.components.findIndex(c => c.name === name);
+    if (idx >= 0) renameComponent(idx);
+    return;
+  }
+  // Connection check next — it's the one case where otherTotal is 0,
+  // so testing it before the element-kind checks means we never
+  // accidentally fall through to one of them.
+  if (Selection.connections.size === 1 &&
+      Selection.states.size === 0 &&
+      Selection.choicePoints.size === 0 &&
+      Selection.interfaces.size === 0 &&
+      Selection.messages.size === 0 &&
+      Selection.transitions.size === 0) {
+    const key = [...Selection.connections][0];
+    const [cname, iname] = key.split("|");
+    const conn = Model.connections.find(c => c.component === cname && c.interface === iname);
+    if (conn) openConnectionDialog(conn);
+    return;
+  }
   if (Selection.states.size === 1) {
     const name = [...Selection.states][0];
     openStateDialog(Component.states.find(s => s.name === name));
@@ -4308,14 +5312,26 @@ function resetModel(componentName) {
     { interface: "Logical", name: "Yes", isDefault: true },
     { interface: "Logical", name: "No", isDefault: true }
   ];
-  Model.components = [ makeEmptyComponent(componentName || "Component Name") ];
+  // The caller may pass an arbitrary user-entered name (e.g. "Component
+  // Name" from the default prompt). If it's not identifier-safe, slug
+  // it and promote the original to displayName, same migration we apply
+  // when loading older files.
+  const original = componentName || "Component_Name";
+  let cName = original, cDisplay = "";
+  if (!isValidIdentifier(original)) {
+    cDisplay = original;
+    cName = slugifyComponentName(original);
+  }
+  Model.components = [ makeEmptyComponent(cName, cDisplay) ];
   Model.activeComponentIndex = 0;
+  Model.connections = [];
+  Model.activeView = "component";
 }
 
 function saveAs() {
   const base = Model.savedFilename
     ? (Model.savedFilename.endsWith(".json") ? Model.savedFilename : Model.savedFilename + ".json")
-    : (Component.name || "diagram") + ".json";
+    : (nameToFilename(Component.name) || "diagram") + ".json";
   showPrompt("Save As", "File name:", base, null, (filename) => {
     downloadJSON(filename);
     Model.savedFilename = filename.endsWith(".json") ? filename : filename + ".json";
@@ -4334,17 +5350,29 @@ function save() {
 // byte-identical.
 function buildSerializedModel() {
   return {
-    format: "stadiae-v2",
+    format: "stadiae-v3",
     interfaces: Model.interfaces.filter(i => !i.isDefault),
     messages: Model.messages.filter(m => !m.isDefault),
-    components: Model.components.map(c => ({
-      name: c.name,
-      arrowFontSize: c.arrowFontSize,
-      stateFontSize: c.stateFontSize,
-      states: c.states,
-      choicePoints: c.choicePoints,
-      transitions: c.transitions
-    })),
+    components: Model.components.map(c => {
+      const out = {
+        name: c.name,
+        arrowFontSize: c.arrowFontSize,
+        stateFontSize: c.stateFontSize,
+        states: c.states,
+        choicePoints: c.choicePoints,
+        transitions: c.transitions
+      };
+      // Only include displayName when set, so files for components
+      // whose `name` already says everything stay minimal.
+      if (c.displayName && c.displayName.length > 0) out.displayName = c.displayName;
+      // Description is the developer-documentation field; only persist
+      // when the user has actually written something.
+      if (c.description && c.description.length > 0) out.description = c.description;
+      return out;
+    }),
+    // System-level component diagram: {component, interface} pairs.
+    // Default interfaces never appear here.
+    connections: Model.connections,
     activeComponentIndex: Model.activeComponentIndex
   };
 }
@@ -4560,7 +5588,7 @@ function showTransitionsMarkdown() {
 }
 
 function exportPUML() {
-  const base = (Component.name || "diagram").replace(/\s+/g, "_");
+  const base = nameToFilename(Component.name) || "diagram";
   showPrompt("Export as PlantUML", "File name:", base + ".puml", null, (filename) => {
     if (!filename.endsWith(".puml")) filename += ".puml";
     // Use the unselected (clean) PlantUML source — no red selection styling
@@ -4575,7 +5603,7 @@ function exportPUML() {
 }
 
 function exportPNG() {
-  const base = (Component.name || "diagram").replace(/\s+/g, "_");
+  const base = nameToFilename(Component.name) || "diagram";
   showPrompt("Export as PNG", "File name:", base + ".png", null, (filename) => {
     if (!filename.endsWith(".png")) filename += ".png";
     // Request a fresh render without selection styling, then download
@@ -4615,7 +5643,9 @@ document.getElementById("file-input").addEventListener("change", e => {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      if (data.format === "stadiae-v2") {
+      if (data.format === "stadiae-v3" || data.format === "stadiae-v2") {
+        // v2 and v3 share the same loader — connections missing in v2
+        // arrive as empty, matching the migration-to-empty decision.
         loadV2(data);
       } else if (data.format === "stadiae-v1") {
         loadV1(data);
@@ -4648,7 +5678,10 @@ function loadV1(data) {
 }
 
 function loadV2(data) {
-  // Reset to system defaults, then restore saved data.
+  // Reset to system defaults, then restore saved data. Handles both v2
+  // and v3 payloads — the difference is that v3 carries a `connections`
+  // array for the system-level component diagram. Missing in v2 = empty,
+  // which matches the "start un-wired on migration" decision.
   resetModel();
   Model.interfaces = [
     { name: "Timer", isDefault: true },
@@ -4662,21 +5695,90 @@ function loadV2(data) {
   for (const i of (data.interfaces||[])) Model.interfaces.push({name:i.name, isDefault:false});
   for (const m of (data.messages||[])) Model.messages.push({interface:m.interface, name:m.name, isDefault:false});
   if (data.components && data.components.length > 0) {
-    Model.components = data.components.map(c => ({
-      name: c.name || "Component",
-      arrowFontSize: c.arrowFontSize || 9,
-      stateFontSize: c.stateFontSize || 12,
-      states: c.states || [],
-      choicePoints: c.choicePoints || [],
-      transitions: c.transitions || []
-    }));
+    // Component schema gained a `displayName` field. Older v3 files
+    // store free text (including `\n` markers) directly in `name`; we
+    // migrate at load time so the in-memory model always has a valid
+    // identifier `name` and an optional free-text `displayName`.
+    //
+    // Migration rules per component:
+    //   - If `displayName` is present, trust it. Validate that `name` is
+    //     identifier-safe; if not, slug it and fix up uniqueness later.
+    //   - If `displayName` is absent and `name` is already
+    //     identifier-safe, leave both alone (`displayName` empty).
+    //   - If `displayName` is absent and `name` contains free-text
+    //     characters (spaces, `\n` markers, punctuation), put the
+    //     original into `displayName` and slug `name` to a valid
+    //     identifier. Any references to the old name in `connections`
+    //     are then re-keyed via a rename map (built below).
+    const renameMap = new Map(); // oldName -> newName, when name was changed
+    const usedNames = new Set();
+    Model.components = data.components.map(c => {
+      const original = c.name || "Component";
+      let newName = original;
+      let newDisplay = (typeof c.displayName === "string") ? c.displayName : "";
+      if (!isValidIdentifier(original)) {
+        // Slug the original. Promote it to displayName if there isn't
+        // one already; otherwise the existing displayName wins.
+        if (!newDisplay) newDisplay = original;
+        newName = slugifyComponentName(original);
+      }
+      // Disambiguate collisions in the slugged-name space.
+      let candidate = newName;
+      let n = 2;
+      while (usedNames.has(candidate)) candidate = newName + "_" + (n++);
+      newName = candidate;
+      usedNames.add(newName);
+      if (newName !== original) renameMap.set(original, newName);
+      return {
+        name: newName,
+        displayName: newDisplay,
+        description: (typeof c.description === "string") ? c.description : "",
+        arrowFontSize: c.arrowFontSize || 9,
+        stateFontSize: c.stateFontSize || 12,
+        states: c.states || [],
+        choicePoints: c.choicePoints || [],
+        transitions: c.transitions || []
+      };
+    });
+    // If any names were rewritten, fix up connections to match. The
+    // connections loader below uses the post-migration names so this
+    // mutation only affects what's already in `data.connections`.
+    if (renameMap.size > 0 && Array.isArray(data.connections)) {
+      data.connections = data.connections.map(cn => {
+        if (!cn || typeof cn.component !== "string") return cn;
+        const mapped = renameMap.get(cn.component);
+        return mapped ? { ...cn, component: mapped } : cn;
+      });
+    }
   } else {
-    Model.components = [ makeEmptyComponent("Component Name") ];
+    Model.components = [ makeEmptyComponent("Component_Name") ];
   }
   Model.activeComponentIndex = Math.min(
     Math.max(0, data.activeComponentIndex || 0),
     Model.components.length - 1
   );
+  // Component-diagram connections — v3 only; v2 files arrive without
+  // any and start un-wired per the migration decision. Defensive filter
+  // drops entries whose component or interface no longer exists in case
+  // an edited file is slightly out of sync.
+  Model.connections = [];
+  if (Array.isArray(data.connections)) {
+    for (const c of data.connections) {
+      if (!c || typeof c.component !== "string" || typeof c.interface !== "string") continue;
+      if (isDefaultInterface(c.interface)) continue;
+      const hasComponent = Model.components.some(x => x.name === c.component);
+      const hasInterface = Model.interfaces.some(x => x.name === c.interface);
+      if (!hasComponent || !hasInterface) continue;
+      // De-dup
+      if (Model.connections.some(x => x.component === c.component && x.interface === c.interface)) continue;
+      const length = (typeof c.length === "number" && c.length >= 1) ? c.length : 1;
+      const connector = (c.connector === "Left" || c.connector === "Up" ||
+                         c.connector === "Down" || c.connector === "Right")
+                        ? c.connector : "Right";
+      Model.connections.push({ component: c.component, interface: c.interface, connector, length });
+    }
+  }
+  Model.activeView = "component";
 }
 
 // Restore the model from an autosaved draft payload (the shape built by
@@ -4721,9 +5823,9 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
       case "plantuml-server": showPlantUMLServerDialog(); break;
       case "exit": showAlert("Exit", "In a desktop app this would close the application. Close the browser tab to exit."); break;
       case "change-name":
-        showPrompt("Change component name", "Name:", Component.name, null, (name) => {
-          pushHistory(); Component.name = name; refresh();
-        });
+        // Edit name + display name of the active component via the same
+        // dialog used from the Components list.
+        openComponentDialog(Model.components[Model.activeComponentIndex]);
         break;
       case "change-tfont":
         showPrompt("Transition font size", "Size (pt):", String(Component.arrowFontSize),
@@ -4759,8 +5861,11 @@ document.getElementById("btn-add-state").onclick = actionAddState;
 document.getElementById("btn-add-cp").onclick = actionAddCP;
 document.getElementById("btn-add-trans").onclick = actionAddTransition;
 document.getElementById("btn-redirect").onclick = actionRedirectTransitions;
+document.getElementById("btn-add-conn").onclick = actionAddConnection;
 document.getElementById("btn-add-iface").onclick = actionAddInterface;
 document.getElementById("btn-add-msg").onclick = actionAddMessage;
+document.getElementById("btn-add-comp").onclick = addComponent;
+document.getElementById("btn-system").onclick = switchToSystem;
 document.getElementById("btn-edit").onclick = actionEdit;
 
 // Code panel toggle
@@ -4845,6 +5950,47 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
   handle.addEventListener("dblclick", () => { panel.style.height = "140px"; });
 })();
 
+// Vertical resize handle between description panel and component panel.
+// Dragging down increases the description, shrinks the component panel.
+// Only meaningful in component view (where there is something below); in
+// system view CSS hides the handle.
+(function() {
+  const handle = document.getElementById("resize-handle-desc");
+  const panel = document.getElementById("desc-panel");
+  let dragging = false;
+  let startY = 0, startH = 0;
+
+  handle.addEventListener("mousedown", e => {
+    dragging = true;
+    startY = e.clientY;
+    startH = panel.getBoundingClientRect().height;
+    handle.classList.add("dragging");
+    document.body.classList.add("resizing-v");
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const rightPanel = panel.parentElement;
+    const available = rightPanel.getBoundingClientRect().height;
+    const min = 60;
+    // Leave at least ~250px for everything below (lists + transitions
+    // + action). Mirrors the conservative cap used by the action
+    // panel handle above.
+    const max = Math.max(min, available - 250);
+    let h = startH + (e.clientY - startY);
+    h = Math.max(min, Math.min(max, h));
+    panel.style.height = h + "px";
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("dragging");
+    document.body.classList.remove("resizing-v");
+  });
+  // Double-click resets to the default 100px.
+  handle.addEventListener("dblclick", () => { panel.style.height = "100px"; });
+})();
+
 // Vertical resize handle between system panel and component panel
 (function() {
   const handle = document.getElementById("resize-handle-system");
@@ -4906,26 +6052,44 @@ function soleFullySelectedTransition() {
 }
 
 function changeTransitionDirectionByKey(direction) {
+  // First try for a sole selected state-machine transition (the original
+  // behaviour); if that doesn't match, try for a sole selected
+  // component-diagram connection. Both use the same {connector, length}
+  // shape, so the adjustment logic is identical.
   const t = soleFullySelectedTransition();
-  if (!t) return false;
-  // Self-transitions always use -> (per the design spec)
-  if (t.source === t.target) return false;
+  if (t) {
+    if (t.source === t.target) return false; // self-transitions are fixed
+    return adjustDirection(t, transitionIdKey(t), direction);
+  }
+  // Connection path — only in system view (connections aren't rendered
+  // elsewhere, but being explicit avoids surprises).
+  if (Model.activeView === "system" && Selection.connections.size === 1) {
+    const key = [...Selection.connections][0];
+    const [cname, iname] = key.split("|");
+    const conn = Model.connections.find(c => c.component === cname && c.interface === iname);
+    if (conn) return adjustDirection(conn, "conn:" + key, direction);
+  }
+  return false;
+}
 
-  const sessionKey = transitionIdKey(t);
+// Shared implementation: updates {connector, length} on an object `obj`
+// in response to an arrow-key press. `sessionKey` identifies the object
+// so repeated presses against the same target coalesce into one undo
+// step and repeated Up/Down extend the length.
+function adjustDirection(obj, sessionKey, direction) {
   const sameSession = (arrowKeySession.key === sessionKey &&
                        arrowKeySession.direction === direction);
-
   if (!sameSession) {
     pushHistory();
     arrowKeySession = { key: sessionKey, direction };
   }
-
-  // Repeated Up/Down presses extend the arrow length; other directions reset to 1.
+  // Repeated Up/Down presses extend the connector length; other
+  // directions reset to 1.
   if (sameSession && (direction === "Up" || direction === "Down")) {
-    t.length = (t.length || 1) + 1;
+    obj.length = (obj.length || 1) + 1;
   } else {
-    t.connector = direction;
-    t.length = 1;
+    obj.connector = direction;
+    obj.length = 1;
   }
   refresh();
   return true;
@@ -4968,6 +6132,7 @@ document.addEventListener("keydown", e => {
 loadPlantUMLServerConfig();
 updateServerStatus();
 initActionPanel();
+initDescriptionPanel();
 resetModel("Component Name");
 
 // If an autosaved draft from a previous session exists, restore it and
