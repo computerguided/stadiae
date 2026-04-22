@@ -1801,7 +1801,7 @@ function onDiagramClick(e) {
     }
     return;
   }
-  selectClick(e, "canvas", () => toggleSelection(hit.ref));
+  selectClick(e, "canvas", () => toggleSelection(hit.ref), isRefSelected(hit.ref));
   refresh();
 }
 
@@ -1890,7 +1890,7 @@ document.addEventListener("pointerdown", (e) => {
   if (e.pointerType) lastPointerType = e.pointerType;
 }, { capture: true });
 
-function selectClick(e, context, toggleFn) {
+function selectClick(e, context, toggleFn, isCurrentlySelected) {
   // On touch, every tap is a toggle — there's no modifier key to ask for
   // additive behaviour, so we must make it the default.
   if (lastPointerType === "touch") {
@@ -1902,6 +1902,12 @@ function selectClick(e, context, toggleFn) {
   const additiveModifier = e.ctrlKey || e.metaKey;
   if (additiveModifier) {
     // Ctrl/Cmd-click: pure toggle, nothing cleared.
+    toggleFn();
+  } else if (isCurrentlySelected) {
+    // Plain-click on an item that is ALREADY selected: deselect it. This
+    // gives you a one-click "remove from selection" gesture without
+    // needing Ctrl, matching how most checkbox-style UIs behave. Other
+    // items in the selection are preserved.
     toggleFn();
   } else if (lastSelectionContext === context && hasAnySelection()) {
     // Same panel as last click: single-select within that panel.
@@ -1942,6 +1948,28 @@ function toggleSelection(ref) {
       for (const k of rows) Selection.transitions.add(k);
     }
   }
+}
+
+// Is the element referenced by a canvas hit currently selected? For a
+// transition arrow, "selected" means every row of the grouped transition
+// is selected — the same threshold toggleSelection uses to decide
+// add-vs-remove. This feeds into the plain-click-on-selected-deselects
+// rule in selectClick.
+function isRefSelected(ref) {
+  const { kind, key } = ref;
+  if (kind === "start") return Selection.start;
+  if (kind === "any") return Selection.any;
+  if (kind === "state") return Selection.states.has(key.replace(/^state:/, ""));
+  if (kind === "cp") return Selection.choicePoints.has(key.replace(/^cp:/, ""));
+  if (kind === "transition") {
+    const tid = key.replace(/^trans:/, "");
+    const [src, tgt] = tid.split("|");
+    const t = Component.transitions.find(tt => tt.source === src && tt.target === tgt);
+    if (!t) return false;
+    const rows = transRowKeys(t);
+    return rows.length > 0 && rows.every(k => Selection.transitions.has(k));
+  }
+  return false;
 }
 
 // ---------- UI building ----------
@@ -2153,7 +2181,7 @@ function buildStateList() {
   startLi.classList.add("default-item");
   if (Selection.start) startLi.classList.add("selected");
   startLi.addEventListener("click", (e) => {
-    selectClick(e, "states", () => { Selection.start = !Selection.start; });
+    selectClick(e, "states", () => { Selection.start = !Selection.start; }, Selection.start);
     refresh();
   });
   ul.appendChild(startLi);
@@ -2164,7 +2192,7 @@ function buildStateList() {
   hLi.classList.add("default-item");
   if (Selection.history) hLi.classList.add("selected");
   hLi.addEventListener("click", (e) => {
-    selectClick(e, "states", () => { Selection.history = !Selection.history; });
+    selectClick(e, "states", () => { Selection.history = !Selection.history; }, Selection.history);
     refresh();
   });
   ul.appendChild(hLi);
@@ -2175,7 +2203,7 @@ function buildStateList() {
   anyLi.classList.add("default-item");
   if (Selection.any) anyLi.classList.add("selected");
   anyLi.addEventListener("click", (e) => {
-    selectClick(e, "states", () => { Selection.any = !Selection.any; });
+    selectClick(e, "states", () => { Selection.any = !Selection.any; }, Selection.any);
     refresh();
   });
   ul.appendChild(anyLi);
@@ -2192,7 +2220,7 @@ function buildStateList() {
       selectClick(e, "states", () => {
         if (Selection.states.has(s.name)) Selection.states.delete(s.name);
         else Selection.states.add(s.name);
-      });
+      }, Selection.states.has(s.name));
       refresh();
     });
     ul.appendChild(li);
@@ -2210,7 +2238,7 @@ function buildCPList() {
       selectClick(e, "cps", () => {
         if (Selection.choicePoints.has(c.name)) Selection.choicePoints.delete(c.name);
         else Selection.choicePoints.add(c.name);
-      });
+      }, Selection.choicePoints.has(c.name));
       refresh();
     });
     ul.appendChild(li);
@@ -2236,7 +2264,7 @@ function buildInterfaceList() {
         } else {
           Selection.interfaces.add(i.name);
         }
-      });
+      }, Selection.interfaces.has(i.name));
       // message list depends on iface selection
       refresh();
     });
@@ -2271,7 +2299,7 @@ function buildMessageList() {
         // visible in the Messages list (list visibility is gated on
         // interface selection).
         if (Selection.messages.has(key)) Selection.interfaces.add(m.interface);
-      });
+      }, Selection.messages.has(key));
       refresh();
     });
     ul.appendChild(li);
@@ -2321,7 +2349,7 @@ function buildTransitionTable() {
       selectClick(e, "transitions", () => {
         if (Selection.transitions.has(key)) Selection.transitions.delete(key);
         else Selection.transitions.add(key);
-      });
+      }, Selection.transitions.has(key));
       refresh();
     });
     tb.appendChild(tr);
@@ -2897,9 +2925,10 @@ function manualContent() {
       <p>Stadiæ tries to match the mental model: most of the time you want to pick just one thing; occasionally you want to pick several; and when you are composing a transition from pieces in different panels, you expect each click to <em>add</em> to what you've already got, not wipe it out.</p>
       <p>The rules:</p>
       <ul>
-        <li><strong>Plain click within the same panel</strong> (the same list, the transition table, or the canvas) swaps: it clears any earlier items <em>from that same panel</em> and selects just the clicked one. Other panels are untouched — if you had two states and an interface selected, and you change your mind about the interface by clicking a different one, the states stay.</li>
+        <li><strong>Plain click an unselected item within the same panel</strong> (the same list, the transition table, or the canvas) swaps: it clears any earlier items <em>from that same panel</em> and selects just the clicked one. Other panels are untouched — if you had two states and an interface selected, and you change your mind about the interface by clicking a different one, the states stay.</li>
+        <li><strong>Plain click an already-selected item</strong> deselects just that item, leaving the rest of the selection as-is. Click a state you didn't mean to include, and it drops out of the selection in one click.</li>
         <li><strong>Plain click in a different panel</strong> than your previous click adds to the selection, without clearing. This way, building a transition (click an interface, then a message, then a source state, then a target state) just works — every click is in a different panel, and each one adds.</li>
-        <li><strong>Ctrl-click</strong> (<strong>⌘-click</strong> on Mac) always toggles the clicked item without clearing anything, regardless of panel. Use it when you want multiple items from the same list — several messages, several transition rows, and so on. Ctrl-click is also how you deselect a single item.</li>
+        <li><strong>Ctrl-click</strong> (<strong>⌘-click</strong> on Mac) always toggles the clicked item without clearing anything, regardless of panel. Use it when you want multiple items from the same list — several messages, several transition rows, and so on.</li>
         <li><strong>Click empty space on the canvas</strong> clears the selection entirely, giving you a fresh start.</li>
       </ul>
       <div class="tip"><strong>Touch devices:</strong> tapping always toggles — every tap adds or removes an item without clearing the rest, since there's no Ctrl key to fall back on. To start over, tap empty space on the canvas.</div>
