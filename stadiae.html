@@ -1510,6 +1510,7 @@
       <div class="separator"></div>
       <div class="item" data-action="export-puml">Export as PlantUML (.puml)...</div>
       <div class="item" data-action="export-png">Export as PNG image...</div>
+      <div class="item" data-action="export-spec">Export Specification (.docx)...</div>
       <div class="separator"></div>
       <div class="item" data-action="plantuml-server">PlantUML server...</div>
       <div class="separator"></div>
@@ -2182,8 +2183,37 @@ function nextRenderSalt() {
 // clause is elided, so unambiguous cases stay concise and the output
 // reads like the model. Parallel to the `CP_` prefix for choice-points.
 function generateComponentDiagramPlantUML(opts = {}) {
-  const { withSelection = false, mode = "visible", idAssigner = null, includeSalt = true, salt = null } = opts;
+  const {
+    withSelection = false,
+    mode = "visible",
+    idAssigner = null,
+    includeSalt = true,
+    salt = null,
+    // Optional focus filter: when provided, the diagram is restricted
+    // to the focus component's immediate neighborhood. Used by the
+    // specification exporter to generate a per-component "context"
+    // diagram. `focus` carries the component name and the pre-computed
+    // allowed sets the caller wants rendered. When omitted, the full
+    // system diagram is generated.
+    focus = null
+  } = opts;
   const isMask = mode === "mask";
+  // Predicates the rest of the generator calls to decide whether an
+  // entity is in scope. When `focus` is null, everything is allowed —
+  // the full-system rendering behaviour. When focus is set, only the
+  // entries in each allowed-set pass.
+  const allowComponent = focus ? (name => focus.components.has(name)) : (() => true);
+  const allowHandler = focus ? (name => focus.handlers.has(name)) : (() => true);
+  const allowInterface = focus ? (name => focus.interfaces.has(name)) : (() => true);
+  const allowConnection = focus ? (c => focus.connections.has(c.component + "|" + c.interface)) : (() => true);
+  const allowHandlerConnection = focus ? (hc => focus.handlerConnections.has(hc.handler + "|" + hc.interface)) : (() => true);
+  const allowHandlerCall = focus ? (hc => focus.handlerCalls.has(hc.component + "|" + hc.handler)) : (() => true);
+  // When the generator is called for a per-component "context" diagram,
+  // the outer `component SystemName { ... }` box reads as visual
+  // redundancy — a single focused component doesn't need the whole-
+  // system boundary around it. `focus.skipSystemWrapper` drops both
+  // the opening wrapper line and its matching closing `}`.
+  const skipSystemWrapper = !!(focus && focus.skipSystemWrapper);
   const lines = [];
   lines.push("@startuml");
   if (includeSalt) {
@@ -2216,21 +2246,26 @@ function generateComponentDiagramPlantUML(opts = {}) {
   const sysId = Model.systemName || "System";
   const sysDisplay = (Model.systemDisplayName && Model.systemDisplayName.length > 0)
                       ? Model.systemDisplayName : sysId;
-  if (sysDisplay === sysId) {
-    lines.push(`component ${sysId} {`);
-  } else {
-    lines.push(`component ${sysId} as "${plantUMLEscape(sysDisplay)}" {`);
+  if (!skipSystemWrapper) {
+    if (sysDisplay === sysId) {
+      lines.push(`component ${sysId} {`);
+    } else {
+      lines.push(`component ${sysId} as "${plantUMLEscape(sysDisplay)}" {`);
+    }
+    lines.push("");
   }
-  lines.push("");
 
   // An interface appears on the diagram iff it has at least one wire —
   // either a Component connection or a Handler connection. Orphan
   // interfaces (declared but unwired) are suppressed to keep the
   // diagram clean. The set is also used as a membership check when
-  // filtering wiring emission below.
+  // filtering wiring emission below. When a focus filter is active,
+  // the allow-predicate further restricts which interfaces even get
+  // considered.
   const wiredInterfaces = new Set();
   for (const iface of Model.interfaces) {
     if (iface.isDefault) continue;
+    if (!allowInterface(iface.name)) continue;
     const hasConnection = Model.connections.some(c => c.interface === iface.name)
                        || Model.handlerConnections.some(hc => hc.interface === iface.name);
     if (!hasConnection) continue;
@@ -2272,6 +2307,7 @@ function generateComponentDiagramPlantUML(opts = {}) {
 
   lines.push("'== Components ==");
   Model.components.forEach(c => {
+    if (!allowComponent(c.name)) return;
     let line = `component ${c.name}${asClause(c.name, componentDisplayLabel(c))}`;
     if (isMask) {
       const maskId = idAssigner("comp:" + c.name, "comp");
@@ -2293,6 +2329,7 @@ function generateComponentDiagramPlantUML(opts = {}) {
   // path, not only the list).
   lines.push("'== Handlers ==");
   Model.handlers.forEach(h => {
+    if (!allowHandler(h.name)) return;
     let line = `node ${h.name}${asClause(h.name, handlerDisplayLabel(h))}`;
     if (isMask) {
       const maskId = idAssigner("handler:" + h.name, "handler");
@@ -2322,6 +2359,8 @@ function generateComponentDiagramPlantUML(opts = {}) {
   for (const conn of Model.connections) {
     if (!hasComponent(conn.component)) continue;
     if (!wiredInterfaces.has(conn.interface)) continue;
+    if (!allowComponent(conn.component)) continue;
+    if (!allowConnection(conn)) continue;
     const direction = conn.connector || "Right";
     const len = Math.max(1, conn.length || 1);
     const base = baseEdge(direction, len);
@@ -2353,6 +2392,8 @@ function generateComponentDiagramPlantUML(opts = {}) {
   for (const hc of Model.handlerConnections) {
     if (!hasHandlerEntity(hc.handler)) continue;
     if (!wiredInterfaces.has(hc.interface)) continue;
+    if (!allowHandler(hc.handler)) continue;
+    if (!allowHandlerConnection(hc)) continue;
     const direction = hc.connector || "Right";
     const len = Math.max(1, hc.length || 1);
     let edge = baseEdge(direction, len);
@@ -2375,6 +2416,9 @@ function generateComponentDiagramPlantUML(opts = {}) {
   for (const hc of Model.handlerCalls) {
     if (!hasComponent(hc.component)) continue;
     if (!hasHandlerEntity(hc.handler)) continue;
+    if (!allowComponent(hc.component)) continue;
+    if (!allowHandler(hc.handler)) continue;
+    if (!allowHandlerCall(hc)) continue;
     const direction = hc.connector || "Right";
     const len = Math.max(1, hc.length || 1);
     let edge;
@@ -2393,9 +2437,11 @@ function generateComponentDiagramPlantUML(opts = {}) {
     lines.push(`${hc.component} ${edge} ${hc.handler}`);
   }
 
-  // Close the outer wrapper box.
-  lines.push("");
-  lines.push("}");
+  // Close the outer wrapper box (when one was opened).
+  if (!skipSystemWrapper) {
+    lines.push("");
+    lines.push("}");
+  }
 
   lines.push("");
   lines.push("@enduml");
@@ -5741,6 +5787,21 @@ function manualContent() {
       <p>Writes the clean PlantUML source of whatever is currently showing on the canvas (no selection highlighting) to a <code>.puml</code> file. In component view this is the active component's state machine; in system view it is the system diagram (the whole component + handler + interface topology, enclosed in the outer system box). To export every component, switch the active component (one click in the Components list) and export each one; to export the system diagram, switch to system view and export. Feed the files to any PlantUML tool, check them into source control, or paste them into an online PlantUML renderer.</p>
       <h3>Export as PNG</h3>
       <p>Downloads whatever is currently rendered on the canvas as a PNG image — the active component's state machine in component view, the system diagram in system view. Useful for embedding in reports and slides.</p>
+      <h3>Export Specification (.docx)</h3>
+      <p>Under <em>File → Export Specification…</em>, Stadiæ produces a Word document (<code>.docx</code>) describing the entire system — everything the file knows, presented as native Word headings, paragraphs, and tables with rendered diagram images. The file opens directly in Word, LibreOffice Writer, Google Docs, or any other .docx-compatible tool. No plugins, no toolchain.</p>
+      <p>The document structure is fixed:</p>
+      <ul>
+        <li><strong>Title</strong> — the system's display name (or identifier).</li>
+        <li><strong>Description</strong> — the contents of the <em>System Specification</em> textarea, or a placeholder if empty. Multi-line text preserves its line breaks as separate paragraphs.</li>
+        <li><strong>System architecture</strong> — the system diagram rendered as an image, followed by a component summary table and a handler summary table.</li>
+        <li><strong>Interfaces</strong> — a summary table of the system's public interfaces, then one subsection per interface listing its messages and parameters. Multi-parameter messages use true row-span cell merging (the Message and Description cells span across the parameter rows).</li>
+        <li><strong>One section per component</strong> — description, a <em>Context</em> diagram image (the system diagram filtered to this component's immediate neighbourhood — the interfaces it's wired to, the handlers on those interfaces, and the handlers it calls directly), a States table, a Choice-points table, the full state diagram as an image, and a State transition table listing every transition with its action text.</li>
+        <li><strong>One section per handler</strong> — description, then a Functions table listing the handler's exposed API with its parameters.</li>
+      </ul>
+      <p>Diagrams are rendered as PNG images embedded in the document — the same PlantUML server that feeds the canvas preview renders each diagram at export time. If a diagram fails to render (CORS issue, server unreachable), the document still generates with a short placeholder paragraph in that section's slot so the rest of the spec remains intact.</p>
+      <p>Empty sections get a one-line fallback (<em>This interface has no messages.</em>, <em>This handler exposes no functions.</em>, etc.) so the document structure is always visible. Empty descriptions get replaced by <em>No description provided.</em> — grep-friendly when auditing for gaps.</p>
+      <p>The default filename is <code>&lt;systemname&gt;-spec.docx</code>.</p>
+      <div class="tip">The first export of a session downloads the .docx library from <code>unpkg.com</code> (~600KB). Subsequent exports in the same session reuse the cached library. This means the first export needs network access to unpkg.com; if you're offline, wait until you're back on a network, then try again.</div>
       <h3>Copy transitions as Markdown</h3>
       <p>Under <em>Component → Copy transitions as Markdown table…</em>, Stadiæ produces a markdown table of the <em>active</em> component's transitions, with columns <em>Source</em>, <em>Target</em>, <em>Interface</em>, <em>Message</em>, and <em>Action</em>. Source and target use their display names / questions, and newlines inside cells become <code>&lt;br&gt;</code> so the markdown stays well-formed. Click <em>Copy to clipboard</em> or just select-all in the textarea and paste elsewhere.</p>
       <div class="tip">Exports always use the unselected (clean) version of the diagram — the red highlighting you may have on screen is not baked into the output.</div>
@@ -7549,6 +7610,720 @@ function showTransitionsMarkdown() {
   document.getElementById("md-close").onclick = hideModal;
 }
 
+// ---------- Specification export ----------
+// Generate a .docx specification document describing the entire system.
+// The output carries the model's full vocabulary as native Word-style
+// paragraphs and tables with rendered diagram images. The .docx format
+// is chosen over Markdown because round-trip fidelity in consumer tools
+// (Word, LibreOffice, Google Docs) is materially better than Markdown's
+// patchwork of viewers, and embedded-image diagrams don't require any
+// PlantUML toolchain on the reader's end.
+//
+// Implementation outline:
+//   1. Lazy-load the `docx` UMD build from unpkg on first use (cached
+//      thereafter on `window._docx`). Library-free until user exports.
+//   2. For each diagram — system overview, per-component context
+//      (filtered), per-component state machine — fetch the image bytes
+//      from the configured PlantUML server.
+//   3. Build a docx.Document tree mirroring the old Markdown template
+//      structure: H1 title, H2 Description, H2 System architecture,
+//      H2 Interfaces + H3 per interface, H2 per component, H2 per
+//      handler.
+//   4. Pack via docx.Packer and trigger download.
+//
+// Network surface: unpkg.com for the library (one-time), the configured
+// PlantUML server for each diagram.
+
+// Cache for the lazy-loaded docx library module.
+let _docxLib = null;
+// Pinned version — changing this requires testing the API surface we
+// use (Document, Paragraph, TextRun, HeadingLevel, Table, TableRow,
+// TableCell, WidthType, ImageRun, Packer, AlignmentType, BorderStyle).
+const DOCX_CDN = "https://unpkg.com/docx@8.5.0/build/index.umd.js";
+
+function loadDocxLibrary() {
+  if (_docxLib) return Promise.resolve(_docxLib);
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = DOCX_CDN;
+    script.onload = () => {
+      // The UMD build exposes `docx` on window. Cache and resolve.
+      if (window.docx) {
+        _docxLib = window.docx;
+        resolve(_docxLib);
+      } else {
+        reject(new Error("docx library loaded but window.docx is undefined"));
+      }
+    };
+    script.onerror = () => reject(new Error("Failed to load docx library from " + DOCX_CDN));
+    document.head.appendChild(script);
+  });
+}
+
+// Fetch a rendered PlantUML image as an ArrayBuffer suitable for
+// ImageRun. Uses the user's currently-configured PlantUML server
+// (same host the canvas uses). Also reads the image's natural pixel
+// size so the generator can scale it to fit the page.
+// Returns {buffer, width, height} on success. Throws on any failure —
+// caller is responsible for deciding how to render the error.
+async function fetchDiagramImage(plantUMLSource) {
+  const url = plantUMLImageURL(plantUMLSource);
+  // Cache-bust: the existing canvas already embeds a per-render salt
+  // in the source, but exports strip it. Server-side caches on the
+  // PlantUML URL should still key correctly without further help.
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`PlantUML server returned ${res.status}`);
+  const buffer = await res.arrayBuffer();
+  // Read natural dimensions by loading the bytes into an Image element.
+  // This is essentially free — the bytes are already local by this
+  // point, and we need the dimensions for the docx ImageRun's width/
+  // height parameters.
+  const blob = new Blob([buffer], { type: "image/png" });
+  const objUrl = URL.createObjectURL(blob);
+  try {
+    const dims = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => reject(new Error("Failed to decode PlantUML image bytes"));
+      img.src = objUrl;
+    });
+    return { buffer, width: dims.width, height: dims.height };
+  } finally {
+    URL.revokeObjectURL(objUrl);
+  }
+}
+
+// Scale an intrinsic (width, height) pair to fit the document's usable
+// page width (in pixels) while preserving aspect ratio. A standard US
+// Letter / A4 page with 1-inch margins has ~6.5 inches of content —
+// at the default 96 DPI, that's 624 pixels. Small images pass through
+// at their natural size.
+function fitDiagramToPage(natW, natH) {
+  const MAX_W = 600;
+  if (natW <= MAX_W) return { width: natW, height: natH };
+  const scale = MAX_W / natW;
+  return { width: MAX_W, height: Math.round(natH * scale) };
+}
+
+// Show a progress modal while the export runs. Returns an update
+// function and a dismiss function. The update function takes a status
+// string and replaces the modal's body text.
+function showExportProgress(initial) {
+  modalContainer.innerHTML = `
+    <div class="title">Exporting specification…</div>
+    <div class="body">
+      <p id="export-progress-msg">${escapeHTML(initial)}</p>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const msgEl = document.getElementById("export-progress-msg");
+  return {
+    update: (text) => { msgEl.textContent = text; },
+    dismiss: () => { hideModal(); }
+  };
+}
+
+// Top-level export entry point. Menu-bound.
+async function exportSpecification() {
+  // Ask for a filename first; if the user cancels, we don't want to
+  // have loaded the library or fetched anything.
+  const defaultBase = nameToFilename(Model.systemDisplayName || Model.systemName) || "system";
+  showPrompt("Export specification", "File name:", defaultBase + "-spec.docx", null, async (filename) => {
+    if (!filename.endsWith(".docx")) filename += ".docx";
+    const progress = showExportProgress("Loading document library…");
+    try {
+      const docx = await loadDocxLibrary();
+      progress.update("Rendering diagrams…");
+      const doc = await buildSpecificationDocx(docx, progress);
+      progress.update("Packaging document…");
+      const blob = await docx.Packer.toBlob(doc);
+      progress.dismiss();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (err) {
+      progress.dismiss();
+      showAlert("Export failed", "Could not generate the specification document.\n\n" + err.message);
+    }
+  });
+}
+
+// Helpers to keep the docx tree-building less verbose. Each returns a
+// docx node or array of nodes. `d` is the loaded docx module.
+
+// Single paragraph of plain text. Safe with empty input (emits an
+// empty paragraph so the visual structure is preserved).
+function mkPara(d, text) {
+  return new d.Paragraph({
+    children: [ new d.TextRun(text == null ? "" : String(text)) ]
+  });
+}
+
+// Multi-line text → one Paragraph per line. Preserves the visual
+// line-breaks of a user-authored textarea (System Specification,
+// component description).
+function mkParas(d, text) {
+  const str = text == null ? "" : String(text);
+  if (str.length === 0) return [ mkPara(d, "") ];
+  return str.split(/\r?\n/).map(line => mkPara(d, line));
+}
+
+// Italic placeholder paragraph — used for empty-section fallbacks
+// ("No handlers are defined.", etc.). Matches the Markdown template's
+// `_italic_` convention visually.
+function mkItalicPara(d, text) {
+  return new d.Paragraph({
+    children: [ new d.TextRun({ text, italics: true }) ]
+  });
+}
+
+function mkHeading(d, text, level) {
+  const heading = level === 1 ? d.HeadingLevel.HEADING_1
+                : level === 2 ? d.HeadingLevel.HEADING_2
+                : level === 3 ? d.HeadingLevel.HEADING_3
+                : d.HeadingLevel.HEADING_4;
+  return new d.Paragraph({
+    text: text == null ? "" : String(text),
+    heading
+  });
+}
+
+// Build a table cell from a plain string, with optional row/column spans
+// and optional width (percentage of page width). Setting an explicit
+// width per cell is how docx's XML actually conveys column sizing — the
+// table-level layout hint alone is not enough in Word; it uses the
+// cell widths for the actual column boundaries.
+//
+// Multi-line text handling: the model uses the literal two-character
+// sequence `\n` as a line-break marker in short labels (state display
+// names, choice-point questions) — this exists so PlantUML can wrap
+// the label on the diagram where horizontal space is tight. In prose
+// documents the line breaks are an artifact of the diagram medium, not
+// semantic, so the cell collapses them to spaces. Real newlines in
+// authored text (longer descriptions, specification text) are left to
+// the paragraph-level mkParas helper; inside a table cell we stay on
+// one paragraph to keep the row height predictable.
+function mkCell(d, text, opts = {}) {
+  const raw = text == null ? "" : String(text);
+  // Collapse the \n line-break marker AND any real newlines to a
+  // single space. This flattens both cases without special-casing.
+  const flat = raw.replace(/\\n/g, " ").replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+  const children = [ new d.Paragraph({
+    children: [ new d.TextRun(flat) ]
+  }) ];
+  const cellOpts = { children };
+  if (opts.rowSpan && opts.rowSpan > 1) cellOpts.rowSpan = opts.rowSpan;
+  if (opts.columnSpan && opts.columnSpan > 1) cellOpts.columnSpan = opts.columnSpan;
+  if (typeof opts.widthPct === "number") {
+    cellOpts.width = { size: opts.widthPct, type: d.WidthType.PERCENTAGE };
+  }
+  return new d.TableCell(cellOpts);
+}
+
+// Header cell — bold text, light grey fill, same width mechanics as
+// mkCell. Used in the first row of every table.
+function mkHeaderCell(d, text, opts = {}) {
+  const cellOpts = {
+    shading: { type: d.ShadingType.CLEAR, color: "auto", fill: "E8EAF0" },
+    children: [ new d.Paragraph({
+      children: [ new d.TextRun({ text: String(text), bold: true }) ]
+    }) ]
+  };
+  if (typeof opts.widthPct === "number") {
+    cellOpts.width = { size: opts.widthPct, type: d.WidthType.PERCENTAGE };
+  }
+  return new d.TableCell(cellOpts);
+}
+
+// Full-width table wrapper.
+// - `headers`: array of header text strings. mkTable constructs the
+//   header cells itself (applying column widths and bold/shaded style).
+// - `bodyRows`: array of TableRow objects, constructed by callers via
+//   mkCell + the same `columnWidths` applied to cells.
+// - `columnWidths`: array of percentages summing to ~100. Combined with
+//   TableLayoutType.FIXED, this locks column widths so Word doesn't
+//   re-size columns based on content (which produces the
+//   one-character-per-line pathology on narrow headings).
+function mkTable(d, headers, bodyRows, columnWidths) {
+  const headerCells = headers.map((text, i) => {
+    const widthPct = columnWidths ? columnWidths[i] : undefined;
+    return mkHeaderCell(d, text, { widthPct });
+  });
+  const tableOpts = {
+    width: { size: 100, type: d.WidthType.PERCENTAGE },
+    rows: [
+      new d.TableRow({ children: headerCells, tableHeader: true }),
+      ...bodyRows
+    ]
+  };
+  if (Array.isArray(columnWidths)) {
+    tableOpts.layout = d.TableLayoutType.FIXED;
+  }
+  return new d.Table(tableOpts);
+}
+
+// The heart of the export. Walks the Model, fetches diagram images as
+// needed, assembles the document. Returns a docx.Document.
+async function buildSpecificationDocx(d, progress) {
+  const children = [];
+  const ND = "No description provided.";
+  const desc = (s) => (s && s.length > 0) ? s : ND;
+
+  // Column-width profiles per table kind. Percentages sum to ~100. The
+  // narrow "name" columns need enough room for identifier text but the
+  // wide "description" / "action" columns absorb the bulk of the space.
+  // Without explicit widths, Word computes widths from minimum content
+  // and collapses narrow-heading columns to one character per line.
+  const COL_2 = [25, 75];                  // Name | Description
+  const COL_4 = [18, 40, 22, 20];          // Name | Description | Param | Type
+  const COL_5 = [13, 13, 16, 16, 42];      // Source | Target | Iface | Msg | Action
+
+  // --- Title ---
+  // The H1 is the literal phrase "System specification" per the
+  // template convention; the system's own name lives in the docx
+  // document metadata (title field, visible in file properties) and
+  // implicitly through the component/handler chapter headings.
+  // A future enhancement could add the system name as a subtitle
+  // paragraph, but the template explicitly shows no system-name
+  // heading at the top.
+  const sysTitle = (Model.systemDisplayName && Model.systemDisplayName.length > 0)
+                    ? Model.systemDisplayName
+                    : (Model.systemName || "System");
+  children.push(mkHeading(d, "System specification", 1));
+
+  // --- Description ---
+  children.push(mkHeading(d, "Description", 2));
+  if (Model.systemSpecification && Model.systemSpecification.length > 0) {
+    for (const p of mkParas(d, Model.systemSpecification)) children.push(p);
+  } else {
+    children.push(mkItalicPara(d, "No system specification provided."));
+  }
+
+  // --- System architecture ---
+  children.push(mkHeading(d, "System architecture", 2));
+  // Render the full system diagram. Failures downgrade to a plain
+  // message rather than killing the whole export — the reader still
+  // gets the descriptions and tables.
+  progress.update("Rendering system diagram…");
+  const sysSrc = generateComponentDiagramPlantUML({ withSelection: false, includeSalt: false });
+  try {
+    const img = await fetchDiagramImage(sysSrc);
+    const dim = fitDiagramToPage(img.width, img.height);
+    children.push(new d.Paragraph({
+      alignment: d.AlignmentType.CENTER,
+      children: [ new d.ImageRun({
+        data: img.buffer,
+        transformation: dim
+      }) ]
+    }));
+  } catch (err) {
+    children.push(mkItalicPara(d, "Could not render system diagram: " + err.message));
+  }
+
+  // Component summary table.
+  children.push(mkPara(d, "The descriptions of the identified components are given in the table below."));
+  children.push(mkTable(d,
+    [ "Component", "Description" ],
+    Model.components.map(c => new d.TableRow({
+      children: [
+        mkCell(d, componentDisplayLabel(c), { widthPct: COL_2[0] }),
+        mkCell(d, desc(c.description), { widthPct: COL_2[1] })
+      ]
+    })),
+    COL_2
+  ));
+  children.push(mkPara(d, ""));
+
+  // Handler summary table (or fallback).
+  if (Model.handlers.length === 0) {
+    children.push(mkItalicPara(d, "No handlers are defined for this system."));
+  } else {
+    children.push(mkPara(d, "The descriptions of the identified handlers are given in the table below."));
+    children.push(mkTable(d,
+      [ "Handler", "Description" ],
+      Model.handlers.map(h => new d.TableRow({
+        children: [
+          mkCell(d, handlerDisplayLabel(h), { widthPct: COL_2[0] }),
+          mkCell(d, desc(h.description), { widthPct: COL_2[1] })
+        ]
+      })),
+      COL_2
+    ));
+  }
+  children.push(mkPara(d, ""));
+
+  // --- Interfaces ---
+  children.push(mkHeading(d, "Interfaces", 1));
+  const publicIfaces = Model.interfaces
+    .filter(i => !i.isDefault)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  if (publicIfaces.length === 0) {
+    children.push(mkItalicPara(d, "No interfaces are defined for this system."));
+  } else {
+    children.push(mkPara(d, "The following table lists the defined interfaces."));
+    children.push(mkTable(d,
+      [ "Name", "Description" ],
+      publicIfaces.map(i => new d.TableRow({
+        children: [
+          mkCell(d, i.name, { widthPct: COL_2[0] }),
+          mkCell(d, desc(i.description), { widthPct: COL_2[1] })
+        ]
+      })),
+      COL_2
+    ));
+    children.push(mkPara(d, ""));
+    children.push(mkPara(d, "The messages for the interfaces are specified in the following sections."));
+
+    for (const i of publicIfaces) {
+      children.push(mkHeading(d, i.name, 2));
+      const msgs = Model.messages
+        .filter(m => !m.isDefault && m.interface === i.name)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      if (msgs.length === 0) {
+        children.push(mkPara(d, "This interface has no messages."));
+      } else {
+        children.push(mkPara(d, "The following messages are specified."));
+        // Table: Message | Description | Parameter | Type
+        // Rowspan on Message + Description when the message has N>1
+        // parameters.
+        const rows = [];
+        for (const m of msgs) {
+          const params = Array.isArray(m.parameters) ? [...m.parameters] : [];
+          params.sort((a, b) => a.name.localeCompare(b.name));
+          if (params.length === 0) {
+            rows.push(new d.TableRow({ children: [
+              mkCell(d, m.name, { widthPct: COL_4[0] }),
+              mkCell(d, desc(m.description), { widthPct: COL_4[1] }),
+              mkCell(d, "-", { widthPct: COL_4[2] }),
+              mkCell(d, "-", { widthPct: COL_4[3] })
+            ]}));
+          } else {
+            const span = params.length;
+            rows.push(new d.TableRow({ children: [
+              mkCell(d, m.name, { rowSpan: span, widthPct: COL_4[0] }),
+              mkCell(d, desc(m.description), { rowSpan: span, widthPct: COL_4[1] }),
+              mkCell(d, params[0].name, { widthPct: COL_4[2] }),
+              mkCell(d, params[0].type || "-", { widthPct: COL_4[3] })
+            ]}));
+            for (let k = 1; k < params.length; k++) {
+              rows.push(new d.TableRow({ children: [
+                mkCell(d, params[k].name, { widthPct: COL_4[2] }),
+                mkCell(d, params[k].type || "-", { widthPct: COL_4[3] })
+              ]}));
+            }
+          }
+        }
+        children.push(mkTable(d,
+          [ "Message", "Description", "Parameter", "Type" ],
+          rows,
+          COL_4
+        ));
+      }
+      children.push(mkPara(d, ""));
+    }
+  }
+
+  // --- Component deep-dives ---
+  for (const c of Model.components) {
+    const label = componentDisplayLabel(c);
+    children.push(mkHeading(d, label, 1));
+    for (const p of mkParas(d, desc(c.description))) children.push(p);
+
+    // Context diagram (filtered).
+    children.push(mkHeading(d, "Context", 2));
+    children.push(mkPara(d, `The context of the ${label} is given below.`));
+    progress.update(`Rendering context diagram for ${label}…`);
+    const ctxSrc = generateComponentDiagramPlantUML({
+      withSelection: false, includeSalt: false,
+      focus: buildFocusFilter(c.name)
+    });
+    try {
+      const img = await fetchDiagramImage(ctxSrc);
+      const dim = fitDiagramToPage(img.width, img.height);
+      children.push(new d.Paragraph({
+        alignment: d.AlignmentType.CENTER,
+        children: [ new d.ImageRun({
+          data: img.buffer,
+          transformation: dim
+        }) ]
+      }));
+    } catch (err) {
+      children.push(mkItalicPara(d, "Could not render context diagram: " + err.message));
+    }
+
+    // States.
+    children.push(mkHeading(d, "States", 2));
+    const states = Array.isArray(c.states) ? c.states : [];
+    if (states.length === 0) {
+      children.push(mkPara(d, "This component has no states."));
+    } else {
+      children.push(mkPara(d, `The states of the ${label} are given in the table below.`));
+      const sorted = [...states].sort((a, b) => a.name.localeCompare(b.name));
+      children.push(mkTable(d,
+        [ "State", "Description" ],
+        sorted.map(s => {
+          const sLabel = (s.displayName && s.displayName.length > 0) ? s.displayName : s.name;
+          return new d.TableRow({ children: [
+            // Pass the raw label including any `\n` markers; mkCell
+            // splits on them and emits one paragraph per line inside
+            // the cell (same convention as choice-point questions).
+            mkCell(d, sLabel, { widthPct: COL_2[0] }),
+            mkCell(d, desc(s.description), { widthPct: COL_2[1] })
+          ]});
+        }),
+        COL_2
+      ));
+    }
+
+    // Choice-points. The choice-point's `name` is an internal PlantUML
+    // identifier (a single-word tag like `Available` that becomes
+    // `CP_Available` in the generated source); it has no semantic
+    // meaning to a spec reader. The `question` — "Is the item in
+    // stock?" — is the actual content, and `description` elaborates
+    // on it. The table therefore uses Question | Description columns,
+    // skipping the name entirely.
+    children.push(mkHeading(d, "Choice-points", 2));
+    const cps = Array.isArray(c.choicePoints) ? c.choicePoints : [];
+    if (cps.length === 0) {
+      children.push(mkPara(d, "This component has no choice-points."));
+    } else {
+      children.push(mkPara(d, `The choice-points of the ${label} are given in the table below.`));
+      // Sort by question text so the reader sees them in a predictable
+      // order based on what they actually say, not on the internal
+      // identifier. Falls back to the name when a question is absent
+      // (the sort key stays stable even if both are empty).
+      const sorted = [...cps].sort((a, b) => {
+        const aKey = (a.question && a.question.length > 0) ? a.question : a.name;
+        const bKey = (b.question && b.question.length > 0) ? b.question : b.name;
+        return aKey.localeCompare(bKey);
+      });
+      children.push(mkTable(d,
+        [ "Question", "Description" ],
+        sorted.map(cp => {
+          // Empty question: fall back to the name. Every choice-point
+          // should have a question in a well-formed model, but if the
+          // user created one and hasn't authored its question yet, the
+          // name is at least something identifiable.
+          const question = (cp.question && cp.question.length > 0)
+                            ? cp.question
+                            : cp.name;
+          return new d.TableRow({ children: [
+            mkCell(d, question, { widthPct: COL_2[0] }),
+            mkCell(d, desc(cp.description), { widthPct: COL_2[1] })
+          ]});
+        }),
+        COL_2
+      ));
+    }
+
+    // State diagram.
+    children.push(mkHeading(d, "State diagram", 2));
+    children.push(mkPara(d, `The state diagram of the ${label} is given below.`));
+    progress.update(`Rendering state machine for ${label}…`);
+    const savedActiveIndex = Model.activeComponentIndex;
+    const idx = Model.components.indexOf(c);
+    let smSrc;
+    try {
+      if (idx >= 0) Model.activeComponentIndex = idx;
+      smSrc = generatePlantUML({ withSelection: false, includeSalt: false });
+    } finally {
+      Model.activeComponentIndex = savedActiveIndex;
+    }
+    try {
+      const img = await fetchDiagramImage(smSrc);
+      const dim = fitDiagramToPage(img.width, img.height);
+      children.push(new d.Paragraph({
+        alignment: d.AlignmentType.CENTER,
+        children: [ new d.ImageRun({
+          data: img.buffer,
+          transformation: dim
+        }) ]
+      }));
+    } catch (err) {
+      children.push(mkItalicPara(d, "Could not render state diagram: " + err.message));
+    }
+
+    // Transition table.
+    children.push(mkHeading(d, "State transition table", 2));
+    const transitions = Array.isArray(c.transitions) ? c.transitions : [];
+    if (transitions.length === 0) {
+      children.push(mkPara(d, `The ${label} has no transitions.`));
+    } else {
+      children.push(mkPara(d, `The state transition table for the ${label} is given in the following table.`));
+      const rows = [];
+      for (const t of transitions) {
+        const src = nodeLabelInComponent(c, t.source);
+        const tgt = nodeLabelInComponent(c, t.target);
+        const msgs = Array.isArray(t.messages) ? t.messages : [];
+        if (msgs.length === 0) {
+          rows.push(new d.TableRow({ children: [
+            mkCell(d, src, { widthPct: COL_5[0] }),
+            mkCell(d, tgt, { widthPct: COL_5[1] }),
+            mkCell(d, "-", { widthPct: COL_5[2] }),
+            mkCell(d, "-", { widthPct: COL_5[3] }),
+            mkCell(d, "-", { widthPct: COL_5[4] })
+          ]}));
+        } else {
+          const span = msgs.length;
+          const firstAction = lookupMessageAction(msgs[0].interface, msgs[0].name);
+          rows.push(new d.TableRow({ children: [
+            mkCell(d, src, { rowSpan: span, widthPct: COL_5[0] }),
+            mkCell(d, tgt, { rowSpan: span, widthPct: COL_5[1] }),
+            mkCell(d, msgs[0].interface, { widthPct: COL_5[2] }),
+            mkCell(d, msgs[0].name, { widthPct: COL_5[3] }),
+            mkCell(d, firstAction, { widthPct: COL_5[4] })
+          ]}));
+          for (let k = 1; k < msgs.length; k++) {
+            const act = lookupMessageAction(msgs[k].interface, msgs[k].name);
+            rows.push(new d.TableRow({ children: [
+              mkCell(d, msgs[k].interface, { widthPct: COL_5[2] }),
+              mkCell(d, msgs[k].name, { widthPct: COL_5[3] }),
+              mkCell(d, act, { widthPct: COL_5[4] })
+            ]}));
+          }
+        }
+      }
+      children.push(mkTable(d,
+        [ "Source", "Target", "Interface", "Message", "Action" ],
+        rows,
+        COL_5
+      ));
+    }
+  }
+
+  // --- Handler deep-dives ---
+  for (const h of Model.handlers) {
+    const label = handlerDisplayLabel(h);
+    children.push(mkHeading(d, label, 1));
+    for (const p of mkParas(d, desc(h.description))) children.push(p);
+    children.push(mkHeading(d, "Functions", 2));
+    const fns = Array.isArray(h.functions) ? [...h.functions] : [];
+    fns.sort((a, b) => a.name.localeCompare(b.name));
+    if (fns.length === 0) {
+      children.push(mkPara(d, `The ${label} exposes no functions.`));
+    } else {
+      children.push(mkPara(d, `The functions for the ${label} are given in the table below.`));
+      const rows = [];
+      for (const f of fns) {
+        const params = Array.isArray(f.parameters) ? [...f.parameters] : [];
+        params.sort((a, b) => a.name.localeCompare(b.name));
+        if (params.length === 0) {
+          rows.push(new d.TableRow({ children: [
+            mkCell(d, f.name, { widthPct: COL_4[0] }),
+            mkCell(d, desc(f.description), { widthPct: COL_4[1] }),
+            mkCell(d, "-", { widthPct: COL_4[2] }),
+            mkCell(d, "-", { widthPct: COL_4[3] })
+          ]}));
+        } else {
+          const span = params.length;
+          rows.push(new d.TableRow({ children: [
+            mkCell(d, f.name, { rowSpan: span, widthPct: COL_4[0] }),
+            mkCell(d, desc(f.description), { rowSpan: span, widthPct: COL_4[1] }),
+            mkCell(d, params[0].name, { widthPct: COL_4[2] }),
+            mkCell(d, params[0].type || "-", { widthPct: COL_4[3] })
+          ]}));
+          for (let k = 1; k < params.length; k++) {
+            rows.push(new d.TableRow({ children: [
+              mkCell(d, params[k].name, { widthPct: COL_4[2] }),
+              mkCell(d, params[k].type || "-", { widthPct: COL_4[3] })
+            ]}));
+          }
+        }
+      }
+      children.push(mkTable(d,
+        [ "Function", "Description", "Parameter", "Type" ],
+        rows,
+        COL_4
+      ));
+    }
+  }
+
+  return new d.Document({
+    creator: "Stadiæ",
+    title: sysTitle,
+    description: "System specification exported from Stadiæ.",
+    sections: [ { children } ]
+  });
+}
+
+// Compute the sets of components/handlers/interfaces/connections that
+// form the immediate neighborhood of the focus component. Fed to
+// generateComponentDiagramPlantUML's `focus` option to produce a
+// per-component context diagram.
+function buildFocusFilter(focusComponentName) {
+  const components = new Set([focusComponentName]);
+  const interfaces = new Set();
+  const handlers = new Set();
+  const connections = new Set();
+  const handlerConnections = new Set();
+  const handlerCalls = new Set();
+
+  // Interfaces the focus component is wired to (plus its outgoing
+  // connections).
+  for (const c of Model.connections) {
+    if (c.component === focusComponentName) {
+      interfaces.add(c.interface);
+      connections.add(c.component + "|" + c.interface);
+    }
+  }
+  // Handlers wired to any of those interfaces (senders/receivers on
+  // the same wire as the focus component).
+  for (const hc of Model.handlerConnections) {
+    if (interfaces.has(hc.interface)) {
+      handlers.add(hc.handler);
+      handlerConnections.add(hc.handler + "|" + hc.interface);
+    }
+  }
+  // Handlers the focus component calls directly.
+  for (const hc of Model.handlerCalls) {
+    if (hc.component === focusComponentName) {
+      handlers.add(hc.handler);
+      handlerCalls.add(hc.component + "|" + hc.handler);
+    }
+  }
+  return { components, interfaces, handlers, connections, handlerConnections, handlerCalls,
+           // Context diagrams are single-component focused views, so the
+           // outer system box adds visual noise rather than structure.
+           skipSystemWrapper: true };
+}
+
+// Look up the action text for a specific message. Returns "-" when the
+// message has no action or can't be found, so the transition table
+// always renders a stable placeholder.
+function lookupMessageAction(ifaceName, msgName) {
+  const m = Model.messages.find(mm => mm.interface === ifaceName && mm.name === msgName);
+  if (!m) return "-";
+  return (m.action && m.action.length > 0) ? m.action : "-";
+}
+
+// Component-scoped version of the in-editor `nodeLabel` helper. The
+// editor's version reads from the active component and folds `\n`
+// markers to spaces to fit the narrow transitions-table column in the
+// UI. The spec export needs to resolve endpoints against a specific
+// component (the one being documented) and preserves `\n` markers
+// verbatim — mkCell handles the split-into-paragraphs conversion at
+// the cell level, so we get real line breaks in wider Word cells.
+function nodeLabelInComponent(comp, id) {
+  if (!id) return "-";
+  if (id === "START") return "●";
+  if (id === "[H]") return "H";
+  if (id === "*") return "∗";
+  if (id.startsWith("CP_")) {
+    const cp = (comp.choicePoints || []).find(c => c.name === id.slice(3));
+    if (cp && cp.question && cp.question.length > 0) return cp.question;
+    // Fall through to the raw name minus prefix when there's no
+    // question authored — a bare "Available" is still more readable
+    // than "CP_Available".
+    return id.slice(3);
+  }
+  const s = (comp.states || []).find(ss => ss.name === id);
+  if (s && s.displayName && s.displayName.length > 0) return s.displayName;
+  return id;
+}
+
+
 function exportPUML() {
   // Export what the user is looking at. In system view, the system
   // diagram becomes the exported artefact; in component view, the
@@ -7931,6 +8706,7 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
       case "saveas": saveAs(); break;
       case "export-puml": exportPUML(); break;
       case "export-png": exportPNG(); break;
+      case "export-spec": exportSpecification(); break;
       case "plantuml-server": showPlantUMLServerDialog(); break;
       case "exit": showAlert("Exit", "In a desktop app this would close the application. Close the browser tab to exit."); break;
       case "change-name":
