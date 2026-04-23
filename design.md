@@ -58,8 +58,8 @@ A Stadiæ file holds one or more **components** (independent state machines) plu
 ```js
 Model = {
   // System-wide (shared across components)
-  interfaces: [ {name, isDefault} ],
-  messages:   [ {interface, name, isDefault} ],
+  interfaces: [ {name, isDefault, description} ],
+  messages:   [ {interface, name, isDefault, description} ],
   // Components
   components: [
     {
@@ -68,20 +68,68 @@ Model = {
       description: String,    // optional free-text developer documentation
       arrowFontSize: Number,  // default 9
       stateFontSize: Number,  // default 12
-      states:       [ {name, displayName} ],
-      choicePoints: [ {name, question} ],   // name excludes "CP_" prefix
+      states:       [ {name, displayName, description} ],
+      choicePoints: [ {name, question, description} ],   // name excludes "CP_" prefix
       transitions:  [ {source, target, messages, connector, length} ]
     },
     ...
   ],
   activeComponentIndex: Number,
-  // System-level component diagram — see §16. Each entry wires one
+  // System-level component diagram — see §14. Each entry wires one
   // component to one non-default interface. Connector direction/length
   // use the same vocabulary as transitions but without arrowheads.
   connections: [
     { component: String, interface: String,
       connector: "Right"|"Left"|"Up"|"Down", length: Number }
   ],
+  // Handlers — system-level entities parallel to Components but with no
+  // state machine. Represent asynchronous edges to the outside world
+  // (sockets, queues, DB drivers). Render as 3D-brick `node` shapes on
+  // the system diagram. Name is identifier-safe and unique across
+  // Components ∪ Handlers. Functions are the handler's callable API
+  // — documentation-only, never reach PlantUML. Each function has
+  // identifier-safe name (unique within its handler), optional
+  // description, and a list of parameters with the same shape as
+  // message parameters.
+  handlers: [
+    { name: String, displayName: String, description: String,
+      functions: [
+        { name: String, description: String,
+          parameters: [ {name, type} ] }
+      ]
+    }
+  ],
+  // Handler ↔ Interface wiring. Same connector/length shape as
+  // `connections`; a Handler on an interface is implicitly a sender.
+  // When a Handler is wired to an interface, any Component connections
+  // to the same interface automatically render with an arrowhead at the
+  // Component's end (direction is derived, not stored).
+  handlerConnections: [
+    { handler: String, interface: String,
+      connector: "Right"|"Left"|"Up"|"Down", length: Number }
+  ],
+  // Component ⇢ Handler function-call dependencies. Rendered as a
+  // dashed arrow pointing at the Handler (calls flow Component→Handler).
+  // No interface is involved.
+  handlerCalls: [
+    { component: String, handler: String,
+      connector: "Right"|"Left"|"Up"|"Down", length: Number }
+  ],
+  // System-level settings. The system diagram nests everything inside
+  // an outer `component SystemName { ... }` wrapper so it carries a
+  // visible boundary labelled with the system's name. Name + displayName
+  // follow the same convention as components. The two font sizes apply
+  // only to the system diagram; per-component font sizes
+  // (arrowFontSize, stateFontSize) apply only to the state-machine view.
+  systemName: String,            // identifier-safe, default "System"
+  systemDisplayName: String,     // optional free text (may include `\n`)
+  systemComponentFontSize: Number, // Component + Handler labels, default 12
+  systemInterfaceFontSize: Number, // Interface lollipop labels, default 11
+  // Free-text system specification. A developer-facing document that
+  // describes the system as a whole. Lives on Model (one per file),
+  // persisted in JSON, never written to PlantUML. Edited via the
+  // System Specification panel below the canvas.
+  systemSpecification: String,
   // Which view the canvas is rendering: "component" shows the active
   // component's state machine, "system" shows the component diagram.
   activeView: "component"|"system",
@@ -171,7 +219,7 @@ A Stadiæ file may contain multiple components. This section describes how that 
 
 ### 4.1 Active component and selection semantics
 
-Only one component is *active* at a time. The canvas, the States and Choice-points lists, the transitions table, and the Action panel all reflect the active component. The **Components list** in the top-right system catalogue selects which component is active — clicking a row calls `switchToComponent(idx)` and a small chevron `▸` marks the active row. A pinned `◇ System` button at the top of the list switches to the system view; in that mode no row is marked active because the canvas is showing the system diagram, not any single component's state machine.
+Only one component is *active* at a time. The canvas, the States and Choice-points lists, the transitions table, and the Action panel all reflect the active component. The **Components list** in the top-right system catalogue selects which component is active — clicking a row calls `switchToComponent(idx)` and a small chevron `▸` marks the active row. Two floating buttons on the canvas handle the view-switch: a `◇ System` button at the top-left switches to the system view, and (in system view) a `Component ▸` button at the top-right enters the currently selected component's state machine. In system view no row is marked active because the canvas is showing the system diagram, not any single component's state machine.
 
 `Selection` is intentionally *not* partitioned per component. It's a single global set of selected elements. When the user switches components (`switchToComponent`), `Selection.clearAll()` is called, so the new active component always starts with nothing selected. This sidesteps all the edge cases that "per-component selection" would produce — stale references to a hidden component's elements, different toolbar-enablement states, canvas highlighting inconsistencies.
 
@@ -200,7 +248,7 @@ Four operations manipulate the components array. All flow through a single dialo
 
 All four push a history snapshot before mutating so undo correctly restores component order, names, display names, and the active-component pointer. Component-name uniqueness is essential because mask-id keys (`"comp:" + name`) and connection-cascade lookups all assume it; the validator at every entry point keeps the invariant holding.
 
-**Migration of pre-displayName files.** Older saves stored arbitrary text (including `\n` markers and spaces) in `name`. The loader (`loadV2`) walks `data.components` and, for any entry whose `name` isn't a valid identifier, slugs the original via `slugifyComponentName` (replace non-identifier chars with `_`, prepend `C_` if it doesn't start with a letter), promotes the original text to `displayName` if no displayName was already supplied, and disambiguates slug collisions with `_2`, `_3`, etc. A `renameMap` tracks any `oldName → newName` rewrites; `data.connections` is rewritten through that map before being loaded. The result is byte-identical visible output (the canvas renders displayName) with a clean, reference-stable `name` underneath.
+**Migration of pre-displayName files.** Earlier v3 saves (from before the Name/Display-name split) stored arbitrary text (including `\n` markers and spaces) in `name`. The loader (`loadModel`) walks `data.components` and, for any entry whose `name` isn't a valid identifier, slugs the original via `slugifyComponentName` (replace non-identifier chars with `_`, prepend `C_` if it doesn't start with a letter), promotes the original text to `displayName` if no displayName was already supplied, and disambiguates slug collisions with `_2`, `_3`, etc. A `renameMap` tracks any `oldName → newName` rewrites; `data.connections` is rewritten through that map before being loaded. The result is byte-identical visible output (the canvas renders displayName) with a clean, reference-stable `name` underneath.
 
 ### 4.4 Exports operate per-active-component
 
@@ -594,6 +642,16 @@ The Components list shows a small accent-coloured dot at the right of any row wh
 
 The component-rename cascade re-keys the textarea's `dataset.compName` on the next refresh — the input handler reads the bound name from the dataset rather than capturing it in a closure, so a rename mid-typing-session correctly continues writing to the renamed component (the rename is a model mutation, not a re-binding).
 
+### 10.6 The System Specification panel
+
+A third textarea-based panel — the **System Specification panel** — lives below the canvas in a column flex wrapper (`#canvas-column`) that holds the canvas, a horizontal resize handle, and the panel. The panel is *always visible in both views*: it documents the system as a whole, independent of which component or diagram is on screen, so it earns a persistent slot rather than floating in the view-scoped right column.
+
+The binding is the simplest of the three panels: one `Model.systemSpecification` string, no selection logic, no placeholder mode, no has-description dot. `initSystemSpecPanel()` wires the textarea's `input` handler to live-save into `Model.systemSpecification` with a per-session history coalescer (`sysSpecEditSession.pushed` tracks whether the first keystroke of the current session has already pushed history); `blur` resets the session. `renderSystemSpecPanel()` — called from every `refresh()` — syncs the textarea's `.value` from the model, guarded against re-writing the same value to avoid disrupting cursor position when a refresh happens mid-type.
+
+The panel is a sibling of `#canvas-panel` under `#canvas-column`, with a draggable `#resize-handle-sysspec` between them. The handle's drag math is inverted from a "pull handle down" gesture because the handle is at the *top* of the panel — dragging up grows the panel (by subtracting `e.clientY - startY` from `startH`); min/max clamps leave a ~200 px floor for the canvas. The existing horizontal main-split slider (`#resize-handle-main`) now operates on `#canvas-column` rather than on `#canvas-panel` directly, so resizing the split changes the width of the whole column (canvas + spec panel together).
+
+Persisted via `buildSerializedModel()` only when non-empty; loaded with a string-type fallback defaulting to `""`. Round-trips through `snapshot()`/`restore()` like every other field on `Model`, so undo/redo over a typing session behaves exactly like undo/redo on Description or Action text.
+
 ---
 
 ## 11. Dialogs and validation
@@ -619,9 +677,9 @@ Name uniqueness is enforced for states (globally, including against choice-point
 
 ### 12.1 Save/Open — JSON
 
-Files are saved as JSON with a top-level `format: "stadiae-v2"` tag. The emitter writes the full file — every component plus the shared interfaces/messages — with user-defined entries only (defaults like `Timer:Timeout` are re-synthesised on load). Transition message objects include their `action` field when non-empty, so the Action panel's developer documentation round-trips losslessly.
+Files are saved as JSON with a top-level `format: "stadiae-v3"` tag. `buildSerializedModel()` emits the full file — every component, every handler, every shared interface/message, all wiring (Component-Interface connections, Handler-Interface connections, Component→Handler call dependencies), every description and action note, and the system-level settings (system name and font sizes). Defaults like `Timer:Timeout` on the messages list are re-synthesised on load, so only user-defined entries go to disk. Optional fields (displayName, description, handlers[], handlerConnections[], handlerCalls[], systemName, systemDisplayName, systemComponentFontSize, systemInterfaceFontSize) are written only when they diverge from their defaults — files that don't use a feature stay byte-minimal.
 
-**Format versioning.** The loader dispatches on the `format` field. `stadiae-v2` is read directly. `stadiae-v1` (the old single-component format, from before multi-component support was added) is auto-migrated: the old flat model is wrapped in a one-element `components` array, and the shared vocabulary comes from the file's existing interfaces/messages arrays. A subsequent save writes v2. This is a one-way migration — v2 files cannot be opened by a pre-v2 build of Stadiæ.
+**Format tolerance.** The loader rejects anything other than `format: "stadiae-v3"` with a clear error. Within v3, every post-initial field is optional: a file without a `handlers` array loads with `Model.handlers = []`; a file without `systemName` loads with the default `"System"`. This schema tolerance is *forward*-compat — a v3 file from any point in v3's history loads cleanly — not backward-compat across format versions. The pre-v3 formats (`stadiae-v1`, the old single-component format, and `stadiae-v2`, the first multi-component format) are no longer supported; files saved under those tags must be loaded in an older build of Stadiæ and re-saved.
 
 Save/Save-As uses a `showPrompt` for filenames rather than the native `<input type="file">` save dialog (which browsers don't expose to JS). The file is generated as a `Blob` and downloaded via a programmatic `<a>` click. Open uses a hidden `<input type="file">` triggered by the menu item; the user's selection is read with `FileReader` and parsed.
 
@@ -629,11 +687,11 @@ The "unsaved edits" dialog gates both New and Open — if `Model.dirty`, the use
 
 ### 12.2 Export — PlantUML and PNG
 
-Export as `.puml` writes the clean (unselected) PlantUML source of the active component to a text file — suitable for committing to source control or pasting into any PlantUML renderer. Actions, the per-render salt comment, and selection styling are all absent; the file contains only the reproducible diagram structure.
+Export as `.puml` writes the clean (unselected) PlantUML source of whatever is currently showing on the canvas to a text file — suitable for committing to source control or pasting into any PlantUML renderer. Actions, the per-render salt comment, and selection styling are all absent; the file contains only the reproducible diagram structure.
 
-Export as `.png` re-renders the clean PlantUML source via the public server, fetches the resulting image as a blob, and downloads it. Crucially, exports always call `generatePlantUML({ withSelection: false, includeSalt: false })` so the user's on-screen red highlighting is never baked into the output.
+Export as `.png` re-renders the clean source via the public server, fetches the resulting image as a blob, and downloads it. Both exports always run with `withSelection: false, includeSalt: false` so the user's on-screen red highlighting and the per-render salt comment are never baked into the output.
 
-Both exports apply to the *active* component. To export every component in a multi-component file, switch the active component (one click in the Components list) and export each one.
+The exporter dispatches on `Model.activeView`: in component view it calls `generatePlantUML` (the state-machine generator, scoped to the active component); in system view it calls `generateComponentDiagramPlantUML` (the system-level generator, covering the whole component/handler/interface topology). Default filename is derived from the active component's name or — in system view — the system's display name. To export every component of a multi-component file, switch the active component (one click in the Components list) and export each one; to export the system diagram, switch to system view and export.
 
 ### 12.3 Export — Transitions as Markdown
 
@@ -655,34 +713,42 @@ The layout is a standard CSS flex/grid arrangement; no layout framework is used.
 ├──────────────────────────────────────────────────────────────────────┤
 │ Toolbar (dark chrome)                                                │
 ├────────────────────────────────┬─────────────────────────────────────┤
-│ ┌──────────┐                   │ ┌── System catalogue (shared) ────┐ │
-│ │ ◇ System │  (floating)       │ │ Components + │ Ifaces + │ Msgs+ │ │
-│ └──────────┘                   │ │   ▸ Comp A   │  RTx     │       │ │
-│                                │ │     Comp B   │  Storage │       │ │
-│                                │ └─────────────────────────────────┘ │
+│ ┌──────────┐    ┌─────────────┐│ ┌── System catalogue (5 cols) ─────┐│
+│ │ ◇ System │    │ Component ▸ ││ │Comps+│Hdlrs+│Fns+│Ifaces+│ Msgs+ ││
+│ └──────────┘    └─────────────┘│ │▸CompA│Rad   │    │ RTx   │       ││
+│   (system-view only ─ top-right│ │ CompB│      │    │Storage│       ││
+│    when a component selected)  │ │      │      ├────┤       ├───────┤│
+│                                │ │      │      │Prms│       │ Prms  ││
+│                                │ │      │      │+   │       │   +   ││
+│                                │ │      │      │    │       │       ││
+│                                │ └──────────────────────────────────┘│
 │                                │ ──── resize handle ────             │
-│                                │ ┌── Description (active component)─┐│
-│ Canvas panel                   │ │ [ free-text textarea ]           ││
-│ (rendered PlantUML PNG of      │ └──────────────────────────────────┘│
-│  the active component, or      │ ──── resize handle ────             │
-│  the system diagram)           │ ┌── Component panel (active) ────┐  │
-│                                │ │ States +  │  Choice-points +   │  │
-│                                │ ├────────────────────────────────┤  │
-│                                │ │ ──── resize handle ────        │  │
-│                                │ │ Transitions table              │  │
-│                                │ │ • │ Source │ Target │ Iface │… │  │
+│ Canvas panel                   │ ┌── Description (active component)─┐│
+│ (rendered PlantUML PNG of      │ │ [ free-text textarea ]           ││
+│  the active component, or      │ └──────────────────────────────────┘│
+│  the system diagram)           │ ──── resize handle ────             │
+│                                │ ┌── Component panel (active) ────┐  │
+│  ──── resize handle ────       │ │ States +  │  Choice-points +   │  │
+│ ┌── System specification ────┐ │ ├────────────────────────────────┤  │
+│ │ [ free-text textarea ]    │ │ │ ──── resize handle ────        │  │
+│ │                           │ │ │ Transitions table              │  │
+│ └───────────────────────────┘ │ │ • │ Source │ Target │ Iface │… │  │
 │                                │ │ ──── resize handle ────        │  │
 │                                │ │ Action panel                   │  │
 │                                │ │ [ free-text textarea ]         │  │
 │                                │ └────────────────────────────────┘  │
 └────────────────────────────────┴─────────────────────────────────────┘
+            ↑                                   ↑
+            canvas-column                       right-panel
+     (canvas + System spec, stacked)     (catalogue, description, component stack)
+     ← horizontal drag slider between the two columns →
 ```
 
-The canvas panel hosts the rendered diagram plus a small amount of floating chrome — the `◇ System` button in its top-left, occasionally a restored-draft banner along the top. The button is absolutely positioned so it persists across the image-replacement cycle that happens on every render.
+The canvas panel hosts the rendered diagram plus a small amount of floating chrome — the `◇ System` button at its top-left (always visible, switches views), the `Component ▸` button at its top-right (visible in system view, enters the selected component), and occasionally a restored-draft banner along the top. Both buttons are absolutely positioned so they persist across the image-replacement cycle that happens on every render. Below the canvas and always visible in both views sits the **System Specification panel** — a free-text textarea bound to `Model.systemSpecification`, separated from the canvas by a vertical-drag resize handle.
 
 The right panel is vertically subdivided into three regions:
 
-- **System catalogue** at the top holds the file's shared vocabulary as three side-by-side lists: Components, Interfaces, and Messages. Each list's header has a `+` button to add an entry. A small chevron `▸` on the active row of the Components list shows which component's state machine is currently displayed below.
+- **System catalogue** at the top holds the file's shared vocabulary as five side-by-side lists: Components, Handlers, Functions, Interfaces, Messages. Each list's header has a `+` button to add an entry. A small chevron `▸` on the active row of the Components list shows which component's state machine is currently displayed below. The Functions column is filtered by the single selected Handler (empty otherwise); the Messages column is filtered by the selected Interfaces. Each of those two columns additionally nests a Parameters panel below its list, visible when exactly one function (respectively message) is selected.
 - **Description panel** sits beneath the catalogue and is always visible. It binds to the active component in component view, or to the selected component in system view (falling back to active when no component or many are selected). Live-saves to `Component.description` per keystroke; never reaches PlantUML.
 - **Component panel** at the bottom shows the active component's States + Choice-points (each with `+` in its header), the Transitions table, and the Action panel. Hidden in system view, where the description panel grows to fill the available space.
 
@@ -717,17 +783,15 @@ Cascade helpers (`onComponentRenamed`, `onComponentDeleted`, `onInterfaceRenamed
 
 ### 14.2 Save format: `stadiae-v3`
 
-Adding `connections[]` to the saved file bumped the format version from `stadiae-v2` to `stadiae-v3`. The loader accepts both:
+The save format's top-level tag is `stadiae-v3`. The file carries the full state: components, handlers, interfaces, messages, Component-Interface connections, Handler-Interface connections, Component→Handler call dependencies, and the system-level settings (system name and font sizes). Optional fields (`displayName`, `description`, the three Handler-related arrays, the four system-level fields) are emitted only when they diverge from their defaults, so files that don't use a given feature stay byte-minimal.
 
-- **v3** passes through: the loader populates `Model.connections` from the file, dropping any entries whose component or interface no longer exists.
-- **v2** loads with `Model.connections = []`. This is the "empty on migration" decision: the user wires the diagram manually from scratch. The alternative — inferring wiring from transition messages — was rejected because it would commit the user to design choices they hadn't explicitly made. A migrated v2 file lights up with warning badges on every non-default interface used by a transition, which correctly flags the unspecified architecture.
-- **v1** (single-component legacy format) also loads with empty connections.
+The loader rejects anything other than `stadiae-v3` with a clear error. Within v3, missing fields default cleanly — a file saved before `handlers` existed loads with `Model.handlers = []`, and the same applies to every other post-initial-v3 addition. This is forward-compat (an older v3 file loads in a newer build) rather than backward-compat across format versions: the pre-v3 formats (`stadiae-v1` single-component, `stadiae-v2` multi-component without connections) are not supported.
 
-`resetModel()`, `loadV1()`, `loadV2()` (which handles both v2 and v3) all ensure `Model.connections` and `Model.activeView` are set to clean defaults, so switching between files never leaks state across loads.
+`loadModel()` populates every `Model.*` array from the file, dropping any wiring entry whose endpoints no longer exist — a hand-edited file with a dangling reference doesn't crash the loader. `resetModel()` and the loader both finish with `Model.activeView = "component"` so switching between files never leaks view state across loads.
 
 ### 14.3 Generator dispatch
 
-A second PlantUML emitter, `generateComponentDiagramPlantUML(opts)`, mirrors the signature of `generatePlantUML(opts)` — the same `{ withSelection, mode, idAssigner, includeSalt, salt }` contract — but emits component-diagram source instead of a state machine. Element naming uses synthetic ids `C_<index>` and `I_<index>` with the user-facing names in quoted `as "…"` labels, so user-chosen names with spaces or punctuation work without breaking PlantUML's identifier rules.
+A second PlantUML emitter, `generateComponentDiagramPlantUML(opts)`, mirrors the signature of `generatePlantUML(opts)` — the same `{ withSelection, mode, idAssigner, includeSalt, salt }` contract — but emits component-diagram source instead of a state machine. Element naming uses the entities' own identifier-safe names directly as PlantUML element ids, with one exception: Interface ids are prefixed `if_` (e.g. `if_RTx`) to keep them in their own namespace. PlantUML treats all element ids as one flat namespace regardless of shape, so without the prefix a Handler named `Test` would collide with an Interface named `Test`. Interfaces therefore always carry a label clause (`() if_RTx as "RTx"`) so the `if_` prefix never reaches the rendered picture. Parallel to the `CP_` prefix that choice-points use for the same reason. For Components and Handlers, an `as "<displayName>"` clause is appended only when a displayName is set and differs from the name — unambiguous cases (displayName absent or equal to name) emit just `component Node`, keeping the output concise and diff-friendly for committed `.puml` files.
 
 `renderDiagram()` dispatches to one of the two emitters based on `Model.activeView`. The visible and mask PlantUML sources are both produced by the same emitter in one render pass, so the mask's element ids align with the visible diagram's geometry. This is the same §7 mechanism that enables canvas-click selection; it required no change to the mask-reading code, only new `kind` values (`"comp"`, `"iface"`, `"connection"`) flowing through `idAssigner` and `toggleSelection`.
 
@@ -752,7 +816,7 @@ The button isn't part of `#canvas-content` — that's the inner wrapper `renderD
 
 Why the canvas, not the right panel: controlling-what-is-shown belongs spatially close to the thing being controlled. The button replaced an earlier pill in the Components list header that competed with the `Components` label and the `+` button for narrow header space. Moving it to the canvas freed the header for symmetric `[label] [+]` styling matching Interfaces and Messages, and put the toggle where the user's attention already is when they decide to switch views.
 
-The component-row click handler dispatches on the active view: in component view it calls `switchToComponent(idx)` (flips view back to `"component"` and sets `activeComponentIndex`); in system view it adds/removes the component from `Selection.components`, the same semantic as clicking the component box on the system canvas — this lets users build connections without having to locate the canvas box. Double-clicking a row always calls `switchToComponent(idx)`, mirroring the canvas double-click drill-down.
+The component-row click handler dispatches on the active view: in component view it calls `switchToComponent(idx)` (flips view back to `"component"` and sets `activeComponentIndex`); in system view it adds/removes the component from `Selection.components`, the same semantic as clicking the component box on the system canvas — this lets users build connections without having to locate the canvas box.
 
 The `activeView` and `activeComponentIndex` are both included in the visual fingerprint used by `refresh()` to decide when to re-render, so view and component changes correctly invalidate the cached PNG.
 
@@ -769,11 +833,15 @@ This layout was a refactor from an earlier tab-bar UI. Tabs broke down at scale:
 
 The canvas click handler uses the view to pick the selection context: `"canvas"` (clears states, choice-points, transitions, START/H/ANY) or `"sysCanvas"` (clears components, interfaces, connections, messages). Both contexts feed the same `selectClick()` rules — the context is only used for the plain-click-replaces-in-same-panel behaviour.
 
-### 14.6 Double-click drill-down
+### 14.6 Entering a component
 
-Double-clicking a component box on the system canvas switches to that component's state machine. The detection is done in JavaScript, not via the browser's native `dblclick` event — a single click mutates the selection, which re-renders the canvas, which swaps the `<img>` element out. By the time the second click arrives, the element identity has changed and the browser no longer recognises the pair as a `dblclick`. Instead, `onDiagramClick()` tracks the time and position of the last click in module-scope state (`lastCanvasClick`) and treats a subsequent click within 400 ms and 6 pixels as a double-click. On match, the first click's selection change is "wasted" (a harmless re-render in flight) but the navigation succeeds.
+Entering a component's state machine from the system diagram goes through a floating `Component ▸` button at the top-right of the canvas. The button mirrors the `◇ System` button's position (top-left) and visual weight — spatial symmetry that reads as "navigate up / navigate down" through the hierarchy. Only visible in system view (hidden via `body.view-component .canvas-enter-btn { display: none; }`). Enabled iff `canEnterComponent()` returns true: exactly one Component selected, no handlers/interfaces/messages/connections/handlerConnections/handlerCalls co-selected. On click, `enterSelectedComponent()` resolves the single selected name to a component index and calls `switchToComponent(idx)`.
 
-The timestamp is zeroed after a consumed double-click so a rapid third click doesn't combine with the second to look like another double-click.
+The button replaced an earlier double-click-to-enter gesture on the canvas and on Components-list rows. That gesture was undiscoverable — nothing in the UI advertised that the boxes or rows were double-clickable, and single-click was already load-bearing (it mutated selection). The button makes the action visible: a user who selects a component sees the button light up and immediately understands what it does.
+
+Unlike the System button, the Component button is never accent-filled. The System button is a toggle that doubles as a state indicator ("you are in system view"); the Component button is a pure action ("take me into this component"). Symmetric position, asymmetric semantics.
+
+Also removed when the button was added: the script-level double-click detector (`lastCanvasClick` state plus `DBLCLICK_WINDOW_MS` / `DBLCLICK_SLOP_PX` constants) that worked around the browser's native `dblclick` being unreliable on Stadiæ's canvas. That detector's complexity is no longer justified — canvas clicks are pure single-click-to-select now.
 
 ### 14.7 Warning-badge system
 
@@ -788,10 +856,57 @@ Warnings are not shown in system view — the concept of "wired to the active co
 
 ### 14.8 Editing connections
 
-- `actionAddConnection()` requires system view, exactly one component selected (from the Components list or by clicking the component's box on the canvas — both routes write to `Selection.components`), and exactly one non-default interface selected (from the Interfaces list — the interface doesn't need to be on the canvas yet). Pushes history, appends `{component, interface, connector: "Right", length: 1}`, adds the new connection to the selection so it renders highlighted.
-- `openConnectionDialog(existing)` mirrors the transition Edit dialog: component/interface are read-only; connector type dropdown (Right/Left/Up/Down) and length input; length input shows only for Up and Down. Entered from the Edit toolbar button or `Enter` key when exactly one connection is selected.
+- `actionAddConnection()` is a pattern dispatcher: it looks at the current selection in system view and routes to one of three outcomes — Component+Interface wires a `Model.connections` entry; Handler+Interface wires a `Model.handlerConnections` entry; Component+Handler wires a `Model.handlerCalls` entry. `detectConnectionPattern()` returns the detected pattern (or `null`), `canAddConnection()` is a thin wrapper. Anything else in the selection (a second component, a random message, a pre-existing connection) makes the detector return `null` — the button stays disabled and the keyboard shortcut no-ops.
+- `openConnectionDialog(existing)` is shared across all three wiring records. It duck-types the record — `{component, interface}` vs. `{handler, interface}` vs. `{component, handler}` — and relabels the read-only fields accordingly. Connector type and length inputs work the same way in all three.
 - `changeTransitionDirectionByKey(direction)` was generalised via an `adjustDirection(obj, sessionKey, direction)` helper, shared between transitions and connections. Arrow keys adjust a sole selected transition or a sole selected connection; repeated ↑/↓ extends the length with session coalescing for undo.
-- `actionDelete()` handles `Selection.connections`: each entry in the set is filtered out of `Model.connections` by matching `{component, interface}`.
+- `actionDelete()` handles `Selection.connections`, `Selection.handlerConnections`, and `Selection.handlerCalls` in a bulk pass. Single-selection-of-one-Component or one-Handler short-circuits to a confirm-first path (both entities own a description and wiring worth pausing for).
+
+### 14.9 Handlers
+
+A **Handler** is a system-level entity parallel to a Component but without a state machine. Handlers represent asynchronous edges to the outside world — socket listeners, queue subscribers, database drivers. They render on the system diagram using PlantUML's `node` shape (3D brick), distinguishing them visually from the flat-rectangle Component shape.
+
+The data model is three arrays plus a nested structure:
+
+- `Model.handlers` — the Handlers themselves, each carrying `{name, displayName, description, functions}`. Names are identifier-safe and unique across `Model.components` ∪ `Model.handlers` (enforced by `isUniqueSystemEntityName`). The `functions` array is empty-by-default and contains the handler's callable API.
+- `Model.handlerConnections` — Handler ↔ Interface wiring. Same shape as `Model.connections` but with `handler` instead of `component`. A Handler on an interface is implicitly a sender; there is no send/receive flag on the record.
+- `Model.handlerCalls` — Component ⇢ Handler function-call dependencies. No interface involved. Rendered as a dashed arrow pointing at the Handler.
+
+**Handler functions** are the handler's exposed API: a list of `{name, description, parameters}` records where `parameters` has the same shape as `message.parameters` (`[{name, type}]`). Names are identifier-safe and unique within their parent handler (cross-handler duplicates are fine — two different handlers can each expose a `connect`). Descriptions are free-text single-line developer notes. All three fields are documentation only: they never reach PlantUML and don't affect diagram rendering. Functions exist so that when a developer writes a transition's action, they can reference a concrete API with real parameter names.
+
+**Arrow direction on Component-Interface connections is derived, not stored.** When `Model.handlerConnections` contains any entry for a given interface, the generator renders every `Model.connections` entry touching that interface as a directed edge pointing at the Component (the Component is a receiver because there's a sender on the same interface). Without a Handler on the interface, the same Component-Interface line is plain. `interfaceHasHandler(name)` is the oracle the generator calls per connection. This keeps the connection record clean — the user never manually marks direction; it falls out of the wiring topology.
+
+**Cascades.** Renaming or deleting a Handler rewrites `handlerConnections` and `handlerCalls` via `onHandlerRenamed` / `onHandlerDeleted`. Renaming or deleting a Component extends to `handlerCalls`. Renaming or deleting an Interface extends to `handlerConnections`. Rename paths also re-key the corresponding Selection sets (`Selection.handlers`, `Selection.handlerConnections`, `Selection.handlerCalls`) in place, matching the pattern used for Component and State renames. Function renames re-key `Selection.functions` and `Selection.functionParameters` in place for the same reason.
+
+**Mask kinds.** `handler`, `hconn`, `hcall`. Wired through `toggleSelection` and `isRefSelected` so clicks on Handler boxes, Handler-Interface lines, or Component→Handler dashed arrows select the correct record. Functions and function parameters are not on the diagram, so they have no mask entries — they're selected via their list rows.
+
+**Warning-badge system.** Handlers don't participate. Handlers have no transitions, so there's nothing to cross-check. The existing warning system for Component-Interface-vs-transition-usage is untouched.
+
+**Catalogue layout.** The system catalogue is a five-column grid: Components, Handlers, **Functions**, Interfaces, Messages. The Functions column sits between Handlers and Interfaces — its content is filtered by the single selected Handler (parallel to how Messages is filtered by selected Interfaces). The Functions column is structurally like the Messages column: a `.fns-column` flex wrapper holding a `.list-box`, a resize handle (`#resize-handle-fnparams`), and a `.params-panel` (`#fnparams-panel`). The parameters panel is visible only when exactly one function is selected; hiding is via the same `.hidden` class and display-none CSS that the message-parameter panel uses. Both columns share the `.msgs-column, .fns-column` CSS rule — one place to tune column layout.
+
+**Selection architecture for the handler→function→fn-parameter chain.** Three sets: `Selection.handlers`, `Selection.functions` (keys `"Handler:FunctionName"`), `Selection.functionParameters` (keys `"Handler:Function:ParamName"`). The chain is enforced at resolution time: `resolveBoundFunction` requires the parent handler to still be in `Selection.handlers`, so stale function keys left by the "plain-click-deselect an already-selected row" path (which bypasses `clearSelectionForContext`) don't leak. `buildFunctionList` performs analogous orphan-cleanup when no single handler is bound, and prefix-prunes within a bound handler when the user switches handlers. Same defensive patterns the message-parameter chain uses, generalized to three levels instead of two.
+
+**Shared parameter-panel renderer.** Both message and function parameter panels go through `renderParamsPanel(panelId, handleId, placeholderId, tableId, tbodyId, addBtnId, owner, selectionSet, clickContext, keyPrefix)`. This is the entire renderer — `buildParamsPanel` and `buildFunctionParamsPanel` are two-line wrappers that resolve their owner and call it. Similarly `openParameterDialog(owner, existing, kind, ownerContext?)` dispatches on `kind === "message" | "function"` for label text and selection key construction; both add / edit flows share the same dialog. CRUD functions are still split per kind (`addParameter` / `addFnParameter`, `editSelected*`, `deleteSelected*`) — the dispatching is thin at the entry points and the shared code lives in the dialog and the renderer.
+
+**Description panel binding.** `resolveDescriptionTarget()` returns a `{kind, entity, label}` triple. In system view, if exactly one Handler is selected with no Component, the Handler wins; if exactly one Component is selected with no Handler, the Component wins. Functions are *not* bound to the Description panel — their descriptions live inline in the Functions list row (em-dash style), consistent with states, interfaces, and messages. A full Description panel for functions would be over-scoped for single-line developer notes.
+
+### 14.10 System wrapper and font model
+
+The system diagram wraps its contents in an outer PlantUML `component SystemName { ... }` block so the whole diagram carries a visible boundary labelled with the system's name. The wrapper is emitted by `generateComponentDiagramPlantUML` right after the `skinparam` block, closed just before `@enduml`. Inside the wrapper sit the Interfaces, Components, Handlers, Component-Interface connections, Handler-Interface connections, and Component→Handler dependencies — i.e. everything that was previously emitted at top level is now one nesting level deeper. PlantUML allows this nesting across all the shape kinds Stadiæ uses (`component`, `node`, `()`, plain edges, dashed edges).
+
+The wrapper's name uses the same Name + optional displayName convention as components: `Model.systemName` is the identifier-safe PlantUML id (defaults to `"System"`), `Model.systemDisplayName` is free text that may contain `\n` line breaks. When both are set and differ, the emission is `component <systemName> as "<displayName>" { ... }`; when displayName is empty, a plain `component <systemName> { ... }` is emitted. The distinction matters for the PlantUML output's readability when committed to source control.
+
+The wrapper does not participate in the selection-mask render. No `idAssigner` call is made for it, so a click anywhere inside the wrapper's bounds passes through to whichever interior element's mask pixel the click landed on. This is deliberate — the wrapper is a *boundary*, not a selectable entity; it exists to be seen, not interacted with. The system name is edited through the menu, never by clicking the canvas.
+
+Two font sizes are stored on `Model` and emitted as `skinparam`:
+
+- `Model.systemComponentFontSize` (default 12) governs both Component and Handler labels. A single setting, because Components and Handlers are both "boxes" on the same diagram and divergent font sizes would create visual noise.
+- `Model.systemInterfaceFontSize` (default 11) governs Interface lollipop labels.
+
+These are intentionally separate from `component.arrowFontSize` and `component.stateFontSize`, which are per-component and apply to the state-machine view only. Changing a system font size doesn't alter any state-machine rendering; changing a per-component font size doesn't alter the system diagram. Keeping the two font domains independent means users can tune each view's typography without bleeding side-effects.
+
+**Menu dispatch.** The menu bar has both a Component menu and a System menu. CSS rules `body.view-component .menu[data-menu="system"] { display: none; }` and its mirror hide one or the other depending on the active view, so exactly one is visible at any time. The Component menu's items (Change name, transition font, state font, Copy transitions…) all act on the active component; the System menu's items (Change name, component/handler font, interface font) all act on the Model-level system settings. Action keys are prefixed (`sys-change-name`, `sys-change-cfont`, `sys-change-ifont`) to keep the dispatch switch unambiguous. The system-rename dialog is `openSystemDialog()`, structurally identical to `openComponentDialog` but writing to `Model.systemName` / `Model.systemDisplayName` instead of a per-component record.
+
+**Save format.** The four fields are emitted only when they differ from their defaults, keeping files that don't customise them byte-identical to before the feature was added. The loader applies the defaults when any field is missing or out of range; the format string stays `stadiae-v3` (the schema gained new optional fields, nothing became incompatible).
 
 ---
 

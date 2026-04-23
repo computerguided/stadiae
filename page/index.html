@@ -584,21 +584,31 @@ footer.foot .links a + a { margin-left: 18px; }
           <div class="code-label"><span class="dot"></span> sample output &middot; generated PlantUML (system diagram)</div>
           <pre class="code"><span class="kw">skinparam</span> componentStyle rectangle
 
+<span class="kw">component</span> <span class="id">Mesh</span> <span class="punct">{</span>
+
 <span class="com">'== Interfaces ==</span>
-<span class="punct">()</span> <span class="id">I_0</span> <span class="kw">as</span> <span class="str">"RTx"</span>
-<span class="punct">()</span> <span class="id">I_1</span> <span class="kw">as</span> <span class="str">"Storage"</span>
+<span class="punct">()</span> <span class="id">if_RTx</span> <span class="kw">as</span> <span class="str">"RTx"</span>
+<span class="punct">()</span> <span class="id">if_Storage</span> <span class="kw">as</span> <span class="str">"Storage"</span>
 
 <span class="com">'== Components ==</span>
-<span class="kw">component</span> <span class="id">C_0</span> <span class="kw">as</span> <span class="str">"Advertising"</span>
-<span class="kw">component</span> <span class="id">C_1</span> <span class="kw">as</span> <span class="str">"Session"</span>
+<span class="kw">component</span> <span class="id">Advertising</span>
+<span class="kw">component</span> <span class="id">Session</span>
+
+<span class="com">'== Handlers ==</span>
+<span class="kw">node</span> <span class="id">Radio</span> <span class="kw">as</span> <span class="str">"RF\nRadio"</span>
 
 <span class="com">'== Connections ==</span>
-<span class="id">C_0</span> <span class="punct">-</span> <span class="id">I_0</span>
-<span class="id">C_1</span> <span class="punct">-</span> <span class="id">I_0</span>
-<span class="id">C_1</span> <span class="punct">-</span> <span class="id">I_1</span></pre>
+<span class="id">Advertising</span> <span class="punct">&lt;-</span> <span class="id">if_RTx</span>
+<span class="id">Session</span> <span class="punct">&lt;-</span> <span class="id">if_RTx</span>
+<span class="id">Session</span> <span class="punct">-</span> <span class="id">if_Storage</span>
+
+<span class="com">'== Handler connections ==</span>
+<span class="id">Radio</span> <span class="punct">-</span> <span class="id">if_RTx</span>
+
+<span class="punct">}</span></pre>
 
           <p>
-            A pinned <code>&diams; System</code> button at the top of the Components list switches to the system view. Double-click a component box (or a row in the list) to drill into its state machine. Stadi&aelig; flags every transition that references an interface the component isn't connected to &mdash; an advisory amber <code>!</code>, not a block &mdash; so the two levels stay in sync without ceremony.
+            Two floating buttons on the canvas control view navigation: <code>&diams; System</code> at the top-left switches to the system diagram, and <code>Component &#9656;</code> at the top-right (system view only, enabled when one Component is selected) enters the selected component's state machine. Stadi&aelig; flags every transition that references an interface the component isn't connected to &mdash; an advisory amber <code>!</code>, not a block &mdash; so the two levels stay in sync without ceremony.
           </p>
         </div>
       </div>
@@ -678,6 +688,7 @@ footer.foot .links a + a { margin-left: 18px; }
           <div class="code-label"><span class="dot"></span> stadiae-v3.json &middot; save format</div>
           <pre class="code"><span class="punct">{</span>
   <span class="kw">"format"</span><span class="punct">:</span> <span class="str">"stadiae-v3"</span><span class="punct">,</span>
+  <span class="kw">"systemName"</span><span class="punct">:</span> <span class="str">"Mesh"</span><span class="punct">,</span>
   <span class="kw">"interfaces"</span><span class="punct">:</span> <span class="punct">[</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">},</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"Data"</span><span class="punct">}</span> <span class="punct">],</span>
   <span class="kw">"messages"</span><span class="punct">:</span>   <span class="punct">[</span> <span class="punct">{</span><span class="kw">"interface"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">,</span> <span class="kw">"name"</span><span class="punct">:</span><span class="str">"ConnectReq"</span><span class="punct">},</span> <span class="com">/* ... */</span> <span class="punct">],</span>
   <span class="kw">"components"</span><span class="punct">:</span> <span class="punct">[</span>
@@ -700,8 +711,17 @@ footer.foot .links a + a { margin-left: 18px; }
       <span class="punct">]</span>
     <span class="punct">}</span>
   <span class="punct">],</span>
+  <span class="kw">"handlers"</span><span class="punct">:</span> <span class="punct">[</span>
+    <span class="punct">{</span> <span class="kw">"name"</span><span class="punct">:</span> <span class="str">"Radio"</span><span class="punct">,</span> <span class="kw">"displayName"</span><span class="punct">:</span> <span class="str">"RF\nRadio"</span> <span class="punct">}</span>
+  <span class="punct">],</span>
   <span class="kw">"connections"</span><span class="punct">:</span> <span class="punct">[</span>
     <span class="punct">{</span> <span class="kw">"component"</span><span class="punct">:</span><span class="str">"Node"</span><span class="punct">,</span> <span class="kw">"interface"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">,</span> <span class="kw">"connector"</span><span class="punct">:</span><span class="str">"Right"</span><span class="punct">,</span> <span class="kw">"length"</span><span class="punct">:</span> <span class="num">1</span> <span class="punct">}</span>
+  <span class="punct">],</span>
+  <span class="kw">"handlerConnections"</span><span class="punct">:</span> <span class="punct">[</span>
+    <span class="punct">{</span> <span class="kw">"handler"</span><span class="punct">:</span><span class="str">"Radio"</span><span class="punct">,</span> <span class="kw">"interface"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">,</span> <span class="kw">"connector"</span><span class="punct">:</span><span class="str">"Down"</span><span class="punct">,</span> <span class="kw">"length"</span><span class="punct">:</span> <span class="num">1</span> <span class="punct">}</span>
+  <span class="punct">],</span>
+  <span class="kw">"handlerCalls"</span><span class="punct">:</span> <span class="punct">[</span>
+    <span class="punct">{</span> <span class="kw">"component"</span><span class="punct">:</span><span class="str">"Node"</span><span class="punct">,</span> <span class="kw">"handler"</span><span class="punct">:</span><span class="str">"Radio"</span><span class="punct">,</span> <span class="kw">"connector"</span><span class="punct">:</span><span class="str">"Right"</span><span class="punct">,</span> <span class="kw">"length"</span><span class="punct">:</span> <span class="num">1</span> <span class="punct">}</span>
   <span class="punct">],</span>
   <span class="kw">"activeComponentIndex"</span><span class="punct">:</span> <span class="num">0</span>
 <span class="punct">}</span></pre>
@@ -731,15 +751,15 @@ footer.foot .links a + a { margin-left: 18px; }
             <tbody>
               <tr>
                 <td class="name">.json</td>
-                <td class="desc">Full round-trip save. Every component (with its display name and description), every shared interface/message, every system-diagram connection, every action note. Re-open and continue editing. Version: <code>stadiae-v3</code> with auto-migration from v1 and v2.</td>
+                <td class="desc">Full round-trip save. Every component and handler (with display names and descriptions), every handler's functions (with parameters), every shared interface/message (with parameters), every wiring and call dependency, every action note, the system specification text, plus system-level settings like the system name and font sizes. Re-open and continue editing. Version: <code>stadiae-v3</code>.</td>
               </tr>
               <tr>
                 <td class="name">.puml</td>
-                <td class="desc">Clean PlantUML source of the active component &mdash; feed to any PlantUML pipeline, render in CI, embed in documentation.</td>
+                <td class="desc">Clean PlantUML source of whatever is currently on the canvas &mdash; state machine of the active component, or the whole system diagram (components + handlers + interfaces) when in system view. Feed to any PlantUML pipeline, render in CI, embed in documentation.</td>
               </tr>
               <tr>
                 <td class="name">.png</td>
-                <td class="desc">Rendered diagram of the active component for slide decks and one-pagers. Selection highlighting is never baked in.</td>
+                <td class="desc">Rendered diagram of the current view &mdash; state machine or system diagram &mdash; for slide decks and one-pagers. Selection highlighting is never baked in.</td>
               </tr>
               <tr>
                 <td class="name">.md table</td>
@@ -779,7 +799,7 @@ footer.foot .links a + a { margin-left: 18px; }
           </figure>
 
           <p>
-            Components, interfaces, and messages live in the <em>system catalogue</em> at the top of the right panel; all three are shared across the file. The Components list switches between components with one click &mdash; <code>Node</code>, <code>Gateway</code>, <code>Session</code>, whatever your subsystem contains. Each component has its own states, choice-points, transitions, and action notes, but the protocol vocabulary is shared.
+            Components, handlers, interfaces, and messages live in the <em>system catalogue</em> at the top of the right panel; all four are shared across the file. The Components list switches between components with one click &mdash; <code>Node</code>, <code>Gateway</code>, <code>Session</code>, whatever your subsystem contains. Each component has its own states, choice-points, transitions, and action notes, but the protocol vocabulary is shared. <strong>Handlers</strong> are system-level entities without a state machine &mdash; asynchronous edges to the outside world (radio, sockets, timers) that talk to components over interfaces or expose functions for components to call directly.
           </p>
         </div>
       </div>
