@@ -10,9 +10,9 @@ Stadiæ is a graphical front-end for authoring PlantUML state diagrams of functi
 
 Three top-level goals shaped the design:
 
-**Single-file deployment.** The entire application is one HTML file, no build step, no dependencies beyond a modern browser and network access to the public PlantUML server. This rules out bundlers, frameworks, and module systems; it also rules out anything that requires a backend. The trade-off is self-imposed: it makes hosting and distribution trivial, at the cost of keeping everything hand-written.
+**Single-file deployment.** The entire application is one HTML file, no build step, no dependencies beyond a modern browser and network access to a PlantUML server. This rules out bundlers, frameworks, and module systems; it also rules out anything that requires a backend. The trade-off is self-imposed: it makes hosting and distribution trivial, at the cost of keeping everything hand-written. One narrow exception exists: the specification exporter lazy-loads the `docx` library from unpkg.com on first use — still no build step, still no runtime backend, but users who export need network access to unpkg as well as to the PlantUML server.
 
-**Separation of model and presentation.** The editor maintains an in-memory model of the diagram. Any operation that mutates the model re-emits a PlantUML source string from scratch, sends it to the public PlantUML server, and displays the returned PNG. The PlantUML source is a pure function of the model (plus a selection highlight overlay). This keeps the rendering pipeline simple and predictable.
+**Separation of model and presentation.** The editor maintains an in-memory model of the diagram. Any operation that mutates the model re-emits a PlantUML source string from scratch, sends it to a PlantUML server, and displays the returned PNG. The PlantUML source is a pure function of the model (plus a selection highlight overlay). This keeps the rendering pipeline simple and predictable.
 
 **Graphical selection on a server-rendered bitmap.** The editor doesn't render the diagram itself; a remote server does, and the client only receives a PNG. The user nevertheless needs to click on states, choice-points, and transitions directly in the rendered image. This is solved with a secondary "selection mask" rendering — see §7.
 
@@ -59,7 +59,13 @@ A Stadiæ file holds one or more **components** (independent state machines) plu
 Model = {
   // System-wide (shared across components)
   interfaces: [ {name, isDefault, description} ],
-  messages:   [ {interface, name, isDefault, description} ],
+  // Messages carry a list of parameters — free-text records that are
+  // documentation-only (never reach PlantUML) but appear in the spec
+  // export's message table. Each parameter has a name (single-word
+  // identifier, unique within the message), optional type, and
+  // optional description.
+  messages:   [ {interface, name, isDefault, description,
+                 parameters: [ {name, type, description} ]} ],
   // Components
   components: [
     {
@@ -70,6 +76,12 @@ Model = {
       stateFontSize: Number,  // default 12
       states:       [ {name, displayName, description} ],
       choicePoints: [ {name, question, description} ],   // name excludes "CP_" prefix
+      // Per-component state variables — documentation-only records
+      // that round-trip in the save file and appear in the spec
+      // export, but never reach PlantUML. Name is a single-word
+      // identifier unique within the component. Type and description
+      // are free-text and may be empty.
+      stateVariables: [ {name, type, description} ],
       transitions:  [ {source, target, messages, connector, length} ]
     },
     ...
@@ -95,7 +107,7 @@ Model = {
     { name: String, displayName: String, description: String,
       functions: [
         { name: String, description: String,
-          parameters: [ {name, type} ] }
+          parameters: [ {name, type, description} ] }
       ]
     }
   ],
@@ -176,14 +188,24 @@ Everything the user has currently marked. It drives the canvas highlighting, the
 
 ```js
 Selection = {
-  states:        Set<name>,
-  choicePoints:  Set<name>,
-  interfaces:    Set<name>,
-  messages:      Set<"iface:name">,
-  transitions:   Set<"src|tgt|iface|msg">,  // per-message granularity
+  states:         Set<name>,
+  choicePoints:   Set<name>,
+  stateVariables: Set<name>,           // per-component documentation rows
+  interfaces:     Set<name>,
+  messages:       Set<"iface:name">,
+  transitions:    Set<"src|tgt|iface|msg">,  // per-message granularity
   start:   Boolean,   // START dot selected
   history: Boolean,   // H pseudostate selected
   any:     Boolean,   // * pseudostate selected
+  // Click-order record across states, choice-points, and pseudostates.
+  // Populated as {kind, id} on every toggle-to-selected, dropped on
+  // toggle-to-deselected, pruned in clearSelectionForContext so it
+  // only ever contains entries whose underlying node is still
+  // selected. Consumed by actionAddTransition to pick a source
+  // direction when two nodes are selected (earlier click = source),
+  // making the explicit "which is the source?" dialog unnecessary
+  // in the common case.
+  nodeOrder: Array<{kind, id}>,
   clearAll()
 }
 ```
@@ -542,6 +564,29 @@ Self-transitions are fixed at `->` per the design spec, so arrow keys are ignore
 
 **Undo coalescing.** A module-level `arrowKeySession = {key, direction}` tracks whether the last arrow press was for the same transition and same direction. If so, no new history snapshot is taken — the whole "Up Up Up" sequence collapses into a single undo step. Changing direction, switching transitions, or pressing any non-arrow key ends the session. `refresh()` also ends the session when the selection changes, to keep the undo history clean.
 
+### 8.7 Click-order direction inference for transitions
+
+`Add Transition` with two nodes selected used to always ask a confirmation dialog for direction (which node is the source, which is the target). For the common state+state case this was pure friction — the user had already communicated direction by clicking the source first.
+
+The fix is a small auxiliary data structure on the `Selection` singleton: `nodeOrder`, an array of `{kind, id}` entries recording the click sequence across states, choice-points, and the START/history/ANY pseudostates. Population:
+
+- Every selection-toggle that adds a node appends a `{kind, id}` entry.
+- Every selection-toggle that removes a node filters the matching entry out.
+- `clearSelectionForContext` runs its usual per-context clears, then calls `Selection.pruneNodeOrder()` which drops any entries whose underlying Set/boolean is no longer "selected". This keeps the array synchronized through plain-click replacement semantics (single-select within a panel).
+- `clearAll()` wipes it unconditionally.
+
+The tracker is maintained at the selection-site boundary — wherever `Selection.states.add(n)` / `Selection.choicePoints.delete(n)` / `Selection.start = false` are called, a matching `noteNodeSelected` / `noteNodeDeselected` call runs alongside. Centralising via a proxy or a dedicated `setSelected` helper was considered and rejected: the selection sites aren't numerous enough to warrant the abstraction, and keeping the mutation pair co-located at each site makes the invariant easy to audit.
+
+`actionAddTransition` consumes `nodeOrder` in the two-node branch:
+
+1. Apply the existing structural validity filter (CPs can only source Yes/No; states cannot source Yes/No; the "source already handles these messages" guard).
+2. If exactly one direction is valid structurally, use it — unchanged from before.
+3. If **both** directions are valid, consult `nodeOrder`. The node with the lower index in `nodeOrder` is the source; the other is the target. No dialog.
+4. If **neither** direction is valid (both fail the structural filter, typically because both candidate sources already handle one of the selected messages), fall back to the dialog. The user sees the explicit "pick a source" choice rather than a silent no-op.
+5. If click-order lookup fails for some reason (neither node is in `nodeOrder`, or both map to the same index), also fall back to the dialog. This is a last-resort safety valve; in practice every two-node selection produced through normal clicking has distinct, well-defined entries.
+
+**`nodeOrder` is not part of `snapshot()` and doesn't undo/redo.** Undo restores model state, not selection history. The next transition-add populates `nodeOrder` from fresh clicks regardless of what it held before — the tracker is transient working memory, not persistent application state.
+
 ---
 
 ## 9. Per-message transition selection and usage highlighting
@@ -588,7 +633,9 @@ Because highlighting depends on interface and message selections, those selectio
 
 ## 10. The Action panel
 
-The Action panel is a free-text editor below the transitions table that lets developers document what the component does when a specific transition fires. Actions are stored per transition message row — one per `(source, target, interface, name)` tuple — and are persisted only in the saved JSON; they are intentionally **not** written into the generated PlantUML so the diagram itself stays uncluttered.
+The Action panel is a free-text editor **beside** the transitions table (to its right, on the same row) that lets developers document what the component does when a specific transition fires. Actions are stored per transition message row — one per `(source, target, interface, name)` tuple — and are persisted only in the saved JSON; they are intentionally **not** written into the generated PlantUML so the diagram itself stays uncluttered.
+
+The panel and the transitions table share the bottom portion of the right column. They're wrapped in a horizontal flex container (`.trans-action-row`) with a draggable resize handle between them. The Action panel's default width is **auto-computed from the State Variables column** above it: on every viewport change (and at initial load), a small effect measures the width of the third lists-grid column and applies it to the Action panel, so the two visually align in a vertical rail. Once the user drags the handle, a sticky `userOverride` flag opts out of further auto-sync, so their chosen width survives window resizes. Double-clicking the handle re-enables auto-sync.
 
 ### 10.1 Storage
 
@@ -701,6 +748,12 @@ Source and target cells use `nodeLabel` for consistency with the transition tabl
 
 The markdown text is shown in a read-only textarea inside a modal dialog. A **Copy to clipboard** button uses `navigator.clipboard.writeText` where available, falling back to `document.execCommand("copy")` on the already-selected textarea for contexts where the modern API is blocked (e.g. non-HTTPS).
 
+### 12.4 Export — Specification as Word document
+
+The most elaborate export: a full system specification as a `.docx`. Entry point is `File → Export Specification…`, implementation in `exportSpecification()` + `buildSpecificationDocx(d, progress)`. See §15 for the full design — the short version is that it lazy-loads the `docx` library from unpkg.com on first use, fetches every diagram in parallel as both SVG (primary) and PNG (fallback), and assembles a native Word document with proper headings, tables with row-span and fixed column widths, and embedded vector diagrams.
+
+Unlike the .puml and .png exports which operate on the currently-visible canvas, the specification export operates on the **whole model** regardless of the active view or component. The output always covers every component, every handler, every interface, every message — one call produces the complete specification.
+
 ---
 
 ## 13. UI layout and styling
@@ -720,23 +773,22 @@ The layout is a standard CSS flex/grid arrangement; no layout framework is used.
 │    when a component selected)  │ │      │      ├────┤       ├───────┤│
 │                                │ │      │      │Prms│       │ Prms  ││
 │                                │ │      │      │+   │       │   +   ││
-│                                │ │      │      │    │       │       ││
 │                                │ └──────────────────────────────────┘│
 │                                │ ──── resize handle ────             │
 │ Canvas panel                   │ ┌── Description (active component)─┐│
 │ (rendered PlantUML PNG of      │ │ [ free-text textarea ]           ││
 │  the active component, or      │ └──────────────────────────────────┘│
 │  the system diagram)           │ ──── resize handle ────             │
-│                                │ ┌── Component panel (active) ────┐  │
-│  ──── resize handle ────       │ │ States +  │  Choice-points +   │  │
-│ ┌── System specification ────┐ │ ├────────────────────────────────┤  │
-│ │ [ free-text textarea ]    │ │ │ ──── resize handle ────        │  │
-│ │                           │ │ │ Transitions table              │  │
-│ └───────────────────────────┘ │ │ • │ Source │ Target │ Iface │… │  │
-│                                │ │ ──── resize handle ────        │  │
-│                                │ │ Action panel                   │  │
-│                                │ │ [ free-text textarea ]         │  │
-│                                │ └────────────────────────────────┘  │
+│                                │ ┌── Component panel (active) ─────┐ │
+│  ──── resize handle ────       │ │ States + │ Choice-pts + │ Vars +│ │
+│ ┌── System specification ────┐ │ ├───────────────────────────────┬─┤ │
+│ │ [ free-text textarea ]    │ │ │                               │  │ │
+│ │                           │ │ │  Transitions table           │A │ │
+│ └───────────────────────────┘ │ │  • │ Src │ Tgt │ Iface │ Msg │c │ │
+│                                │ │                               │t │ │
+│                                │ │                               │io│ │
+│                                │ │                               │n │ │
+│                                │ └───────────────────────────────┴─┘ │
 └────────────────────────────────┴─────────────────────────────────────┘
             ↑                                   ↑
             canvas-column                       right-panel
@@ -750,9 +802,9 @@ The right panel is vertically subdivided into three regions:
 
 - **System catalogue** at the top holds the file's shared vocabulary as five side-by-side lists: Components, Handlers, Functions, Interfaces, Messages. Each list's header has a `+` button to add an entry. A small chevron `▸` on the active row of the Components list shows which component's state machine is currently displayed below. The Functions column is filtered by the single selected Handler (empty otherwise); the Messages column is filtered by the selected Interfaces. Each of those two columns additionally nests a Parameters panel below its list, visible when exactly one function (respectively message) is selected.
 - **Description panel** sits beneath the catalogue and is always visible. It binds to the active component in component view, or to the selected component in system view (falling back to active when no component or many are selected). Live-saves to `Component.description` per keystroke; never reaches PlantUML.
-- **Component panel** at the bottom shows the active component's States + Choice-points (each with `+` in its header), the Transitions table, and the Action panel. Hidden in system view, where the description panel grows to fill the available space.
+- **Component panel** at the bottom shows the active component's States + Choice-points + State variables lists (three columns, each with `+` in its header), and below them a horizontal row pairing the Transitions table with the Action panel. Hidden in system view, where the description panel grows to fill the available space.
 
-There are four user-draggable resize handles in this stack: between the system catalogue and the description panel, between the description panel and the component panel, between the States/Choice-points grid and the transitions table, and between the transitions table and the Action panel. Each handle double-clicks to reset.
+There are four user-draggable resize handles in this stack: between the system catalogue and the description panel, between the description panel and the component panel, between the States/Choice-points/State-variables grid and the Transitions+Action row, and a **horizontal** handle inside that row between Transitions (left) and Action (right). The horizontal handle's default position is auto-aligned to the State Variables column above; double-clicking it re-applies that default after any manual drag. Each vertical handle double-clicks to reset.
 
 Design decisions worth noting:
 
@@ -871,7 +923,7 @@ The data model is three arrays plus a nested structure:
 - `Model.handlerConnections` — Handler ↔ Interface wiring. Same shape as `Model.connections` but with `handler` instead of `component`. A Handler on an interface is implicitly a sender; there is no send/receive flag on the record.
 - `Model.handlerCalls` — Component ⇢ Handler function-call dependencies. No interface involved. Rendered as a dashed arrow pointing at the Handler.
 
-**Handler functions** are the handler's exposed API: a list of `{name, description, parameters}` records where `parameters` has the same shape as `message.parameters` (`[{name, type}]`). Names are identifier-safe and unique within their parent handler (cross-handler duplicates are fine — two different handlers can each expose a `connect`). Descriptions are free-text single-line developer notes. All three fields are documentation only: they never reach PlantUML and don't affect diagram rendering. Functions exist so that when a developer writes a transition's action, they can reference a concrete API with real parameter names.
+**Handler functions** are the handler's exposed API: a list of `{name, description, parameters}` records where `parameters` has the same shape as `message.parameters` (`[{name, type, description}]`). Names are identifier-safe and unique within their parent handler (cross-handler duplicates are fine — two different handlers can each expose a `connect`). Descriptions are free-text single-line developer notes. All three fields are documentation only: they never reach PlantUML and don't affect diagram rendering. Functions exist so that when a developer writes a transition's action, they can reference a concrete API with real parameter names.
 
 **Arrow direction on Component-Interface connections is derived, not stored.** When `Model.handlerConnections` contains any entry for a given interface, the generator renders every `Model.connections` entry touching that interface as a directed edge pointing at the Component (the Component is a receiver because there's a sender on the same interface). Without a Handler on the interface, the same Component-Interface line is plain. `interfaceHasHandler(name)` is the oracle the generator calls per connection. This keeps the connection record clean — the user never manually marks direction; it falls out of the wiring topology.
 
@@ -910,23 +962,177 @@ These are intentionally separate from `component.arrowFontSize` and `component.s
 
 ---
 
-## 15. Known limitations
+## 15. Specification export
 
-- **Public PlantUML server dependency.** Rendering requires the server at `plantuml.com` to be reachable. The export-as-`.puml` path works fully offline.
-- **Canvas selection depends on CORS.** If the PlantUML server ever stops sending `Access-Control-Allow-Origin: *`, the mask pixel read becomes impossible in the browser and canvas-click selection silently fails (list-based selection continues to work).
+The `File → Export Specification…` menu item produces a Word document (`.docx`) describing the entire system. The output is self-contained: native Word paragraphs and tables, rendered diagram images embedded as SVG (with PNG fallback for older viewers). Opens directly in Word, LibreOffice Writer, Google Docs, and other .docx-compatible tools.
+
+### Why .docx
+
+An earlier iteration emitted Markdown with embedded HTML tables and PlantUML source in fenced blocks. Rendering the result required a viewer that supported all three at once; in practice different tools handle one or two but rarely all three cleanly. The .docx format side-steps every piece of that: tables with row-span work natively, diagram images are inline vector graphics, styling comes from the docx's own built-in heading/paragraph styles, and the output opens in every consumer office tool without a plugin.
+
+The cost is a runtime dependency on a .docx-building library. The export uses Dolan Miu's [`docx`](https://github.com/dolanmiu/docx), pinned to version 8.5.0, loaded from unpkg.com. It's ~600KB minified, lazy-loaded on first export, and cached thereafter on `window._docxLib`. Users who never export never pay the cost; users who export once don't pay it again within the same session.
+
+### Flow
+
+`exportSpecification()` drives the whole pipeline:
+
+1. Prompt for a filename (default `<systemName>-spec.docx`).
+2. Show a progress modal ("Loading document library…" → "Rendering diagrams…" → "Packaging document…").
+3. `loadDocxLibrary()` injects a `<script>` for the UMD build if not already loaded. Resolves to `window.docx` cached in `_docxLib`.
+4. `buildSpecificationDocx(d, progress)` assembles the `docx.Document` tree by walking the model and fetching diagram images as it goes.
+5. `docx.Packer.toBlob(doc)` packages the document. The resulting Blob is downloaded via anchor click.
+
+### Diagram image fetching
+
+Each diagram is fetched in **both** SVG and PNG form from the configured PlantUML server. `fetchDiagramImage(plantUMLSource)` returns `{svg, png, width, height}`:
+
+- `plantUMLSVGURL(source)` builds the `/plantuml/svg/` URL, `plantUMLImageURL(source)` builds the `/plantuml/png/` URL. Same encoding, different format segment.
+- Both fetches run in parallel via `Promise.all`. Per-diagram latency is roughly the slower of the two, not their sum.
+- The server must send `Access-Control-Allow-Origin: *` for `arrayBuffer()` to succeed. The public `plantuml.com` does; a user-configured local server may or may not.
+- Image dimensions come from the PNG (loaded briefly into an `Image` element to read `naturalWidth` / `naturalHeight`). SVG viewBox parsing would be messier and the pixel values are what docx's `ImageRun.transformation` expects anyway.
+
+`fitDiagramToPage(w, h)` scales wide diagrams down to 600px width (preserving aspect ratio); smaller diagrams pass through at natural size. 600px matches ~6.25 inches at 96 DPI, which fits US Letter / A4 with standard 1-inch margins.
+
+Failures (CORS, server 500, decode error, either format missing) throw from `fetchDiagramImage`. The generator catches per-diagram and substitutes an italic placeholder paragraph ("Could not render X: <message>"), so a single failed diagram doesn't abort the whole document.
+
+### SVG + PNG fallback
+
+Diagrams embed as vector graphics for crisp output at any zoom and print DPI — the default PlantUML PNG output is 72 DPI and produces visibly soft edges when Word scales it to its effective display DPI. `mkDiagramParagraph(d, imageData)` builds the centered image paragraph via:
+
+```js
+new d.ImageRun({
+  type: "svg",
+  data: imageData.svg,
+  transformation: fitDiagramToPage(imageData.width, imageData.height),
+  fallback: { type: "png", data: imageData.png }
+})
+```
+
+Word renders the SVG natively. LibreOffice (recent versions) renders SVG natively. Google Docs falls back to the PNG — no worse than the pre-SVG baseline. Older Word versions (pre-2016) fall back to the PNG.
+
+### Document structure
+
+H1 is the literal phrase "System specification" — the system's own display name lives in the docx metadata (visible in file properties), not in a visible heading. H1 chapters are the top-level structural units; H2 sections are the subunits within each chapter.
+
+- **H1 "System specification"** → H2 Description (user-authored system specification text) + H2 System architecture (full diagram, component summary table, handler summary table).
+- **H1 "Interfaces"** → H2 per interface with its messages table (row-span for multi-parameter messages).
+- **H1 per component** → H2 Context (filtered-diagram image, no outer system wrapper) + H2 State variables + H2 States + H2 Choice-points + H2 State diagram (full state machine image) + H2 State transition table (row-span for multi-message transitions).
+- **H1 per handler** → H2 Functions (row-span for multi-parameter functions).
+
+A well-formed output opens with a table of contents that reads: System specification / Interfaces / each Component / each Handler. The structure matches the user-provided PDF template that drove the design.
+
+### Choice-points in spec output
+
+The Stadiæ model carries three fields on a choice-point: `name` (an internal identifier used as part of the PlantUML id, e.g. `CP_Available`), `question` (the semantic content, e.g. "Is the item in stock?"), and `description`. The spec deliberately omits the name: it has no meaning to a spec reader, and the `CP_` prefix is a PlantUML-id anti-collision device.
+
+The choice-points table therefore renders as **Question | Description** (not Name | Description). Choice-point rows are sorted alphabetically by question text.
+
+The transition table has the same issue — when a transition's source or target *is* a choice-point, the raw model string is something like `CP_Available`. `nodeLabelInComponent(comp, id)` resolves these:
+
+- `START` → `●`
+- `[H]` → `H`
+- `*` → `∗`
+- `CP_<name>` → the choice-point's question (or `<name>` if the question is empty)
+- Regular state id → the state's `displayName` when set, otherwise the identifier
+
+It's a component-scoped twin of the editor's existing `nodeLabel` helper — the editor version reads from the active component, this one takes a component explicitly so the spec generator doesn't need to flip the active pointer to resolve an endpoint.
+
+### Flattening `\n` markers
+
+The model uses the literal two-character sequence `\n` (backslash-n) as a line-break marker in short labels — state display names, choice-point questions — so PlantUML can wrap them when diagram layout is tight. In prose the line-break is a rendering artifact, not semantic. `mkCell` normalises every cell's text: `\n` → space, real newlines → space, whitespace runs collapsed, trimmed. Same flattening applied to the H1 headings and prose sentences that embed component/handler labels.
+
+Body prose (the system specification textarea, component descriptions, handler descriptions) uses `mkParas` which preserves real newlines as paragraph breaks — only **table cells** and **headings** are flattened to single-line.
+
+### Tables and column widths
+
+`mkCell(d, text, {rowSpan, width})` produces a docx `TableCell` with optional `rowSpan` and absolute `width` (in DXA — twentieths of a point). The docx library handles the underlying XML merge-cell syntax for rowspan; subsequent rows in a rowspan group carry fewer cells (the docx format expects "missing" cells where the row-span occupies them).
+
+**Column widths are effectively mandatory.** Without explicit per-cell widths, Word computes column widths from minimum content, which collapses any column with a narrow heading to one character per line — the letters of "Source" stack vertically as `S / o / u / r / c / e`. Three layers of width declaration ship together, targeting three different viewer quirks:
+
+1. **Per-cell width in DXA** via `{width: N}` on every `mkCell` and `mkHeaderCell` call. Word honours these directly.
+2. **`TableLayoutType.FIXED`** at the table level. This emits `<w:tblLayout w:type="fixed"/>`, telling Word not to re-size columns based on content.
+3. **`columnWidths` array** on the Table itself. This emits `<w:tblGrid>` with explicit column widths. Google Docs honours this grid more reliably than per-cell widths; without it, Google Docs runs its own minimum-content auto-layout pass on import and ignores the per-cell values.
+
+**Why DXA instead of percentage.** An earlier iteration used `WidthType.PERCENTAGE`. Word and LibreOffice honoured it; Google Docs silently ignored it on import and fell back to auto-layout. Absolute DXA values are honoured by all three. 9000 DXA (≈6.25 inches) is the total table width, fitting inside US Letter and A4 with standard margins.
+
+**Width profiles.** Defined once at the top of `buildSpecificationDocx` using a `pct(percents)` helper that scales percentages to DXA against the 9000-DXA total, so design intent stays percentage-based while the output is absolute:
+
+- `COL_2 = pct([25, 75])` — two-column summary tables (Component/Description, Handler/Description, Interface name/Description, State/Description, Choice-point Question/Description).
+- `COL_3 = pct([20, 20, 60])` — three-column state-variables table (Name | Type | Description).
+- `COL_4 = pct([18, 40, 22, 20])` — four-column table. Historically used for messages and functions before per-parameter descriptions got their own column; kept in the code as a reference profile and for any future four-column use.
+- `COL_5 = pct([13, 13, 16, 16, 42])` — five-column transition table (Source | Target | Interface | Message | Action). Action gets nearly half the width because action text is the most verbose column.
+- `COL_5P = pct([13, 30, 15, 12, 30])` — five-column message and function tables (Entity name | Entity description | Parameter | Type | Parameter description). The two description columns get equal weight at 30% each; name columns stay narrow because the reading flow is scan-right-to-read, not scan-right-to-identify. Distinct from the transition `COL_5` because the prose-density profile is different (two mid-prose columns vs one long-prose column).
+
+### Parameter descriptions in message and function tables
+
+Message parameters and function parameters each carry an optional `description` field alongside `name` and `type`. These render as a **dedicated fifth column** in the per-interface message table and the per-handler function table. The resulting column layout:
+
+| Column | Role | Width |
+|---|---|---|
+| Message / Function | Entity name — rowspan across all parameter rows when N>1 | 13% |
+| Message description / Function description | The entity's own description — rowspan | 30% |
+| Parameter | Parameter name, one row per parameter | 15% |
+| Type | Parameter type (`"-"` when empty) | 12% |
+| Parameter description | Parameter's own free-text description | 30% |
+
+The header text distinguishes "Message description" / "Function description" from "Parameter description" — both columns would otherwise read "Description" and ambiguate. An earlier iteration concatenated the parameter description into the Type cell with an em-dash separator (the `typeCell(p)` helper); that kept the table at four columns but pushed longer parameter descriptions into a cell too narrow to read them comfortably. The fifth-column layout reclaims the width.
+
+### State machine rendering per component
+
+`generatePlantUML()` reads from `Model.activeComponentIndex`. The export generator temporarily re-points the index at the component being documented, renders, then restores — wrapped in `try/finally` so a fetch failure mid-render can't leave the UI focused on the wrong component. An alternative would be to thread a component-index argument through `generatePlantUML`, but that's a deeper refactor affecting the main UI render path; the save/restore is simpler and safe.
+
+### Per-component Context diagrams
+
+Each component section includes a Context diagram — the system diagram restricted to that component's immediate neighbourhood. The filter is computed by `buildFocusFilter(componentName)` and threaded into `generateComponentDiagramPlantUML` via a `focus` option.
+
+The neighbourhood is:
+
+- The component itself.
+- Interfaces the component is directly wired to.
+- Handlers on any of those interfaces (showing who's on the other end).
+- Handlers the component calls directly.
+
+Explicitly *not* included: other components on the same interface. The context diagram is the component's outgoing/incoming contract surface, not the full ecosystem. Cross-component relationships belong in the system diagram proper.
+
+**The outer system wrapper is dropped for Context diagrams.** The full system diagram encloses everything in `component SystemName { ... }` to carry the visible system boundary. For a single-component focused view that's visual redundancy — there's no "whole system" being shown, just one component's neighbourhood. `buildFocusFilter` sets `skipSystemWrapper: true` on the returned filter; the generator tests this flag and skips both the opening `component SystemName {` line and its matching `}` closer.
+
+`generateComponentDiagramPlantUML` exposes six `allow*` predicates (`allowComponent`, `allowHandler`, `allowInterface`, `allowConnection`, `allowHandlerConnection`, `allowHandlerCall`) that default to `() => true` when `focus` is null, and consult the filter sets when focus is set. The predicates gate every emission loop — components, handlers, interfaces (via `wiredInterfaces`), and all three wiring kinds. The `skipSystemWrapper` flag is handled separately from the allow-predicates since it gates structural syntax (the outer `component {...}` block) rather than entity emission.
+
+### Empty-case and error fallbacks
+
+Every potentially-empty section falls back to a one-line italic statement rather than an empty table: `"No handlers are defined for this system."`, `"This interface has no messages."`, `"This component has no choice-points."`, `"The <handler> exposes no functions."`, and so on. Missing descriptions render as `"No description provided."` in cells. Per-diagram render failures produce `"Could not render <diagram>: <reason>"` italic paragraphs in place of the image. The document always generates.
+
+### What the generator doesn't do
+
+- **No requirements, non-functional, or scenarios sections.** The model doesn't carry that information; the template deliberately leaves these to the human to add after export.
+- **No sequence diagrams.** Scenarios are outside scope; the static model covers the contract, not the choreography.
+- **No cross-referencing.** The document is flat — no anchor links between the interface vocabulary and the component sections that use it. Word's built-in "Heading" styles make it easy for the user to add a table of contents manually post-export.
+
+---
+
+## 16. Known limitations
+
+- **PlantUML server dependency for rendering.** Live diagram rendering requires a reachable PlantUML server. The default is the public `plantuml.com`; the user can point to a local server via `File → PlantUML server…` (the setting is persisted to `localStorage`). The export-as-`.puml` path works fully offline — it emits source without rendering — but canvas preview, PNG export, and the specification export all require a server round-trip per diagram.
+- **Canvas selection depends on CORS.** If the configured PlantUML server stops sending `Access-Control-Allow-Origin: *` on PNG responses, the mask pixel read becomes impossible in the browser and canvas-click selection silently fails (list-based selection continues to work). Same constraint applies to the specification exporter's image fetching.
+- **Specification export needs unpkg.com on first use.** The `docx` library is lazy-loaded from `https://unpkg.com/docx@8.5.0/build/index.umd.js` the first time the user triggers an export. If unpkg is unreachable, the export fails with an error dialog; subsequent exports in the same session use the cached library without network I/O. Fully offline specification generation would require bundling the ~600KB library into the HTML file, which is a deliberate trade-off declined in favour of keeping the base file small.
+- **Google Docs renders PNG, not SVG, for embedded diagrams.** The exporter ships both SVG and PNG for every diagram; Word and LibreOffice render the sharper SVG natively, Google Docs falls back to the PNG on import. The resulting quality in Google Docs is equivalent to the pre-SVG baseline.
 - **No composite/nested states.** The model is intentionally flat; PlantUML supports composite states but Stadiæ doesn't currently expose them.
 - **No multi-select on the canvas.** Clicks are single-toggle only; multi-select is only available through the side lists and transition table.
 - **Server-side layout.** The user can influence arrow direction and length per transition, but the overall layout is decided by PlantUML. Manual drag-positioning of nodes is not supported.
 
 ---
 
-## 16. Pointers for extension
+## 17. Pointers for extension
 
 If you want to:
 
-- **Add a new element type** (e.g. an "end" pseudostate): add a flag to `Selection`, a row to the States list in `buildStateList`, emission logic in `generatePlantUML` (both modes — visible with styling, mask with id assignment), a case in `canAddTransition` if it participates in transitions, and a manual section.
+- **Add a new element type** (e.g. an "end" pseudostate): add a flag to `Selection`, a row to the States list in `buildStateList`, emission logic in `generatePlantUML` (both modes — visible with styling, mask with id assignment), a case in `canAddTransition` if it participates in transitions, a resolution case in `nodeLabelInComponent` (for the spec transition table), a `pruneNodeOrder` case and `noteNodeSelected`/`noteNodeDeselected` calls at the new element's selection sites (if it can participate in transitions — so click-order direction inference works for it too, see §8.7), and a manual section.
 
-- **Add a new per-transition-row field** (like the `action` field): extend the message objects in `Component.transitions[*].messages`, add UI for viewing/editing it below the transitions table (following the Action panel pattern — live save with per-session history via `pushHistory`, suppressed diagram re-renders since it doesn't affect PlantUML), and surface presence in the table via an indicator column or cell.
+- **Add a new documentation-only per-component field** (like `stateVariables`): add the field to `makeEmptyComponent`, to the serializer (only when non-empty to keep files from users who don't use the feature byte-minimal), to the loader (defensive normalisation), and to `snapshot()` via the component object. Build a UI list with `build{Field}List`, wire it into `refresh()`, add CRUD helpers and a dialog matching `openStateVariableDialog`, a Selection set + `clearAll` case + `clearSelectionForContext` case, a toolbar `+` button + enabled-state rule, `canEdit` / `actionEdit` / `actionDelete` branches. For the spec export, add an H2 section in the per-component chapter and a column-width profile if the shape is new.
+
+- **Add a new per-transition-row field** (like the `action` field): extend the message objects in `Component.transitions[*].messages`, add UI for viewing/editing it (following the Action panel pattern — live save with per-session history via `pushHistory`, suppressed diagram re-renders since it doesn't affect PlantUML), and surface presence in the table via an indicator column or cell. Extend the spec exporter's transition table to include it; widths in `COL_5` may need rebalancing.
+
+- **Add a new entity kind to the spec export** (e.g. a "Scenarios" chapter): add the section in `buildSpecificationDocx`, match its heading level to the H1/H2 convention (chapter heading is H1, subsections H2), and use the existing `mkTable` / `mkCell` helpers with one of the `COL_N` width profiles (or add a new profile if the column layout is different). Remember to apply `{width: COL_N[i]}` to every body cell — omitting it lets Google Docs collapse the column on import.
 
 - **Change visual theming**: edit the CSS custom properties block at the top of `<style>`. The accent colour threads through toolbar hover, selection, primary buttons, the active component chevron, the System button's view-active fill, and the logo — one variable.
 
@@ -934,8 +1140,8 @@ If you want to:
 
 - **Persist across sessions**: the model serialises cleanly via `snapshot()`. Writing that string to `localStorage` on every `pushHistory` and restoring on startup would add autosave without touching the rest of the code.
 
-- **Support offline rendering**: replace `plantUMLImageURL(source)` with a call to a local PlantUML instance (e.g. served via `plantuml -picoweb`), keeping everything else the same. The selection-mask technique works identically as long as the local server sends CORS headers.
+- **Support offline rendering**: replace `plantUMLImageURL(source)` with a call to a local PlantUML instance (e.g. served via `plantuml -picoweb`), keeping everything else the same — `plantUMLSVGURL` follows the same pattern for the spec export. The selection-mask technique works identically as long as the local server sends CORS headers.
 
 ---
 
-*This document reflects the design as of the current build. Last updated alongside the multi-component refactor.*
+*This document reflects the design as of the current build.*

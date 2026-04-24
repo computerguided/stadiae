@@ -333,7 +333,7 @@
   }
   .lists-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 12px;
     flex: 0 0 auto;
     height: 260px;
@@ -572,14 +572,14 @@
      menus is visible at any time. */
   body.view-system .menu[data-menu="component"] { display: none; }
   body.view-component .menu[data-menu="system"] { display: none; }
-  .list-box ul {
+  .list-box ul, .params-panel ul {
     list-style: none;
     margin: 0; padding: 4px;
     overflow-y: auto;
     flex: 1;
     font-size: 12.5px;
   }
-  .list-box li {
+  .list-box li, .params-panel li {
     padding: 6px 10px;
     cursor: pointer;
     white-space: nowrap;
@@ -589,9 +589,9 @@
     color: var(--text);
     transition: background 0.1s;
   }
-  .list-box li + li { margin-top: 1px; }
-  .list-box li:hover { background: var(--accent-soft); }
-  .list-box li.selected {
+  .list-box li + li, .params-panel li + li { margin-top: 1px; }
+  .list-box li:hover, .params-panel li:hover { background: var(--accent-soft); }
+  .list-box li.selected, .params-panel li.selected {
     background: var(--accent-soft);
     color: var(--accent);
     font-weight: 600;
@@ -606,25 +606,27 @@
      line (nowrap) but are no longer cut off with ellipsis — the
      `#list-states` / `#list-cps` scope below relaxes the generic
      `.list-box li` truncation rules. */
-  .list-box .state-desc {
+  .list-box .state-desc, .params-panel .state-desc {
     color: var(--text-muted);
     font-style: italic;
   }
-  .list-box li.selected .state-desc {
+  .list-box li.selected .state-desc, .params-panel li.selected .state-desc {
     color: var(--accent);
     font-style: italic;
     opacity: 0.8;
   }
-  /* Horizontal overflow for the four lists that can carry long
-     descriptions (states, choice-points, interfaces, messages).
-     `overflow-x: auto` gives the UL its own horizontal scrollbar at
-     the bottom of the list; the generic `.list-box li` truncation
-     needs to be turned off so long rows stretch their full width
-     instead of being clipped. */
-  #list-states, #list-cps, #list-ifaces, #list-msgs, #list-fns {
+  /* Horizontal overflow for the lists that can carry long
+     descriptions (states, choice-points, state-variables, interfaces,
+     messages, functions, parameters). `overflow-x: auto` gives the
+     UL its own horizontal scrollbar at the bottom of the list; the
+     generic `.list-box li` truncation needs to be turned off so long
+     rows stretch their full width instead of being clipped. */
+  #list-states, #list-cps, #list-vars, #list-ifaces, #list-msgs, #list-fns,
+  #params-list, #fnparams-list {
     overflow-x: auto;
   }
-  #list-states li, #list-cps li, #list-ifaces li, #list-msgs li, #list-fns li {
+  #list-states li, #list-cps li, #list-vars li, #list-ifaces li, #list-msgs li, #list-fns li,
+  #params-list li, #fnparams-list li {
     overflow: visible;
     text-overflow: clip;
     /* Preserve single-line layout so the list stays readable as a
@@ -668,6 +670,35 @@
   }
 
   /* === Transition table === */
+  /* The Transitions + Action row. Horizontal flex: Transitions absorbs
+     leftover width, Action sits on the right with an explicit pixel
+     width that's seeded from the lists-grid's third column so the
+     Action panel visually aligns with State Variables above. A
+     horizontal resize handle between them lets the user override.
+     The row's height is the remaining vertical space below the lists
+     row and the resize handle above — so .trans-panel no longer needs
+     its own flex: 1 1 auto trick; that logic moves up one level. */
+  .trans-action-row {
+    display: flex;
+    flex-direction: row;
+    flex: 1 1 auto;
+    min-height: 0;
+    /* No flex `gap` — the resize handle inside this row provides the
+       visible 12px channel between Transitions and Action on its own
+       (via its scoped width override below). A flex `gap` on top
+       would compound with the handle's width and widen the channel
+       beyond the 12px used by the lists-grid above. */
+  }
+  /* Scoped resize-handle width for the Trans↔Action divider: 12px of
+     real flex footprint with no negative margin, so it lays out
+     exactly as a grid column gap of 12px would. Mirrors the gap
+     between columns 2 and 3 in the .lists-grid directly above, so
+     the Transitions/Action divide aligns visually with the
+     Choice-points/State-Variables divide. */
+  .trans-action-row > .resize-handle-h {
+    width: 12px;
+    margin: 0;
+  }
   .trans-panel {
     background: var(--surface);
     border: 1px solid var(--border-strong);
@@ -675,6 +706,7 @@
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
     box-shadow: var(--shadow-sm);
@@ -761,6 +793,11 @@
   .trans-panel td.match { font-weight: 600; color: var(--text); }
 
   /* === Action panel === */
+  /* Action panel, now side-by-side with Transitions. The `width` is
+     set dynamically at init from the lists-grid's third column so the
+     panel lines up with State Variables above. Once the user drags
+     the resize handle, we respect their override. min-width / max-
+     width keep the panel usable at extreme drag positions. */
   .action-panel {
     background: var(--surface);
     border: 1px solid var(--border-strong);
@@ -768,8 +805,8 @@
     display: flex;
     flex-direction: column;
     flex: 0 0 auto;
-    height: 140px;
-    min-height: 60px;
+    width: 300px;
+    min-width: 160px;
     overflow: hidden;
     box-shadow: var(--shadow-sm);
   }
@@ -1005,46 +1042,25 @@
   .params-panel .params-body {
     flex: 1;
     min-height: 0;
-    overflow: auto;
+    /* No overflow here — the inner `<ul>` is the scroll container
+       (both X and Y via the shared .params-panel ul and the
+       #params-list/#fnparams-list overflow-x rules). If this wrapper
+       also scrolled, nesting the two would push the horizontal
+       scrollbar to the bottom of the wrapper rather than to the
+       bottom of the list itself — visible as a scrollbar floating
+       below the last list row, detached from the content it
+       controls. Matching the .list-box structure (ul is the direct
+       flex child that handles its own overflow) keeps the scrollbar
+       flush against the rows. */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .params-panel .params-placeholder {
     padding: 14px 16px;
     color: var(--text-faint);
     font-style: italic;
     font-size: 12.5px;
-  }
-  .params-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12.5px;
-  }
-  .params-table th {
-    text-align: left;
-    padding: 6px 14px;
-    background: var(--surface-3);
-    font-weight: 600;
-    font-size: 11px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 1;
-  }
-  .params-table td {
-    padding: 5px 14px;
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-  }
-  .params-table tr:last-child td { border-bottom: none; }
-  .params-table tr { cursor: pointer; }
-  .params-table tr:hover td { background: var(--accent-soft); }
-  .params-table tr.selected td {
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-weight: 600;
-    box-shadow: inset 2px 0 0 var(--accent);
   }
   /* Hidden state: panel + resize handle disappear; the list-box
      reclaims the column height via its own flex: 1. Driven by the
@@ -1608,12 +1624,7 @@
               <div class="params-placeholder" id="fnparams-placeholder">
                 Select a single function to view or edit its parameters.
               </div>
-              <table class="params-table" id="fnparams-table" style="display:none;">
-                <thead>
-                  <tr><th>Name</th><th>Type</th></tr>
-                </thead>
-                <tbody id="fnparams-tbody"></tbody>
-              </table>
+              <ul class="params-list" id="fnparams-list" style="display:none;"></ul>
             </div>
           </div>
         </div>
@@ -1642,12 +1653,7 @@
               <div class="params-placeholder" id="params-placeholder">
                 Select a single message to view or edit its parameters.
               </div>
-              <table class="params-table" id="params-table" style="display:none;">
-                <thead>
-                  <tr><th>Name</th><th>Type</th></tr>
-                </thead>
-                <tbody id="params-tbody"></tbody>
-              </table>
+              <ul class="params-list" id="params-list" style="display:none;"></ul>
             </div>
           </div>
         </div>
@@ -1676,29 +1682,38 @@
           </div>
           <ul id="list-cps"></ul>
         </div>
-      </div>
-      <div class="resize-handle" id="resize-handle" title="Drag to resize"></div>
-      <div class="trans-panel">
-        <div class="header">Transitions</div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th></th><th>Source</th><th>Target</th><th>Interface</th><th>Message</th>
-              </tr>
-            </thead>
-            <tbody id="trans-tbody"></tbody>
-          </table>
+        <div class="list-box">
+          <div class="header">
+            <span>State variables</span>
+            <button class="header-add" id="btn-add-var" title="Add state variable">+</button>
+          </div>
+          <ul id="list-vars"></ul>
         </div>
       </div>
-      <div class="resize-handle" id="resize-handle-action" title="Drag to resize"></div>
-      <div class="action-panel" id="action-panel">
-        <div class="header">Action</div>
-        <div class="action-body">
-          <div class="action-placeholder" id="action-placeholder">
-            Select a single transition row to view or edit its action.
+      <div class="resize-handle" id="resize-handle" title="Drag to resize"></div>
+      <div class="trans-action-row" id="trans-action-row">
+        <div class="trans-panel">
+          <div class="header">Transitions</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th></th><th>Source</th><th>Target</th><th>Interface</th><th>Message</th>
+                </tr>
+              </thead>
+              <tbody id="trans-tbody"></tbody>
+            </table>
           </div>
-          <textarea id="action-textarea" placeholder="Describe the action performed when this transition fires…" style="display:none;"></textarea>
+        </div>
+        <div class="resize-handle-h" id="resize-handle-action" title="Drag to resize"></div>
+        <div class="action-panel" id="action-panel">
+          <div class="header">Action</div>
+          <div class="action-body">
+            <div class="action-placeholder" id="action-placeholder">
+              Select a single transition row to view or edit its action.
+            </div>
+            <textarea id="action-textarea" placeholder="Describe the action performed when this transition fires…" style="display:none;"></textarea>
+          </div>
         </div>
       </div>
     </div>
@@ -1755,6 +1770,12 @@ function makeEmptyComponent(name, displayName) {
     stateFontSize: 12,
     states: [],          // {name, displayName}
     choicePoints: [],    // {name, question}  name excludes "CP_" prefix
+    // State variables: per-component, documentation-only. Three fields:
+    //   name (single-word identifier, unique within component),
+    //   type (free-text, optional), description (free-text, optional).
+    // Never emitted to PlantUML; round-trips in the .json save; appears
+    // in the spec export as a table per component.
+    stateVariables: [],  // {name, type, description}
     // transitions: {source, target, messages: [{interface,name,action?}], connector, length}
     // Source/target are state/cp names. "START" is a special source,
     // "[H]" special target, "*" special source. Each message may carry a
@@ -1854,6 +1875,19 @@ const Component = {
   set states(v)       { Model.components[Model.activeComponentIndex].states = v; },
   get choicePoints()  { return Model.components[Model.activeComponentIndex].choicePoints; },
   set choicePoints(v) { Model.components[Model.activeComponentIndex].choicePoints = v; },
+  // State variables — per-component documentation-only records. Must
+  // go through the proxy like the other per-component arrays so edits
+  // land on the right component's record in Model. Before this getter
+  // existed, `Component.stateVariables = [...]` was creating a plain
+  // property on the proxy object itself rather than writing into
+  // Model — which meant state variables leaked across components and
+  // weren't cleared on File → New.
+  get stateVariables() {
+    const c = Model.components[Model.activeComponentIndex];
+    if (!Array.isArray(c.stateVariables)) c.stateVariables = [];
+    return c.stateVariables;
+  },
+  set stateVariables(v) { Model.components[Model.activeComponentIndex].stateVariables = v; },
   get transitions()   { return Model.components[Model.activeComponentIndex].transitions; },
   set transitions(v)  { Model.components[Model.activeComponentIndex].transitions = v; }
 };
@@ -2050,9 +2084,56 @@ const Selection = {
   // parallel to messageParameters but scoped to Handler functions.
   // Visible iff exactly one function is selected.
   functionParameters: new Set(),
+  // State variables. Keys plain variable names (not component-scoped,
+  // because the State Variables list only shows the active component's
+  // variables — there's no cross-component ambiguity the way there is
+  // for interfaces or messages). Same role as Selection.states for
+  // states. Cleared on active-component switch and on view switch.
+  stateVariables: new Set(),
   start: false,            // START icon selected
   history: false,          // H (history) pseudostate selected
   any: false,              // * (any) pseudostate selected (wildcard source)
+  // Transition direction hint. When the user selects two nodes (two
+  // states, two choice-points, or a state + choice-point) and clicks
+  // Add Transition, the dialog asking "which is the source?" is
+  // redundant if the user's click order already answered it. This
+  // array records the click sequence across states, choice-points,
+  // START, history, and any — stored as {kind, id} entries so the
+  // id space doesn't collide (a state named "START" wouldn't confuse
+  // the pseudostate). Entries are added when the underlying Set
+  // selection goes from "not selected" to "selected", and removed
+  // when the reverse happens. Pruned inside clearSelectionForContext,
+  // clearAll, and on view switch so it never refers to a deselected
+  // node. Consumed by actionAddTransition to pick a source
+  // without asking.
+  nodeOrder: [],
+  // Node-order helpers. Kept on the Selection object itself so every
+  // call site uses the same mutation discipline.
+  noteNodeSelected(kind, id) {
+    // Dedup defensively — re-adding an already-present node would
+    // put it at the wrong position (the end). Selection toggles
+    // handle this correctly at the callers, but a second call with
+    // the same kind/id is a no-op here.
+    if (!this.nodeOrder.some(e => e.kind === kind && e.id === id)) {
+      this.nodeOrder.push({ kind, id });
+    }
+  },
+  noteNodeDeselected(kind, id) {
+    this.nodeOrder = this.nodeOrder.filter(e => !(e.kind === kind && e.id === id));
+  },
+  // Recompute `nodeOrder` against the current Sets. Used after bulk
+  // operations (clearSelectionForContext, view switches) to drop
+  // entries that no longer correspond to a selected node.
+  pruneNodeOrder() {
+    this.nodeOrder = this.nodeOrder.filter(e => {
+      if (e.kind === "state")   return this.states.has(e.id);
+      if (e.kind === "cp")      return this.choicePoints.has(e.id);
+      if (e.kind === "start")   return this.start;
+      if (e.kind === "history") return this.history;
+      if (e.kind === "any")     return this.any;
+      return false;
+    });
+  },
   clearAll() {
     this.states.clear(); this.choicePoints.clear(); this.interfaces.clear();
     this.messages.clear(); this.transitions.clear();
@@ -2060,7 +2141,9 @@ const Selection = {
     this.handlers.clear(); this.handlerConnections.clear(); this.handlerCalls.clear();
     this.functions.clear();
     this.messageParameters.clear(); this.functionParameters.clear();
+    this.stateVariables.clear();
     this.start = false; this.history = false; this.any = false;
+    this.nodeOrder = [];
   }
 };
 
@@ -2141,6 +2224,17 @@ function encodePlantUML(text) {
 function plantUMLImageURL(source) {
   const encoded = encodePlantUML(source);
   return activePlantUMLBaseUrl() + "/plantuml/png/" + encoded;
+}
+
+// SVG variant — same encoding, different format segment in the URL.
+// Used by the specification export for sharper diagrams (vector
+// graphics render at any zoom / print DPI without the softness of
+// scaled-up raster output). The canvas preview stays on PNG because
+// the live preview uses <img> tags and the bitmap path is faster for
+// rapid-fire re-renders during editing.
+function plantUMLSVGURL(source) {
+  const encoded = encodePlantUML(source);
+  return activePlantUMLBaseUrl() + "/plantuml/svg/" + encoded;
 }
 
 // ---------- PlantUML generation ----------
@@ -2724,6 +2818,17 @@ function isUniqueCPName(name, excludeName=null) {
   if (Component.states.some(s => s.name === ("CP_"+name))) return false;
   return true;
 }
+// State-variable names are per-component identifiers. Unique within the
+// same component's state-variables list. They don't share a namespace
+// with states or choice-points — state variables never appear in the
+// transitions table or the PlantUML source, so there's no risk of name
+// collision there. They *can* coincidentally share a name with a state,
+// which just means "the variable is called `Ready` and so is one of
+// the states"; both read unambiguously from context.
+function isUniqueStateVariableName(name, excludeName=null) {
+  const vars = Array.isArray(Component.stateVariables) ? Component.stateVariables : [];
+  return !vars.some(v => v.name === name && v.name !== excludeName);
+}
 function isUniqueInterfaceName(name, excludeName=null) {
   return !Model.interfaces.some(i => i.name === name && i.name !== excludeName);
 }
@@ -3050,6 +3155,7 @@ function onDiagramClick(e) {
 
 function hasAnySelection() {
   return Selection.states.size || Selection.choicePoints.size ||
+         Selection.stateVariables.size ||
          Selection.interfaces.size || Selection.messages.size ||
          Selection.transitions.size ||
          Selection.components.size || Selection.connections.size ||
@@ -3093,6 +3199,12 @@ function clearSelectionForContext(ctx) {
       break;
     case "cps":
       Selection.choicePoints.clear();
+      break;
+    case "vars":
+      // Plain-click on a state-variable row: clear other state-variable
+      // selections within the list. State variables are per-component
+      // and documentation-only, parallel to choice-points structurally.
+      Selection.stateVariables.clear();
       break;
     case "ifaces":
       // Messages depend on their interfaces being selected for visibility;
@@ -3177,6 +3289,9 @@ function clearSelectionForContext(ctx) {
       Selection.functionParameters.clear();
       break;
   }
+  // Whatever was just cleared, update nodeOrder so it only keeps
+  // entries whose underlying node is still selected.
+  Selection.pruneNodeOrder();
 }
 
 // Track the most recent input modality so we can adapt selection rules.
@@ -3228,17 +3343,19 @@ function selectClick(e, context, toggleFn, isCurrentlySelected) {
 function toggleSelection(ref) {
   const { kind, key } = ref;
   if (kind === "start") {
-    Selection.start = !Selection.start;
+    if (Selection.start) { Selection.start = false; Selection.noteNodeDeselected("start", ""); }
+    else { Selection.start = true; Selection.noteNodeSelected("start", ""); }
   } else if (kind === "any") {
-    Selection.any = !Selection.any;
+    if (Selection.any) { Selection.any = false; Selection.noteNodeDeselected("any", ""); }
+    else { Selection.any = true; Selection.noteNodeSelected("any", ""); }
   } else if (kind === "state") {
     const name = key.replace(/^state:/, "");
-    if (Selection.states.has(name)) Selection.states.delete(name);
-    else Selection.states.add(name);
+    if (Selection.states.has(name)) { Selection.states.delete(name); Selection.noteNodeDeselected("state", name); }
+    else { Selection.states.add(name); Selection.noteNodeSelected("state", name); }
   } else if (kind === "cp") {
     const name = key.replace(/^cp:/, "");
-    if (Selection.choicePoints.has(name)) Selection.choicePoints.delete(name);
-    else Selection.choicePoints.add(name);
+    if (Selection.choicePoints.has(name)) { Selection.choicePoints.delete(name); Selection.noteNodeDeselected("cp", name); }
+    else { Selection.choicePoints.add(name); Selection.noteNodeSelected("cp", name); }
   } else if (kind === "transition") {
     // key is "trans:source|target" — find the transition and toggle ALL its rows together
     const tid = key.replace(/^trans:/, "");
@@ -3361,6 +3478,7 @@ function refresh() {
   buildHandlerList();
   buildStateList();
   buildCPList();
+  buildStateVariableList();
   buildInterfaceList();
   buildMessageList();
   buildFunctionList();
@@ -3505,6 +3623,15 @@ function resolveDescriptionTarget() {
   const compN = Selection.components.size;
   const handN = Selection.handlers.size;
   if (Model.activeView === "system") {
+    // In system view the Description panel is bound to whatever
+    // component or handler the user has exactly-one-of selected.
+    // Anything else — nothing selected, multi-selection, a
+    // non-component/handler selection (interface, connection, call,
+    // etc.) — returns null so the panel shows a placeholder rather
+    // than falling back to the active component. The active
+    // component in system view is an implementation detail (it's
+    // "the component whose state machine we'd return to"), not a
+    // natural description target.
     if (handN === 1 && compN === 0) {
       const name = [...Selection.handlers][0];
       const h = Model.handlers.find(x => x.name === name);
@@ -3515,7 +3642,11 @@ function resolveDescriptionTarget() {
       const c = Model.components.find(x => x.name === name);
       if (c) return { kind: "component", entity: c, label: componentDisplayLabel(c) };
     }
+    return null;
   }
+  // Component view: always bound to the active component — its state
+  // machine is what the user is looking at, so its description is the
+  // natural thing to edit. No placeholder case here.
   const c = Model.components[Model.activeComponentIndex];
   return { kind: "component", entity: c, label: componentDisplayLabel(c) };
 }
@@ -3527,10 +3658,30 @@ function resolveDescriptionTarget() {
 // will land.
 function buildDescriptionPanel() {
   const target = resolveDescriptionTarget();
+  const header = document.getElementById("desc-header");
+  const textarea = document.getElementById("desc-textarea");
+
+  if (!target) {
+    // System view, nothing / multi / non-describable selection. Show
+    // a placeholder header, blank the textarea, and clear the dataset
+    // attributes the input handler keys on — so if the user types by
+    // accident the handler short-circuits instead of writing to a
+    // stale binding. The textarea stays enabled (visually consistent
+    // with the bound state) but any typing is harmlessly ignored.
+    header.innerHTML = "";
+    const label = document.createElement("span");
+    label.textContent = "Description";
+    header.appendChild(label);
+    if (textarea.value !== "") textarea.value = "";
+    delete textarea.dataset.entityKind;
+    delete textarea.dataset.entityName;
+    textarea.placeholder = "Select a single component or handler to view or edit its description.";
+    return;
+  }
+
   const entity = target.entity;
   if (!entity) return;
 
-  const header = document.getElementById("desc-header");
   header.innerHTML = "";
   const label = document.createElement("span");
   // Label adjusts so the user sees whether they're describing a
@@ -3547,7 +3698,6 @@ function buildDescriptionPanel() {
     : `${displayClean}  (${entity.name})`;
   header.appendChild(target_label);
 
-  const textarea = document.getElementById("desc-textarea");
   const current = entity.description || "";
   if (textarea.value !== current) textarea.value = current;
   // Stash both the kind and the name, because the input handler needs
@@ -3555,6 +3705,7 @@ function buildDescriptionPanel() {
   // dataset is the cleanest carrier — no closure-capture races.
   textarea.dataset.entityKind = target.kind;
   textarea.dataset.entityName = entity.name;
+  textarea.placeholder = "Description of the " + target.kind + " (developer documentation, saved with the diagram)";
 }
 
 // Wire the description textarea once, at startup. Mirrors the Action
@@ -3609,8 +3760,12 @@ function initSystemSpecPanel() {
     if ((Model.systemSpecification || "") !== newVal) {
       Model.systemSpecification = newVal;
       // No visual re-render needed — the spec has no dot indicator or
-      // other list affordance, just the textarea itself.
+      // other list affordance, just the textarea itself. But the Save
+      // button's enabled state tracks Model.dirty, so the toolbar
+      // needs to be updated explicitly (mirrors the Action and
+      // Description panels' edit handlers).
       Model.dirty = true;
+      updateToolbar();
       scheduleDraftSave();
     }
   });
@@ -3671,15 +3826,18 @@ function resolveBoundFunction() {
 // Shared parameter-panel renderer. Both the message-parameter panel
 // (in the Messages column) and the function-parameter panel (in the
 // Functions column) have identical structure: header + placeholder +
-// sortable table of {name, type} rows with click selection. This
-// helper centralizes the rendering so there's one code path for both.
+// list of parameters with click selection. Rendering matches the
+// State Variables list visual language exactly — plain `<ul>` of
+// `<li>` rows with `name : type — description` inline, same em-dash
+// and grey-muted `.state-desc` span for the secondary information.
+// Keeps Parameters and State Variables visually consistent since
+// they play the same documentation-only role in the model.
 //
 // Arguments:
 //   panelId       — outer panel element id (e.g. "params-panel")
 //   handleId      — top resize-handle id (e.g. "resize-handle-params")
 //   placeholderId — empty-state placeholder id
-//   tableId       — <table> element id
-//   tbodyId       — <tbody> element id
+//   listId        — <ul> element id that holds the parameter rows
 //   addBtnId      — header `+` button id
 //   owner         — the object that carries the parameters array
 //                   (message or function), or null to hide
@@ -3688,14 +3846,13 @@ function resolveBoundFunction() {
 //   clickContext  — selectClick context name ("params" / "fnparams")
 //   keyPrefix     — prefix string for parameter selection keys
 //                   (e.g. "Interface:Message" or "Handler:Function")
-function renderParamsPanel(panelId, handleId, placeholderId, tableId,
-                           tbodyId, addBtnId, owner, selectionSet,
+function renderParamsPanel(panelId, handleId, placeholderId, listId,
+                           addBtnId, owner, selectionSet,
                            clickContext, keyPrefix) {
   const panel = document.getElementById(panelId);
   const handle = document.getElementById(handleId);
   const placeholder = document.getElementById(placeholderId);
-  const table = document.getElementById(tableId);
-  const tbody = document.getElementById(tbodyId);
+  const list = document.getElementById(listId);
   const addBtn = document.getElementById(addBtnId);
 
   if (!owner) {
@@ -3722,35 +3879,48 @@ function renderParamsPanel(panelId, handleId, placeholderId, tableId,
   if (params.length === 0) {
     placeholder.textContent = "No parameters. Click + to add one.";
     placeholder.style.display = "";
-    table.style.display = "none";
+    list.style.display = "none";
     addBtn.disabled = false;
     return;
   }
   placeholder.style.display = "none";
-  table.style.display = "";
+  list.style.display = "";
   addBtn.disabled = false;
 
-  // Render alphabetically by name.
+  // Render alphabetically by name. Same visual structure as
+  // buildStateVariableList: label span + optional `: type` span +
+  // optional ` — description` span, both secondary spans muted via
+  // `.state-desc`. Consistent with state variables because both
+  // are documentation-only typed records.
   const sorted = [...params].sort((a,b) => a.name.localeCompare(b.name));
-  tbody.innerHTML = "";
+  list.innerHTML = "";
   for (const p of sorted) {
-    const tr = document.createElement("tr");
+    const li = document.createElement("li");
     const paramKey = keyPrefix + ":" + p.name;
-    if (selectionSet.has(paramKey)) tr.classList.add("selected");
-    const tdName = document.createElement("td");
-    tdName.textContent = p.name;
-    const tdType = document.createElement("td");
-    tdType.textContent = p.type || "";
-    tr.appendChild(tdName);
-    tr.appendChild(tdType);
-    tr.addEventListener("click", (e) => {
+    if (selectionSet.has(paramKey)) li.classList.add("selected");
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = p.name;
+    li.appendChild(labelSpan);
+    if (p.type && p.type.length > 0) {
+      const typeSpan = document.createElement("span");
+      typeSpan.className = "state-desc";
+      typeSpan.textContent = " : " + p.type;
+      li.appendChild(typeSpan);
+    }
+    if (p.description && p.description.length > 0) {
+      const descSpan = document.createElement("span");
+      descSpan.className = "state-desc";
+      descSpan.textContent = " \u2014 " + p.description;
+      li.appendChild(descSpan);
+    }
+    li.addEventListener("click", (e) => {
       selectClick(e, clickContext, () => {
         if (selectionSet.has(paramKey)) selectionSet.delete(paramKey);
         else selectionSet.add(paramKey);
       }, selectionSet.has(paramKey));
       refresh();
     });
-    tbody.appendChild(tr);
+    list.appendChild(li);
   }
 }
 
@@ -3760,7 +3930,7 @@ function buildParamsPanel() {
   const keyPrefix = msg ? (msg.interface + ":" + msg.name) : "";
   renderParamsPanel(
     "params-panel", "resize-handle-params",
-    "params-placeholder", "params-table", "params-tbody",
+    "params-placeholder", "params-list",
     "btn-add-param",
     msg, Selection.messageParameters, "params", keyPrefix
   );
@@ -3772,7 +3942,7 @@ function buildFunctionParamsPanel() {
   const keyPrefix = bound ? (bound.handler.name + ":" + bound.fn.name) : "";
   renderParamsPanel(
     "fnparams-panel", "resize-handle-fnparams",
-    "fnparams-placeholder", "fnparams-table", "fnparams-tbody",
+    "fnparams-placeholder", "fnparams-list",
     "btn-add-fnparam",
     bound ? bound.fn : null, Selection.functionParameters,
     "fnparams", keyPrefix
@@ -3821,6 +3991,8 @@ function openParameterDialog(owner, existing, kind, ownerContext) {
       <input type="text" id="param-name" value="${escapeHTML(existing?.name||'')}">
       <label>Type:</label>
       <input type="text" id="param-type" value="${escapeHTML(existing?.type||'')}">
+      <label>Description:</label>
+      <input type="text" id="param-desc" value="${escapeHTML(existing?.description||'')}">
     </div>
     <div class="actions">
       <button id="ok">OK</button>
@@ -3830,6 +4002,7 @@ function openParameterDialog(owner, existing, kind, ownerContext) {
   modalOverlay.classList.add("show");
   const nameI = document.getElementById("param-name");
   const typeI = document.getElementById("param-type");
+  const descI = document.getElementById("param-desc");
   const ok = document.getElementById("ok");
   const update = () => { ok.disabled = !nameI.value.trim(); };
   nameI.addEventListener("input", update); update();
@@ -3837,6 +4010,7 @@ function openParameterDialog(owner, existing, kind, ownerContext) {
   ok.onclick = () => {
     const name = nameI.value.trim();
     const type = typeI.value.trim();
+    const description = descI.value;
     const dup = (owner.parameters || []).some(p =>
       p !== existing && p.name === name
     );
@@ -3854,6 +4028,7 @@ function openParameterDialog(owner, existing, kind, ownerContext) {
       const oldName = existing.name;
       existing.name = name;
       existing.type = type;
+      existing.description = description;
       const oldKey = boundKey + ":" + oldName;
       const newKey = boundKey + ":" + name;
       if (selSet.has(oldKey) && oldKey !== newKey) {
@@ -3862,7 +4037,7 @@ function openParameterDialog(owner, existing, kind, ownerContext) {
       }
     } else {
       if (!Array.isArray(owner.parameters)) owner.parameters = [];
-      owner.parameters.push({ name, type });
+      owner.parameters.push({ name, type, description });
       selSet.clear();
       selSet.add(boundKey + ":" + name);
     }
@@ -4252,7 +4427,10 @@ function buildStateList() {
   startLi.classList.add("default-item");
   if (Selection.start) startLi.classList.add("selected");
   startLi.addEventListener("click", (e) => {
-    selectClick(e, "states", () => { Selection.start = !Selection.start; }, Selection.start);
+    selectClick(e, "states", () => {
+      if (Selection.start) { Selection.start = false; Selection.noteNodeDeselected("start", ""); }
+      else { Selection.start = true; Selection.noteNodeSelected("start", ""); }
+    }, Selection.start);
     refresh();
   });
   ul.appendChild(startLi);
@@ -4263,7 +4441,10 @@ function buildStateList() {
   hLi.classList.add("default-item");
   if (Selection.history) hLi.classList.add("selected");
   hLi.addEventListener("click", (e) => {
-    selectClick(e, "states", () => { Selection.history = !Selection.history; }, Selection.history);
+    selectClick(e, "states", () => {
+      if (Selection.history) { Selection.history = false; Selection.noteNodeDeselected("history", ""); }
+      else { Selection.history = true; Selection.noteNodeSelected("history", ""); }
+    }, Selection.history);
     refresh();
   });
   ul.appendChild(hLi);
@@ -4274,7 +4455,10 @@ function buildStateList() {
   anyLi.classList.add("default-item");
   if (Selection.any) anyLi.classList.add("selected");
   anyLi.addEventListener("click", (e) => {
-    selectClick(e, "states", () => { Selection.any = !Selection.any; }, Selection.any);
+    selectClick(e, "states", () => {
+      if (Selection.any) { Selection.any = false; Selection.noteNodeDeselected("any", ""); }
+      else { Selection.any = true; Selection.noteNodeSelected("any", ""); }
+    }, Selection.any);
     refresh();
   });
   ul.appendChild(anyLi);
@@ -4301,8 +4485,8 @@ function buildStateList() {
     if (Selection.states.has(s.name)) li.classList.add("selected");
     li.addEventListener("click", (e) => {
       selectClick(e, "states", () => {
-        if (Selection.states.has(s.name)) Selection.states.delete(s.name);
-        else Selection.states.add(s.name);
+        if (Selection.states.has(s.name)) { Selection.states.delete(s.name); Selection.noteNodeDeselected("state", s.name); }
+        else { Selection.states.add(s.name); Selection.noteNodeSelected("state", s.name); }
       }, Selection.states.has(s.name));
       refresh();
     });
@@ -4331,9 +4515,54 @@ function buildCPList() {
     if (Selection.choicePoints.has(c.name)) li.classList.add("selected");
     li.addEventListener("click", (e) => {
       selectClick(e, "cps", () => {
-        if (Selection.choicePoints.has(c.name)) Selection.choicePoints.delete(c.name);
-        else Selection.choicePoints.add(c.name);
+        if (Selection.choicePoints.has(c.name)) { Selection.choicePoints.delete(c.name); Selection.noteNodeDeselected("cp", c.name); }
+        else { Selection.choicePoints.add(c.name); Selection.noteNodeSelected("cp", c.name); }
       }, Selection.choicePoints.has(c.name));
+      refresh();
+    });
+    ul.appendChild(li);
+  }
+}
+
+// Build the State variables list. Like CPs this is per-component
+// (reads from the active Component, not from Model directly) and
+// documentation-only — nothing here reaches the PlantUML. Row layout:
+// name · type · em-dash description, mirroring the Messages and
+// Functions rows which also carry typed parameter-like data. The
+// description span uses the same horizontal-scroll treatment as other
+// list rows.
+function buildStateVariableList() {
+  const ul = document.getElementById("list-vars");
+  ul.innerHTML = "";
+  const vars = Array.isArray(Component.stateVariables) ? Component.stateVariables : [];
+  const sorted = [...vars].sort((a, b) => a.name.localeCompare(b.name));
+  for (const v of sorted) {
+    const li = document.createElement("li");
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = v.name;
+    li.appendChild(labelSpan);
+    // Type: rendered as `: typename` when present, grey — matches the
+    // "Parameter : Type" rendering in the parameters panel so the
+    // reader gets the same visual language across documentation-only
+    // typed-record kinds.
+    if (v.type && v.type.length > 0) {
+      const typeSpan = document.createElement("span");
+      typeSpan.className = "state-desc";
+      typeSpan.textContent = " : " + v.type;
+      li.appendChild(typeSpan);
+    }
+    if (v.description && v.description.length > 0) {
+      const descSpan = document.createElement("span");
+      descSpan.className = "state-desc";
+      descSpan.textContent = " \u2014 " + v.description;
+      li.appendChild(descSpan);
+    }
+    if (Selection.stateVariables.has(v.name)) li.classList.add("selected");
+    li.addEventListener("click", (e) => {
+      selectClick(e, "vars", () => {
+        if (Selection.stateVariables.has(v.name)) Selection.stateVariables.delete(v.name);
+        else Selection.stateVariables.add(v.name);
+      }, Selection.stateVariables.has(v.name));
       refresh();
     });
     ul.appendChild(li);
@@ -4827,7 +5056,8 @@ function updateToolbar() {
                  Selection.handlerCalls.size ||
                  Selection.messageParameters.size ||
                  Selection.functions.size ||
-                 Selection.functionParameters.size;
+                 Selection.functionParameters.size ||
+                 Selection.stateVariables.size;
   const includesProtected = Selection.start ||
                  [...Selection.interfaces].some(isDefaultInterface) ||
                  [...Selection.messages].some(k => {
@@ -4838,9 +5068,11 @@ function updateToolbar() {
   document.getElementById("btn-copy").disabled = !canCopy();
   document.getElementById("btn-paste").disabled = !canPaste();
 
-  // Add state / cp: only in component view (no meaning in system view).
+  // Add state / cp / state variable: only in component view (no
+  // meaning in system view).
   document.getElementById("btn-add-state").disabled = inSystem;
   document.getElementById("btn-add-cp").disabled = inSystem;
+  document.getElementById("btn-add-var").disabled = inSystem;
   // Add interface: always — interfaces are system-wide vocabulary.
   document.getElementById("btn-add-iface").disabled = false;
 
@@ -5175,8 +5407,15 @@ function canEdit() {
   const hca = Selection.handlerCalls.size;
   const f = Selection.functions.size;
   const fp = Selection.functionParameters.size;
+  const sv = Selection.stateVariables.size;
   const otherTotal = s + c + i + m + (Selection.start?1:0);
   if (Selection.start) return false;
+  // State variable: exactly one selected, nothing else. State variables
+  // are per-component documentation and don't share a selection space
+  // with anything else — plain case, no priority tangles.
+  if (sv === 1 && s === 0 && c === 0 && i === 0 && m === 0 && t === 0 && co === 0 && cn === 0 && h === 0 && hc === 0 && hca === 0 && f === 0 && fp === 0) {
+    return true;
+  }
   // Function parameter row: exactly one function-parameter selected.
   // The bound function and handler are necessarily also selected.
   // Takes priority over the function / handler cases below.
@@ -5391,6 +5630,7 @@ function showManual() {
     {id: "workflow", title: "Typical Workflow"},
     {id: "states", title: "States"},
     {id: "choicepoints", title: "Choice-points"},
+    {id: "statevars", title: "State variables"},
     {id: "interfaces-msgs", title: "Interfaces & Messages"},
     {id: "transitions", title: "Transitions"},
     {id: "history", title: "History State"},
@@ -5503,7 +5743,7 @@ function manualContent() {
       <h3>Components list</h3>
       <p>One row per component. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas. In component view, click a row to switch the canvas and lower panels to that component. In system view, click a row to toggle selection (same as clicking the component's box on the canvas); the floating <code>Component ▸</code> button at the top-right of the canvas then enters the selected component's state machine. To rename a component, select it and click <strong>Edit</strong>; to delete it, select it and click <strong>Delete</strong>. Component names must be unique. The minimum is one component — the last one cannot be deleted.</p>
       <h3>Component panel (bottom right)</h3>
-      <p>The rest of the right panel shows the active component's <em>States</em> and <em>Choice-points</em> lists (with the START / H / ∗ pseudo-states at the top of States), the transitions table, and the Action panel. These panels are hidden in system view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. Each section is resizable via the thin bars between them — drag to adjust, double-click to reset. A separate vertical slider between the canvas and the right panel lets you shift the main left/right split, and a horizontal slider above the System Specification panel resizes that panel against the canvas.</p>
+      <p>The rest of the right panel shows the active component's <em>States</em>, <em>Choice-points</em>, and <em>State variables</em> lists (with the START / H / ∗ pseudo-states at the top of States), and below them the transitions table side-by-side with the Action panel. These panels are hidden in system view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. Each section is resizable via the thin bars between them — drag to adjust, double-click to reset. A separate vertical slider between the canvas and the right panel lets you shift the main left/right split, and a horizontal slider above the System Specification panel resizes that panel against the canvas.</p>
       <h3>Transition table</h3>
       <p>Lists every transition of the active component, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. A small dot in the first column marks rows that have an action description. A small amber <code>!</code> next to it marks rows whose interface isn't wired to the active component in the system diagram — see <a href="#m-system-diagram" data-target="m-system-diagram">System Diagram</a>.</p>
       <h3>Action panel</h3>
@@ -5550,7 +5790,7 @@ function manualContent() {
       <p>Above the state machines sits the <strong>system diagram</strong>: a single picture of your whole file showing components as boxes, handlers as 3D-brick boxes, and interfaces as lollipops, with lines marking who is wired to what. This is Stadiæ's view of the system's decomposition — the "one level up" from individual component behaviour.</p>
 
       <h3>Opening the system view</h3>
-      <p>A floating <code>◇ System</code> button at the top-left of the diagram canvas switches from a state-machine view to the system diagram; the button stays accent-coloured while the system view is active. The States, Choice-points, Transitions, and Action panels hide in this view — they don't apply at the system level. The Components, Handlers, Functions, Interfaces, and Messages lists stay visible.</p>
+      <p>A floating <code>◇ System</code> button at the top-left of the diagram canvas switches from a state-machine view to the system diagram; the button stays accent-coloured while the system view is active. The States, Choice-points, State variables, Transitions, and Action panels hide in this view — they don't apply at the system level. The Components, Handlers, Functions, Interfaces, and Messages lists stay visible.</p>
       <p>To return to a state-machine view from system view, select a component (click its row in the Components list or its box on the canvas) and click the floating <code>Component ▸</code> button at the top-right of the canvas. The button is the only way into a component &mdash; single-click selects, the button enters. In component view, clicking a component row still switches directly, since you're already in "navigate between components" mode.</p>
 
       <h3>The system box</h3>
@@ -5576,8 +5816,8 @@ function manualContent() {
       <p>A Handler exposes <strong>functions</strong> — its callable API. Any Component that has a call-dependency line to the Handler can invoke any of those functions. Functions are documentation only: they never appear in the generated PlantUML and they don't affect the diagram. They exist so developers can write the action of a transition against a concrete API.</p>
       <p>Each function has a <strong>Name</strong> (single-word identifier, unique within its Handler — different Handlers can each have a <code>connect</code> function, that's fine), an optional <strong>Description</strong> shown after the name in the list as <code>connect &mdash; Opens a socket to the host</code>, and a <strong>parameter list</strong>.</p>
       <p>The <strong>Functions</strong> list sits between the Handlers and Interfaces lists in the system catalogue. It's filtered by the currently-selected Handler: select one Handler, see its functions; select zero or multiple, the list is empty. The <code>+</code> button in its header is enabled only when exactly one Handler is selected (the rule parallels "Add Message" which needs one Interface selected).</p>
-      <p>When exactly one function is selected, a <strong>Parameters</strong> panel appears below the Functions list — mirroring how message parameters work. Each parameter has a Name and an optional Type, both free text. Use the <code>+</code> in the panel header to add one. Parameters are ordered alphabetically. The panel hides again when zero or multiple functions are selected.</p>
-      <p>Function parameters are documentation, just like message parameters: they don't reach the generated PlantUML.</p>
+      <p>When exactly one function is selected, a <strong>Parameters</strong> panel appears below the Functions list — mirroring how message parameters work. Each parameter has a <strong>Name</strong>, an optional <strong>Type</strong>, and an optional <strong>Description</strong>. The panel renders each row as an inline list item — <code>amount : uint &mdash; Amount to charge in cents</code> — with type and description shown as muted secondary text after the name. Use the <code>+</code> in the panel header to add one. Parameters are ordered alphabetically. The panel hides again when zero or multiple functions are selected.</p>
+      <p>Function parameters are documentation, just like message parameters: they don't reach the generated PlantUML, but they do appear in the specification export. There they render as dedicated <em>Parameter description</em> column in the function table, distinct from the <em>Function description</em> column.</p>
 
       <h3>Connecting things up</h3>
       <p>The <strong>Add Connection</strong> button dispatches on what is selected. In all three patterns, everything else in the system must be deselected:</p>
@@ -5632,11 +5872,24 @@ function manualContent() {
       <div class="tip">A choice-point may have at most one <code>Yes</code> outgoing transition and at most one <code>No</code> outgoing transition — exactly two branches.</div>
     </section>
 
+    <section id="m-statevars">
+      <h2>State variables</h2>
+      <p>A <strong>state variable</strong> represents a piece of data held by the component — a counter, a cached remote id, a reservation set, any per-instance mutable field. They have no effect on the diagram: Stadiæ never emits them to PlantUML. They exist so the reader of a specification knows what the component remembers and so you can reference those fields by name in transition action text.</p>
+      <p>Click <strong>Add State Variable</strong> (the <code>+</code> button on the State variables list, to the right of Choice-points), then fill in:</p>
+      <ul>
+        <li><em>Name</em> — single-word identifier, unique within the component. This is the name you use when referring to the variable from an action.</li>
+        <li><em>Type</em> — free-text, optional. Any string works: <code>uint</code>, <code>string</code>, <code>map&lt;string, uint&gt;</code>, <code>PaymentState</code>. Empty means "type not yet decided" — render as <code>-</code> in the specification.</li>
+        <li><em>Description</em> — free-text, optional, single line. A developer note explaining what the variable holds.</li>
+      </ul>
+      <p>The list renders each row as <em>name</em> &middot; <em>: type</em> &middot; <em>&mdash; description</em> (type and description only when set). The list scrolls horizontally when a long description outgrows the column. Select a row and click <strong>Edit</strong> to change any field, or <strong>Delete</strong> to remove. Variables are sorted alphabetically. The specification export includes a <em>State variables</em> section in each component's chapter, with a Name / Type / Description table.</p>
+    </section>
+
     <section id="m-interfaces-msgs">
       <h2>Interfaces &amp; Messages</h2>
       <p>Click <strong>Add Interface</strong> for a new interface (single-word name, unique). A newly added interface is automatically selected, so you can immediately click <strong>Add Message</strong> to define its first message.</p>
       <p><strong>Add Message</strong> is enabled only when exactly one interface is selected — the new message is attached to that interface. Message names are single-word and unique <em>within their interface</em>.</p>
       <p>Both interface and message dialogs include an optional <em>Description</em> field — a single-line developer note that shows in the respective list after the name, separated by an em-dash: <code>RTx &mdash; Reliable transport channel between peer nodes.</code> Descriptions are persisted in the saved file but never written to the generated PlantUML. The lists scroll horizontally when a description pushes the row past the column width, so a long note stays fully readable without widening the whole catalogue.</p>
+      <p>When exactly one message is selected, a <strong>Parameters</strong> panel appears below the Messages list. Each parameter has a <strong>Name</strong>, an optional <strong>Type</strong>, and an optional <strong>Description</strong>. The panel renders each row as an inline list item — <code>operatorId : string &mdash; Identifier of the till operator</code> — with type and description shown as muted secondary text after the name. Use the <code>+</code> in the panel header to add a parameter; parameters are ordered alphabetically. Parameters are documentation only (never reach the generated PlantUML) but appear in the specification export as a dedicated <em>Parameter description</em> column in the message table, distinct from the <em>Message description</em> column.</p>
       <p>The <code>Timer</code> and <code>Logical</code> interfaces and their default messages (<code>Timeout</code>, <code>Yes</code>, <code>No</code>) are built in and cannot be renamed, removed, or given descriptions.</p>
     </section>
 
@@ -5654,7 +5907,7 @@ function manualContent() {
           </ul>
         </li>
         <li>Select one or more messages. A source can handle a given message at most once total, regardless of target — this keeps the behaviour deterministic.</li>
-        <li>Click <strong>Add Transition</strong>. For two distinct nodes you will be asked to confirm which is the source.</li>
+        <li>Click <strong>Add Transition</strong>. For two distinct nodes the node you selected first becomes the source. Stadiæ only asks you to pick explicitly if both click-order directions turn out to be structurally invalid (e.g. the chosen source already handles one of the selected messages).</li>
       </ol>
       <h3>Grouping messages on one arrow</h3>
       <p>Add more messages to an existing transition by selecting the same source and target plus the extra messages, then clicking Add Transition again. The messages stack on the same arrow with <code>\\n</code> separators, decluttering the diagram.</p>
@@ -5667,7 +5920,7 @@ function manualContent() {
       <p>If a redirect would create a duplicate transition (the new target's source already handles that message) or is a no-op (the row already targets the chosen node), Stadiæ aborts before making any changes and shows a list of the conflicts.</p>
       <h3>Documenting the action</h3>
       <p>Each transition row can carry a free-text <strong>action</strong> describing what the component does when that specific (source, target, message) transition fires. This is developer documentation — actions are stored in the saved <code>.json</code> file and visible in the editor's <em>Action</em> panel, but they are intentionally <em>not</em> included in the generated PlantUML so the diagram stays uncluttered.</p>
-      <p>To document a transition's action: select a single row in the transitions table. The Action panel below the table switches from a placeholder to an editable text area. Type the description; it is saved to the model as you type. Rows that have a non-empty action show a small indicator dot in the leftmost column of the transitions table.</p>
+      <p>To document a transition's action: select a single row in the transitions table. The Action panel beside the table switches from a placeholder to an editable text area. Type the description; it is saved to the model as you type. Rows that have a non-empty action show a small indicator dot in the leftmost column of the transitions table. Drag the narrow handle between Transitions and Action to change the split; double-click the handle to re-align the Action panel with the State Variables column above.</p>
       <p>The Action panel height is adjustable via the thin handle between the transitions table and the panel — drag to resize, double-click to reset.</p>
     </section>
 
@@ -5789,16 +6042,14 @@ function manualContent() {
       <p>Downloads whatever is currently rendered on the canvas as a PNG image — the active component's state machine in component view, the system diagram in system view. Useful for embedding in reports and slides.</p>
       <h3>Export Specification (.docx)</h3>
       <p>Under <em>File → Export Specification…</em>, Stadiæ produces a Word document (<code>.docx</code>) describing the entire system — everything the file knows, presented as native Word headings, paragraphs, and tables with rendered diagram images. The file opens directly in Word, LibreOffice Writer, Google Docs, or any other .docx-compatible tool. No plugins, no toolchain.</p>
-      <p>The document structure is fixed:</p>
+      <p>The document opens with a fixed structure of chapters (heading 1) and sections (heading 2):</p>
       <ul>
-        <li><strong>Title</strong> — the system's display name (or identifier).</li>
-        <li><strong>Description</strong> — the contents of the <em>System Specification</em> textarea, or a placeholder if empty. Multi-line text preserves its line breaks as separate paragraphs.</li>
-        <li><strong>System architecture</strong> — the system diagram rendered as an image, followed by a component summary table and a handler summary table.</li>
-        <li><strong>Interfaces</strong> — a summary table of the system's public interfaces, then one subsection per interface listing its messages and parameters. Multi-parameter messages use true row-span cell merging (the Message and Description cells span across the parameter rows).</li>
-        <li><strong>One section per component</strong> — description, a <em>Context</em> diagram image (the system diagram filtered to this component's immediate neighbourhood — the interfaces it's wired to, the handlers on those interfaces, and the handlers it calls directly), a States table, a Choice-points table, the full state diagram as an image, and a State transition table listing every transition with its action text.</li>
-        <li><strong>One section per handler</strong> — description, then a Functions table listing the handler's exposed API with its parameters.</li>
+        <li><strong>Chapter "System specification"</strong> — Description section (the contents of the <em>System Specification</em> textarea, with its line breaks preserved as separate paragraphs) and System architecture section (the system diagram, followed by a component summary table and a handler summary table).</li>
+        <li><strong>Chapter "Interfaces"</strong> — a summary table of the system's public interfaces, then one section per interface listing its messages and parameters. Multi-parameter messages use true row-span cell merging (the Message and Description cells span across the parameter rows).</li>
+        <li><strong>Chapter per component</strong> — description, then sections for <em>Context</em> (the system diagram filtered to this component's immediate neighbourhood — interfaces it's wired to, handlers on those interfaces, and handlers it calls directly), <em>States</em>, <em>Choice-points</em> (as Question / Description — the internal name isn't shown), <em>State diagram</em>, and <em>State transition table</em> listing every transition with its action text.</li>
+        <li><strong>Chapter per handler</strong> — description, then a Functions section listing the handler's exposed API with its parameters.</li>
       </ul>
-      <p>Diagrams are rendered as PNG images embedded in the document — the same PlantUML server that feeds the canvas preview renders each diagram at export time. If a diagram fails to render (CORS issue, server unreachable), the document still generates with a short placeholder paragraph in that section's slot so the rest of the spec remains intact.</p>
+      <p>Diagrams are embedded as SVG (with a PNG fallback) — the same PlantUML server that feeds the canvas preview renders each diagram at export time. Word and recent LibreOffice versions render the crisp vector graphics natively; Google Docs falls back to the PNG on import. If a diagram fails to render (CORS issue, server unreachable), the document still generates with a short placeholder paragraph in that section's slot so the rest of the spec remains intact.</p>
       <p>Empty sections get a one-line fallback (<em>This interface has no messages.</em>, <em>This handler exposes no functions.</em>, etc.) so the document structure is always visible. Empty descriptions get replaced by <em>No description provided.</em> — grep-friendly when auditing for gaps.</p>
       <p>The default filename is <code>&lt;systemname&gt;-spec.docx</code>.</p>
       <div class="tip">The first export of a session downloads the .docx library from <code>unpkg.com</code> (~600KB). Subsequent exports in the same session reuse the cached library. This means the first export needs network access to unpkg.com; if you're offline, wait until you're back on a network, then try again.</div>
@@ -6037,6 +6288,93 @@ function openCPDialog(existing=null) {
     refresh();
   };
   document.getElementById("cancel").onclick = hideModal;
+}
+
+// State variable CRUD. Per-component, documentation-only — there's no
+// cascade to transitions, diagrams, or selection keys beyond the
+// stateVariables set itself. Dialog asks for name (required, single
+// word, unique within component), type (free-text, optional), and
+// description (free-text, optional). Same UX shape as openCPDialog.
+function openStateVariableDialog(existing=null) {
+  const title = existing ? "State variable properties" : "Add state variable";
+  modalContainer.innerHTML = `
+    <div class="title">${title}</div>
+    <div class="body">
+      <label>Name:</label>
+      <input type="text" id="sv-name" value="${escapeHTML(existing?.name||'')}">
+      <label>Type:</label>
+      <input type="text" id="sv-type" value="${escapeHTML(existing?.type||'')}">
+      <label>Description:</label>
+      <input type="text" id="sv-desc" value="${escapeHTML(existing?.description||'')}">
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const nameI = document.getElementById("sv-name");
+  const typeI = document.getElementById("sv-type");
+  const descI = document.getElementById("sv-desc");
+  const ok = document.getElementById("ok");
+  const update = () => { ok.disabled = !nameI.value.trim(); };
+  nameI.addEventListener("input", update);
+  update();
+  nameI.focus();
+  ok.onclick = () => {
+    const name = nameI.value.trim();
+    if (!isValidIdentifier(name)) {
+      showAlert("Error", "State variable name must be a single word (letters, digits, underscore)."); return;
+    }
+    if (!isUniqueStateVariableName(name, existing?.name)) {
+      showAlert("Error", "A state variable with this name already exists in this component."); return;
+    }
+    pushHistory();
+    const type = typeI.value;
+    const desc = descI.value;
+    if (existing) {
+      const oldName = existing.name;
+      existing.name = name;
+      existing.type = type;
+      existing.description = desc;
+      // Re-key selection on rename so the user doesn't lose their
+      // focused row. No other places hold state-variable references
+      // (not in transitions, not in PlantUML output, not on the
+      // diagram), so this is the only selection set that needs fixing.
+      if (oldName !== name && Selection.stateVariables.has(oldName)) {
+        Selection.stateVariables.delete(oldName);
+        Selection.stateVariables.add(name);
+      }
+    } else {
+      if (!Array.isArray(Component.stateVariables)) Component.stateVariables = [];
+      Component.stateVariables.push({ name, type, description: desc });
+      Selection.stateVariables.add(name);
+    }
+    hideModal();
+    refresh();
+  };
+  document.getElementById("cancel").onclick = hideModal;
+}
+
+function addStateVariable() {
+  openStateVariableDialog(null);
+}
+
+function editSelectedStateVariable() {
+  if (Selection.stateVariables.size !== 1) return;
+  const name = [...Selection.stateVariables][0];
+  const vars = Array.isArray(Component.stateVariables) ? Component.stateVariables : [];
+  const v = vars.find(x => x.name === name);
+  if (v) openStateVariableDialog(v);
+}
+
+function deleteSelectedStateVariable() {
+  if (Selection.stateVariables.size === 0) return;
+  pushHistory();
+  const vars = Array.isArray(Component.stateVariables) ? Component.stateVariables : [];
+  Component.stateVariables = vars.filter(v => !Selection.stateVariables.has(v.name));
+  Selection.stateVariables.clear();
+  refresh();
 }
 
 function openInterfaceDialog(existing=null) {
@@ -6370,11 +6708,14 @@ function actionAddTransition() {
     return;
   }
 
-  // Otherwise: two nodes (states and/or CPs). If the direction is
-  // structurally determined by the domain rules (CPs can only source
-  // Yes/No; states cannot), skip the dialog and add the transition
-  // directly. Only show the picker when both directions remain
-  // legitimate (state+state with non-Yes/No, or CP+CP with Yes/No).
+  // Otherwise: two nodes (states and/or CPs). Domain rules narrow
+  // direction first (CPs can only source Yes/No; states cannot);
+  // if a single valid direction remains, take it. When both directions
+  // survive the filter, fall back to the user's click order from
+  // Selection.nodeOrder — the earlier-clicked node is the source.
+  // Only if click order also produces an invalid pick (or isn't
+  // available — two entries, both valid, but nodeOrder lost track
+  // through some unusual sequence) do we resort to the dialog.
   const allNodes = [...selStates, ...selCPs.map(n => "CP_"+n)];
   if (allNodes.length === 2 && selMsgs.length >= 1) {
     const msgPairs = selMsgs.map(m => [m.interface, m.name]);
@@ -6391,24 +6732,46 @@ function actionAddTransition() {
     const n0valid = validAsSource(allNodes[0]);
     const n1valid = validAsSource(allNodes[1]);
 
-    if (n0valid && !n1valid) {
-      // Unambiguous: allNodes[0] is the source
+    const commit = (src, tgt) => {
       pushHistory();
-      addMessagesToTransition(allNodes[0], allNodes[1], selMsgs, "Down");
+      addMessagesToTransition(src, tgt, selMsgs, "Down");
       Selection.clearAll();
-      for (const m of selMsgs) Selection.transitions.add(transRowKey(allNodes[0], allNodes[1], m.interface, m.name));
+      for (const m of selMsgs) Selection.transitions.add(transRowKey(src, tgt, m.interface, m.name));
       refresh();
+    };
+
+    if (n0valid && !n1valid) { commit(allNodes[0], allNodes[1]); return; }
+    if (n1valid && !n0valid) { commit(allNodes[1], allNodes[0]); return; }
+
+    if (n0valid && n1valid) {
+      // Both directions pass the structural filter. Use the user's
+      // click order. Map each `allNodes` entry to its position in
+      // Selection.nodeOrder — lower index = clicked earlier = source.
+      // Node ids: state names are bare (e.g. "Connected"); CP names
+      // in `allNodes` carry the "CP_" prefix while nodeOrder stores
+      // them without it.
+      const orderIndex = (nodeId) => {
+        const kind = isCP(nodeId) ? "cp" : "state";
+        const id = isCP(nodeId) ? nodeId.slice(3) : nodeId;
+        return Selection.nodeOrder.findIndex(e => e.kind === kind && e.id === id);
+      };
+      const i0 = orderIndex(allNodes[0]);
+      const i1 = orderIndex(allNodes[1]);
+      if (i0 >= 0 && i1 >= 0 && i0 !== i1) {
+        const src = (i0 < i1) ? allNodes[0] : allNodes[1];
+        const tgt = (i0 < i1) ? allNodes[1] : allNodes[0];
+        commit(src, tgt);
+        return;
+      }
+      // Click order unavailable or ambiguous — last-resort dialog.
+      openTransitionSourceDialog(allNodes, selMsgs);
       return;
     }
-    if (n1valid && !n0valid) {
-      pushHistory();
-      addMessagesToTransition(allNodes[1], allNodes[0], selMsgs, "Down");
-      Selection.clearAll();
-      for (const m of selMsgs) Selection.transitions.add(transRowKey(allNodes[1], allNodes[0], m.interface, m.name));
-      refresh();
-      return;
-    }
-    // Both directions valid — genuine ambiguity, ask the user
+
+    // Neither direction valid — the "source already handles these
+    // messages" guard fired on both, or a rule conflict made both
+    // impossible. Fall back to the dialog so the user can see the
+    // explicit choice failing rather than getting a silent no-op.
     openTransitionSourceDialog(allNodes, selMsgs);
     return;
   }
@@ -6907,6 +7270,12 @@ function pasteMessages() {
 }
 
 function actionDelete() {
+  // State variable: single selection, independent of everything else.
+  // Routed first because it has no priority tangles with other kinds.
+  if (Selection.stateVariables.size > 0) {
+    deleteSelectedStateVariable();
+    return;
+  }
   // Function parameter: take priority. Single fn-param selection means
   // the user clicked Delete while in the fn-parameters panel; remove
   // just that parameter. The bound function and handler stay.
@@ -7102,6 +7471,12 @@ function actionDelete() {
 
 function actionEdit() {
   if (!canEdit()) return;
+  // State variable: exactly one selected. Routed first because it's
+  // a clean independent selection (no priority tangles with others).
+  if (Selection.stateVariables.size === 1) {
+    editSelectedStateVariable();
+    return;
+  }
   // Function-parameter takes priority when selected — the user's
   // intent is to edit the row they have highlighted in the
   // fn-parameters panel, not the parent function or handler.
@@ -7313,13 +7688,17 @@ function buildSerializedModel() {
     messages: Model.messages.filter(m => !m.isDefault).map(m => {
       const o = { interface: m.interface, name: m.name };
       if (m.description && m.description.length > 0) o.description = m.description;
-      // Parameters: free-text name + optional type, persisted only
-      // when the message actually has any. Each parameter object omits
-      // an empty type for byte-minimal JSON.
+      // Parameters: free-text name + optional type + optional
+      // description, persisted only when the message actually has
+      // any parameters. Each parameter object omits empty optional
+      // fields (type and description) for byte-minimal JSON — a
+      // parameter named `id` with no type or description serializes
+      // to just {name: "id"}.
       if (Array.isArray(m.parameters) && m.parameters.length > 0) {
         o.parameters = m.parameters.map(p => {
           const po = { name: p.name };
           if (p.type && p.type.length > 0) po.type = p.type;
+          if (p.description && p.description.length > 0) po.description = p.description;
           return po;
         });
       }
@@ -7352,6 +7731,19 @@ function buildSerializedModel() {
       // Description is the developer-documentation field; only persist
       // when the user has actually written something.
       if (c.description && c.description.length > 0) out.description = c.description;
+      // State variables — per-component documentation, never in the
+      // diagram. Emit only when the component has any, so files from
+      // older saves (pre-state-variables) and files from users who
+      // don't use the feature stay byte-identical to before. Each
+      // entry drops the empty optional fields (type, description).
+      if (Array.isArray(c.stateVariables) && c.stateVariables.length > 0) {
+        out.stateVariables = c.stateVariables.map(v => {
+          const vo = { name: v.name };
+          if (v.type && v.type.length > 0) vo.type = v.type;
+          if (v.description && v.description.length > 0) vo.description = v.description;
+          return vo;
+        });
+      }
       return out;
     }),
     // System-level component diagram: {component, interface} pairs.
@@ -7379,6 +7771,7 @@ function buildSerializedModel() {
             fo.parameters = f.parameters.map(p => {
               const po = { name: p.name };
               if (p.type && p.type.length > 0) po.type = p.type;
+              if (p.description && p.description.length > 0) po.description = p.description;
               return po;
             });
           }
@@ -7660,25 +8053,38 @@ function loadDocxLibrary() {
   });
 }
 
-// Fetch a rendered PlantUML image as an ArrayBuffer suitable for
-// ImageRun. Uses the user's currently-configured PlantUML server
-// (same host the canvas uses). Also reads the image's natural pixel
-// size so the generator can scale it to fit the page.
-// Returns {buffer, width, height} on success. Throws on any failure —
-// caller is responsible for deciding how to render the error.
+// Fetch a rendered PlantUML diagram in both SVG and PNG form. The SVG
+// is the primary (embedded in the docx as vector graphics for sharp
+// output); the PNG is the fallback used by Word/LibreOffice/Google
+// Docs versions that can't render SVG natively. Both fetches run in
+// parallel to keep the per-diagram latency roughly equal to the
+// slower of the two.
+//
+// Dimensions come from the PNG — SVG viewBox parsing is messier, and
+// the PNG's natural pixel dimensions are what we want anyway for the
+// docx transformation (which expects pixel values even for SVGs).
+// Returns {svg: ArrayBuffer, png: ArrayBuffer, width, height}.
+// Throws if either fetch fails; caller handles with a per-diagram
+// italic placeholder so the document still generates.
 async function fetchDiagramImage(plantUMLSource) {
-  const url = plantUMLImageURL(plantUMLSource);
-  // Cache-bust: the existing canvas already embeds a per-render salt
-  // in the source, but exports strip it. Server-side caches on the
-  // PlantUML URL should still key correctly without further help.
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`PlantUML server returned ${res.status}`);
-  const buffer = await res.arrayBuffer();
-  // Read natural dimensions by loading the bytes into an Image element.
-  // This is essentially free — the bytes are already local by this
-  // point, and we need the dimensions for the docx ImageRun's width/
-  // height parameters.
-  const blob = new Blob([buffer], { type: "image/png" });
+  const svgURL = plantUMLSVGURL(plantUMLSource);
+  const pngURL = plantUMLImageURL(plantUMLSource);
+
+  const [svgRes, pngRes] = await Promise.all([
+    fetch(svgURL),
+    fetch(pngURL)
+  ]);
+  if (!svgRes.ok) throw new Error(`PlantUML server returned ${svgRes.status} for SVG`);
+  if (!pngRes.ok) throw new Error(`PlantUML server returned ${pngRes.status} for PNG`);
+
+  const [svgBuffer, pngBuffer] = await Promise.all([
+    svgRes.arrayBuffer(),
+    pngRes.arrayBuffer()
+  ]);
+
+  // Decode the PNG enough to read its natural dimensions. The bytes
+  // are already local so this is just an in-memory decode round-trip.
+  const blob = new Blob([pngBuffer], { type: "image/png" });
   const objUrl = URL.createObjectURL(blob);
   try {
     const dims = await new Promise((resolve, reject) => {
@@ -7687,7 +8093,7 @@ async function fetchDiagramImage(plantUMLSource) {
       img.onerror = () => reject(new Error("Failed to decode PlantUML image bytes"));
       img.src = objUrl;
     });
-    return { buffer, width: dims.width, height: dims.height };
+    return { svg: svgBuffer, png: pngBuffer, width: dims.width, height: dims.height };
   } finally {
     URL.revokeObjectURL(objUrl);
   }
@@ -7703,6 +8109,24 @@ function fitDiagramToPage(natW, natH) {
   if (natW <= MAX_W) return { width: natW, height: natH };
   const scale = MAX_W / natW;
   return { width: MAX_W, height: Math.round(natH * scale) };
+}
+
+// Build a centered paragraph containing one diagram image. The image
+// is embedded as SVG (primary) with a PNG fallback — Word renders the
+// SVG natively for crisp output at any zoom; older viewers and
+// Google Docs fall back to the PNG. The SVG/PNG pair comes from
+// fetchDiagramImage which renders both simultaneously.
+function mkDiagramParagraph(d, imageData) {
+  const dim = fitDiagramToPage(imageData.width, imageData.height);
+  return new d.Paragraph({
+    alignment: d.AlignmentType.CENTER,
+    children: [ new d.ImageRun({
+      type: "svg",
+      data: imageData.svg,
+      transformation: dim,
+      fallback: { type: "png", data: imageData.png }
+    }) ]
+  });
 }
 
 // Show a progress modal while the export runs. Returns an update
@@ -7791,33 +8215,52 @@ function mkHeading(d, text, level) {
 }
 
 // Build a table cell from a plain string, with optional row/column spans
-// and optional width (percentage of page width). Setting an explicit
-// width per cell is how docx's XML actually conveys column sizing — the
-// table-level layout hint alone is not enough in Word; it uses the
-// cell widths for the actual column boundaries.
+// and optional width (absolute, in DXA — twentieths of a point). DXA
+// is used instead of percentage because Google Docs ignores percentage
+// widths when importing .docx and runs its own minimum-content layout
+// pass, collapsing narrow-heading columns to one character per line.
+// Absolute DXA widths are honoured consistently by Word, LibreOffice,
+// and Google Docs.
 //
-// Multi-line text handling: the model uses the literal two-character
-// sequence `\n` as a line-break marker in short labels (state display
-// names, choice-point questions) — this exists so PlantUML can wrap
-// the label on the diagram where horizontal space is tight. In prose
-// documents the line breaks are an artifact of the diagram medium, not
-// semantic, so the cell collapses them to spaces. Real newlines in
-// authored text (longer descriptions, specification text) are left to
-// the paragraph-level mkParas helper; inside a table cell we stay on
-// one paragraph to keep the row height predictable.
+// Multi-line text handling — two distinct cases:
+//
+//   Literal `\n` (backslash + n, two characters) is the model's
+//   diagram-layout convention: state displayNames and choice-point
+//   questions use it to force wrapping on a narrow PlantUML label.
+//   In the spec the wrapping is an artifact of the diagram medium,
+//   not semantic — cells always collapse these to spaces.
+//
+//   Real newlines come from the user pressing Enter in a textarea
+//   (Action field, Description field). These are deliberate
+//   structural breaks. By default we collapse them too (matching the
+//   pre-fix behaviour for short-label cells where newlines didn't
+//   belong), but callers can pass `preserveNewlines: true` to keep
+//   them — the cell then emits one paragraph per line, which Word
+//   renders as visible line breaks inside the cell.
 function mkCell(d, text, opts = {}) {
   const raw = text == null ? "" : String(text);
-  // Collapse the \n line-break marker AND any real newlines to a
-  // single space. This flattens both cases without special-casing.
-  const flat = raw.replace(/\\n/g, " ").replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
-  const children = [ new d.Paragraph({
-    children: [ new d.TextRun(flat) ]
-  }) ];
+  // Always drop the literal `\n` diagram-wrap marker.
+  const unwrapped = raw.replace(/\\n/g, " ");
+  let children;
+  if (opts.preserveNewlines) {
+    // Split on real newlines, one paragraph per line, preserving
+    // blank lines as empty paragraphs (Word shows a blank gap).
+    // Each line's whitespace is trimmed and runs collapsed, but
+    // cross-line structure is kept intact.
+    const lines = unwrapped.split(/\r?\n/).map(l => l.replace(/\s+/g, " ").trim());
+    children = lines.map(line => new d.Paragraph({
+      children: [ new d.TextRun(line) ]
+    }));
+    if (children.length === 0) children = [ new d.Paragraph({ children: [ new d.TextRun("") ] }) ];
+  } else {
+    const flat = unwrapped.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+    children = [ new d.Paragraph({ children: [ new d.TextRun(flat) ] }) ];
+  }
   const cellOpts = { children };
   if (opts.rowSpan && opts.rowSpan > 1) cellOpts.rowSpan = opts.rowSpan;
   if (opts.columnSpan && opts.columnSpan > 1) cellOpts.columnSpan = opts.columnSpan;
-  if (typeof opts.widthPct === "number") {
-    cellOpts.width = { size: opts.widthPct, type: d.WidthType.PERCENTAGE };
+  if (typeof opts.width === "number") {
+    cellOpts.width = { size: opts.width, type: d.WidthType.DXA };
   }
   return new d.TableCell(cellOpts);
 }
@@ -7831,8 +8274,8 @@ function mkHeaderCell(d, text, opts = {}) {
       children: [ new d.TextRun({ text: String(text), bold: true }) ]
     }) ]
   };
-  if (typeof opts.widthPct === "number") {
-    cellOpts.width = { size: opts.widthPct, type: d.WidthType.PERCENTAGE };
+  if (typeof opts.width === "number") {
+    cellOpts.width = { size: opts.width, type: d.WidthType.DXA };
   }
   return new d.TableCell(cellOpts);
 }
@@ -7840,26 +8283,39 @@ function mkHeaderCell(d, text, opts = {}) {
 // Full-width table wrapper.
 // - `headers`: array of header text strings. mkTable constructs the
 //   header cells itself (applying column widths and bold/shaded style).
-// - `bodyRows`: array of TableRow objects, constructed by callers via
+// - `bodyRows`: array of TableRow objects constructed by callers via
 //   mkCell + the same `columnWidths` applied to cells.
-// - `columnWidths`: array of percentages summing to ~100. Combined with
-//   TableLayoutType.FIXED, this locks column widths so Word doesn't
-//   re-size columns based on content (which produces the
-//   one-character-per-line pathology on narrow headings).
+// - `columnWidths`: array of DXA values. Combined with TableLayoutType.FIXED
+//   and the table's own `columnWidths` property (which emits <w:tblGrid>),
+//   this locks the column widths portably across Word, LibreOffice, and
+//   Google Docs.
 function mkTable(d, headers, bodyRows, columnWidths) {
   const headerCells = headers.map((text, i) => {
-    const widthPct = columnWidths ? columnWidths[i] : undefined;
-    return mkHeaderCell(d, text, { widthPct });
+    const width = columnWidths ? columnWidths[i] : undefined;
+    return mkHeaderCell(d, text, { width });
   });
+  const totalDxa = Array.isArray(columnWidths)
+    ? columnWidths.reduce((a, b) => a + b, 0)
+    : null;
   const tableOpts = {
-    width: { size: 100, type: d.WidthType.PERCENTAGE },
     rows: [
       new d.TableRow({ children: headerCells, tableHeader: true }),
       ...bodyRows
     ]
   };
   if (Array.isArray(columnWidths)) {
+    // Fixed layout + explicit table width (DXA) + explicit per-column
+    // grid widths. All three are belt-and-suspenders: Word honours the
+    // per-cell widths, LibreOffice honours everything, and Google Docs
+    // tends to honour the <w:tblGrid> columnWidths array above all.
     tableOpts.layout = d.TableLayoutType.FIXED;
+    tableOpts.width = { size: totalDxa, type: d.WidthType.DXA };
+    tableOpts.columnWidths = columnWidths;
+  } else {
+    // No explicit widths — let the renderer auto-size. Used for tables
+    // where the caller doesn't care (there aren't any currently, but
+    // the API stays usable).
+    tableOpts.width = { size: 100, type: d.WidthType.PERCENTAGE };
   }
   return new d.Table(tableOpts);
 }
@@ -7871,14 +8327,27 @@ async function buildSpecificationDocx(d, progress) {
   const ND = "No description provided.";
   const desc = (s) => (s && s.length > 0) ? s : ND;
 
-  // Column-width profiles per table kind. Percentages sum to ~100. The
-  // narrow "name" columns need enough room for identifier text but the
-  // wide "description" / "action" columns absorb the bulk of the space.
-  // Without explicit widths, Word computes widths from minimum content
-  // and collapses narrow-heading columns to one character per line.
-  const COL_2 = [25, 75];                  // Name | Description
-  const COL_4 = [18, 40, 22, 20];          // Name | Description | Param | Type
-  const COL_5 = [13, 13, 16, 16, 42];      // Source | Target | Iface | Msg | Action
+  // Column-width profiles per table kind. Widths in DXA (twentieths of
+  // a point) — absolute, not percentage. Percentage-based widths are
+  // ignored by Google Docs on .docx import (it runs its own auto-
+  // layout pass that sizes columns by minimum content, producing the
+  // one-character-per-line pathology on narrow headings). Word and
+  // LibreOffice honour both absolute and percentage widths, so DXA is
+  // the portable choice. 9000 DXA ≈ 6.25 inches, fitting inside US
+  // Letter / A4 with 1-inch margins.
+  const TOTAL_DXA = 9000;
+  const pct = (percents) => percents.map(p => Math.round(TOTAL_DXA * p / 100));
+  const COL_2 = pct([25, 75]);                  // Name | Description
+  const COL_3 = pct([20, 20, 60]);              // Name | Type | Description  (state variables)
+  const COL_4 = pct([18, 40, 22, 20]);          // Name | Description | Param | Type  (unused after param-description column was added; kept for reference)
+  const COL_5 = pct([13, 13, 16, 16, 42]);      // Source | Target | Iface | Msg | Action  (transition table)
+  // Message/function tables with per-parameter descriptions: five
+  // columns split so the two description columns (message/function
+  // and parameter) get the lion's share, while the name and type
+  // columns stay narrow. Distinct from the transition COL_5 — the
+  // prose-density profile is different. Naming: COL_5P as in "five
+  // columns for parameter-carrying entity tables".
+  const COL_5P = pct([13, 30, 15, 12, 30]);     // Name | Entity-desc | Param | Type | Param-desc
 
   // --- Title ---
   // The H1 is the literal phrase "System specification" per the
@@ -7910,14 +8379,7 @@ async function buildSpecificationDocx(d, progress) {
   const sysSrc = generateComponentDiagramPlantUML({ withSelection: false, includeSalt: false });
   try {
     const img = await fetchDiagramImage(sysSrc);
-    const dim = fitDiagramToPage(img.width, img.height);
-    children.push(new d.Paragraph({
-      alignment: d.AlignmentType.CENTER,
-      children: [ new d.ImageRun({
-        data: img.buffer,
-        transformation: dim
-      }) ]
-    }));
+    children.push(mkDiagramParagraph(d, img));
   } catch (err) {
     children.push(mkItalicPara(d, "Could not render system diagram: " + err.message));
   }
@@ -7928,8 +8390,8 @@ async function buildSpecificationDocx(d, progress) {
     [ "Component", "Description" ],
     Model.components.map(c => new d.TableRow({
       children: [
-        mkCell(d, componentDisplayLabel(c), { widthPct: COL_2[0] }),
-        mkCell(d, desc(c.description), { widthPct: COL_2[1] })
+        mkCell(d, componentDisplayLabel(c), { width: COL_2[0] }),
+        mkCell(d, desc(c.description), { width: COL_2[1] })
       ]
     })),
     COL_2
@@ -7945,8 +8407,8 @@ async function buildSpecificationDocx(d, progress) {
       [ "Handler", "Description" ],
       Model.handlers.map(h => new d.TableRow({
         children: [
-          mkCell(d, handlerDisplayLabel(h), { widthPct: COL_2[0] }),
-          mkCell(d, desc(h.description), { widthPct: COL_2[1] })
+          mkCell(d, handlerDisplayLabel(h), { width: COL_2[0] }),
+          mkCell(d, desc(h.description), { width: COL_2[1] })
         ]
       })),
       COL_2
@@ -7967,8 +8429,8 @@ async function buildSpecificationDocx(d, progress) {
       [ "Name", "Description" ],
       publicIfaces.map(i => new d.TableRow({
         children: [
-          mkCell(d, i.name, { widthPct: COL_2[0] }),
-          mkCell(d, desc(i.description), { widthPct: COL_2[1] })
+          mkCell(d, i.name, { width: COL_2[0] }),
+          mkCell(d, desc(i.description), { width: COL_2[1] })
         ]
       })),
       COL_2
@@ -7985,40 +8447,46 @@ async function buildSpecificationDocx(d, progress) {
         children.push(mkPara(d, "This interface has no messages."));
       } else {
         children.push(mkPara(d, "The following messages are specified."));
-        // Table: Message | Description | Parameter | Type
-        // Rowspan on Message + Description when the message has N>1
-        // parameters.
+        // Table: Message | Message description | Parameter | Type | Parameter description
+        // Rowspan on Message + Message-description when the message
+        // has N>1 parameters. The parameter's own description is a
+        // dedicated column rather than being concatenated into Type
+        // with an em-dash — longer parameter descriptions fit more
+        // readably in their own column than appended to a short type.
         const rows = [];
         for (const m of msgs) {
           const params = Array.isArray(m.parameters) ? [...m.parameters] : [];
           params.sort((a, b) => a.name.localeCompare(b.name));
           if (params.length === 0) {
             rows.push(new d.TableRow({ children: [
-              mkCell(d, m.name, { widthPct: COL_4[0] }),
-              mkCell(d, desc(m.description), { widthPct: COL_4[1] }),
-              mkCell(d, "-", { widthPct: COL_4[2] }),
-              mkCell(d, "-", { widthPct: COL_4[3] })
+              mkCell(d, m.name, { width: COL_5P[0] }),
+              mkCell(d, desc(m.description), { width: COL_5P[1] }),
+              mkCell(d, "-", { width: COL_5P[2] }),
+              mkCell(d, "-", { width: COL_5P[3] }),
+              mkCell(d, "-", { width: COL_5P[4] })
             ]}));
           } else {
             const span = params.length;
             rows.push(new d.TableRow({ children: [
-              mkCell(d, m.name, { rowSpan: span, widthPct: COL_4[0] }),
-              mkCell(d, desc(m.description), { rowSpan: span, widthPct: COL_4[1] }),
-              mkCell(d, params[0].name, { widthPct: COL_4[2] }),
-              mkCell(d, params[0].type || "-", { widthPct: COL_4[3] })
+              mkCell(d, m.name, { rowSpan: span, width: COL_5P[0] }),
+              mkCell(d, desc(m.description), { rowSpan: span, width: COL_5P[1] }),
+              mkCell(d, params[0].name, { width: COL_5P[2] }),
+              mkCell(d, params[0].type || "-", { width: COL_5P[3] }),
+              mkCell(d, desc(params[0].description), { width: COL_5P[4] })
             ]}));
             for (let k = 1; k < params.length; k++) {
               rows.push(new d.TableRow({ children: [
-                mkCell(d, params[k].name, { widthPct: COL_4[2] }),
-                mkCell(d, params[k].type || "-", { widthPct: COL_4[3] })
+                mkCell(d, params[k].name, { width: COL_5P[2] }),
+                mkCell(d, params[k].type || "-", { width: COL_5P[3] }),
+                mkCell(d, desc(params[k].description), { width: COL_5P[4] })
               ]}));
             }
           }
         }
         children.push(mkTable(d,
-          [ "Message", "Description", "Parameter", "Type" ],
+          [ "Message", "Message description", "Parameter", "Type", "Parameter description" ],
           rows,
-          COL_4
+          COL_5P
         ));
       }
       children.push(mkPara(d, ""));
@@ -8027,7 +8495,11 @@ async function buildSpecificationDocx(d, progress) {
 
   // --- Component deep-dives ---
   for (const c of Model.components) {
-    const label = componentDisplayLabel(c);
+    // `\n` markers in display names are a diagram-rendering artifact
+    // (lets PlantUML wrap long labels on the system diagram) and carry
+    // no meaning in prose. Flatten them to spaces wherever the label
+    // reaches the document as a heading or inside a sentence.
+    const label = componentDisplayLabel(c).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
     children.push(mkHeading(d, label, 1));
     for (const p of mkParas(d, desc(c.description))) children.push(p);
 
@@ -8041,16 +8513,32 @@ async function buildSpecificationDocx(d, progress) {
     });
     try {
       const img = await fetchDiagramImage(ctxSrc);
-      const dim = fitDiagramToPage(img.width, img.height);
-      children.push(new d.Paragraph({
-        alignment: d.AlignmentType.CENTER,
-        children: [ new d.ImageRun({
-          data: img.buffer,
-          transformation: dim
-        }) ]
-      }));
+      children.push(mkDiagramParagraph(d, img));
     } catch (err) {
       children.push(mkItalicPara(d, "Could not render context diagram: " + err.message));
+    }
+
+    // State variables. Per-component documentation-only field. Three
+    // columns — Name, Type, Description. Placed before States in the
+    // chapter so the reader encounters the component's data shape
+    // before the state machine that operates on it, matching the
+    // convention in most FCM-style specifications.
+    children.push(mkHeading(d, "State variables", 2));
+    const vars = Array.isArray(c.stateVariables) ? c.stateVariables : [];
+    if (vars.length === 0) {
+      children.push(mkPara(d, "This component has no state variables."));
+    } else {
+      children.push(mkPara(d, `The state variables of the ${label} are given in the table below.`));
+      const sortedVars = [...vars].sort((a, b) => a.name.localeCompare(b.name));
+      children.push(mkTable(d,
+        [ "Name", "Type", "Description" ],
+        sortedVars.map(v => new d.TableRow({ children: [
+          mkCell(d, v.name,              { width: COL_3[0] }),
+          mkCell(d, v.type || "-",       { width: COL_3[1] }),
+          mkCell(d, desc(v.description), { width: COL_3[2] })
+        ]})),
+        COL_3
+      ));
     }
 
     // States.
@@ -8069,8 +8557,8 @@ async function buildSpecificationDocx(d, progress) {
             // Pass the raw label including any `\n` markers; mkCell
             // splits on them and emits one paragraph per line inside
             // the cell (same convention as choice-point questions).
-            mkCell(d, sLabel, { widthPct: COL_2[0] }),
-            mkCell(d, desc(s.description), { widthPct: COL_2[1] })
+            mkCell(d, sLabel, { width: COL_2[0] }),
+            mkCell(d, desc(s.description), { width: COL_2[1] })
           ]});
         }),
         COL_2
@@ -8110,8 +8598,8 @@ async function buildSpecificationDocx(d, progress) {
                             ? cp.question
                             : cp.name;
           return new d.TableRow({ children: [
-            mkCell(d, question, { widthPct: COL_2[0] }),
-            mkCell(d, desc(cp.description), { widthPct: COL_2[1] })
+            mkCell(d, question, { width: COL_2[0] }),
+            mkCell(d, desc(cp.description), { width: COL_2[1] })
           ]});
         }),
         COL_2
@@ -8133,14 +8621,7 @@ async function buildSpecificationDocx(d, progress) {
     }
     try {
       const img = await fetchDiagramImage(smSrc);
-      const dim = fitDiagramToPage(img.width, img.height);
-      children.push(new d.Paragraph({
-        alignment: d.AlignmentType.CENTER,
-        children: [ new d.ImageRun({
-          data: img.buffer,
-          transformation: dim
-        }) ]
-      }));
+      children.push(mkDiagramParagraph(d, img));
     } catch (err) {
       children.push(mkItalicPara(d, "Could not render state diagram: " + err.message));
     }
@@ -8152,35 +8633,72 @@ async function buildSpecificationDocx(d, progress) {
       children.push(mkPara(d, `The ${label} has no transitions.`));
     } else {
       children.push(mkPara(d, `The state transition table for the ${label} is given in the following table.`));
-      const rows = [];
-      for (const t of transitions) {
+      // Order transitions to match the UI's transitions table exactly.
+      // That means a two-level sort:
+      //   * Within each transition, sort its `messages` array by
+      //     (interface, message) — so the sub-rows inside a rowspan
+      //     block come out in the same order the user sees in-app.
+      //   * Across transitions, sort by (source label, first-iface,
+      //     first-message) where "first" refers to the message that
+      //     will become the top row of the rowspan block (i.e. the
+      //     head of the already-sorted message array, or "" for the
+      //     message-less initial transition).
+      // Rowspan is preserved: one block per transition rather than
+      // a flat row-per-message table. The UI flattens because it
+      // needs per-message selection; the spec export keeps the
+      // grouping because a "transition fires these N messages"
+      // relationship reads more naturally as a visual block.
+      const prepared = transitions.map(t => {
         const src = nodeLabelInComponent(c, t.source);
         const tgt = nodeLabelInComponent(c, t.target);
-        const msgs = Array.isArray(t.messages) ? t.messages : [];
+        const rawMsgs = Array.isArray(t.messages) ? [...t.messages] : [];
+        rawMsgs.sort((a, b) => {
+          if (a.interface !== b.interface) return a.interface.localeCompare(b.interface);
+          return a.name.localeCompare(b.name);
+        });
+        return {
+          t, src, tgt, msgs: rawMsgs,
+          firstIface: rawMsgs.length > 0 ? rawMsgs[0].interface : "",
+          firstMsg:   rawMsgs.length > 0 ? rawMsgs[0].name : ""
+        };
+      });
+      prepared.sort((a, b) => {
+        if (a.src !== b.src) return a.src.localeCompare(b.src);
+        if (a.firstIface !== b.firstIface) return a.firstIface.localeCompare(b.firstIface);
+        return a.firstMsg.localeCompare(b.firstMsg);
+      });
+
+      const rows = [];
+      for (const p of prepared) {
+        const { src, tgt, msgs } = p;
         if (msgs.length === 0) {
           rows.push(new d.TableRow({ children: [
-            mkCell(d, src, { widthPct: COL_5[0] }),
-            mkCell(d, tgt, { widthPct: COL_5[1] }),
-            mkCell(d, "-", { widthPct: COL_5[2] }),
-            mkCell(d, "-", { widthPct: COL_5[3] }),
-            mkCell(d, "-", { widthPct: COL_5[4] })
+            mkCell(d, src, { width: COL_5[0] }),
+            mkCell(d, tgt, { width: COL_5[1] }),
+            mkCell(d, "-", { width: COL_5[2] }),
+            mkCell(d, "-", { width: COL_5[3] }),
+            mkCell(d, "-", { width: COL_5[4] })
           ]}));
         } else {
           const span = msgs.length;
-          const firstAction = lookupMessageAction(msgs[0].interface, msgs[0].name);
+          // Action text lives on the transition's message row, not on
+          // the shared Message vocabulary — the same Message can
+          // appear in ten different transitions with ten different
+          // actions. Read `action` directly from the per-row record;
+          // fall back to "-" for rows the user never annotated.
+          const actionOf = (mm) => (mm.action && mm.action.length > 0) ? mm.action : "-";
           rows.push(new d.TableRow({ children: [
-            mkCell(d, src, { rowSpan: span, widthPct: COL_5[0] }),
-            mkCell(d, tgt, { rowSpan: span, widthPct: COL_5[1] }),
-            mkCell(d, msgs[0].interface, { widthPct: COL_5[2] }),
-            mkCell(d, msgs[0].name, { widthPct: COL_5[3] }),
-            mkCell(d, firstAction, { widthPct: COL_5[4] })
+            mkCell(d, src, { rowSpan: span, width: COL_5[0] }),
+            mkCell(d, tgt, { rowSpan: span, width: COL_5[1] }),
+            mkCell(d, msgs[0].interface, { width: COL_5[2] }),
+            mkCell(d, msgs[0].name, { width: COL_5[3] }),
+            mkCell(d, actionOf(msgs[0]), { width: COL_5[4], preserveNewlines: true })
           ]}));
           for (let k = 1; k < msgs.length; k++) {
-            const act = lookupMessageAction(msgs[k].interface, msgs[k].name);
             rows.push(new d.TableRow({ children: [
-              mkCell(d, msgs[k].interface, { widthPct: COL_5[2] }),
-              mkCell(d, msgs[k].name, { widthPct: COL_5[3] }),
-              mkCell(d, act, { widthPct: COL_5[4] })
+              mkCell(d, msgs[k].interface, { width: COL_5[2] }),
+              mkCell(d, msgs[k].name, { width: COL_5[3] }),
+              mkCell(d, actionOf(msgs[k]), { width: COL_5[4], preserveNewlines: true })
             ]}));
           }
         }
@@ -8195,7 +8713,7 @@ async function buildSpecificationDocx(d, progress) {
 
   // --- Handler deep-dives ---
   for (const h of Model.handlers) {
-    const label = handlerDisplayLabel(h);
+    const label = handlerDisplayLabel(h).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
     children.push(mkHeading(d, label, 1));
     for (const p of mkParas(d, desc(h.description))) children.push(p);
     children.push(mkHeading(d, "Functions", 2));
@@ -8211,31 +8729,34 @@ async function buildSpecificationDocx(d, progress) {
         params.sort((a, b) => a.name.localeCompare(b.name));
         if (params.length === 0) {
           rows.push(new d.TableRow({ children: [
-            mkCell(d, f.name, { widthPct: COL_4[0] }),
-            mkCell(d, desc(f.description), { widthPct: COL_4[1] }),
-            mkCell(d, "-", { widthPct: COL_4[2] }),
-            mkCell(d, "-", { widthPct: COL_4[3] })
+            mkCell(d, f.name, { width: COL_5P[0] }),
+            mkCell(d, desc(f.description), { width: COL_5P[1] }),
+            mkCell(d, "-", { width: COL_5P[2] }),
+            mkCell(d, "-", { width: COL_5P[3] }),
+            mkCell(d, "-", { width: COL_5P[4] })
           ]}));
         } else {
           const span = params.length;
           rows.push(new d.TableRow({ children: [
-            mkCell(d, f.name, { rowSpan: span, widthPct: COL_4[0] }),
-            mkCell(d, desc(f.description), { rowSpan: span, widthPct: COL_4[1] }),
-            mkCell(d, params[0].name, { widthPct: COL_4[2] }),
-            mkCell(d, params[0].type || "-", { widthPct: COL_4[3] })
+            mkCell(d, f.name, { rowSpan: span, width: COL_5P[0] }),
+            mkCell(d, desc(f.description), { rowSpan: span, width: COL_5P[1] }),
+            mkCell(d, params[0].name, { width: COL_5P[2] }),
+            mkCell(d, params[0].type || "-", { width: COL_5P[3] }),
+            mkCell(d, desc(params[0].description), { width: COL_5P[4] })
           ]}));
           for (let k = 1; k < params.length; k++) {
             rows.push(new d.TableRow({ children: [
-              mkCell(d, params[k].name, { widthPct: COL_4[2] }),
-              mkCell(d, params[k].type || "-", { widthPct: COL_4[3] })
+              mkCell(d, params[k].name, { width: COL_5P[2] }),
+              mkCell(d, params[k].type || "-", { width: COL_5P[3] }),
+              mkCell(d, desc(params[k].description), { width: COL_5P[4] })
             ]}));
           }
         }
       }
       children.push(mkTable(d,
-        [ "Function", "Description", "Parameter", "Type" ],
+        [ "Function", "Function description", "Parameter", "Type", "Parameter description" ],
         rows,
-        COL_4
+        COL_5P
       ));
     }
   }
@@ -8292,12 +8813,6 @@ function buildFocusFilter(focusComponentName) {
 // Look up the action text for a specific message. Returns "-" when the
 // message has no action or can't be found, so the transition table
 // always renders a stable placeholder.
-function lookupMessageAction(ifaceName, msgName) {
-  const m = Model.messages.find(mm => mm.interface === ifaceName && mm.name === msgName);
-  if (!m) return "-";
-  return (m.action && m.action.length > 0) ? m.action : "-";
-}
-
 // Component-scoped version of the in-editor `nodeLabel` helper. The
 // editor's version reads from the active component and folds `\n`
 // markers to spaces to fit the narrow transitions-table column in the
@@ -8446,7 +8961,8 @@ function loadModel(data) {
         if (!p || typeof p.name !== "string" || p.name.length === 0) continue;
         params.push({
           name: p.name,
-          type: (typeof p.type === "string") ? p.type : ""
+          type: (typeof p.type === "string") ? p.type : "",
+          description: (typeof p.description === "string") ? p.description : ""
         });
       }
     }
@@ -8512,6 +9028,15 @@ function loadModel(data) {
           name: cp.name,
           question: (typeof cp.question === "string") ? cp.question : "",
           description: (typeof cp.description === "string") ? cp.description : ""
+        })),
+        // State variables: post-initial-v3 addition. Files saved before
+        // the feature lack the field; they load cleanly with an empty
+        // array. Each record is normalised to carry the three fields
+        // even when the on-disk representation dropped empty ones.
+        stateVariables: (c.stateVariables || []).map(v => ({
+          name: v.name,
+          type: (typeof v.type === "string") ? v.type : "",
+          description: (typeof v.description === "string") ? v.description : ""
         })),
         transitions: c.transitions || []
       };
@@ -8602,7 +9127,8 @@ function loadModel(data) {
               if (!p || typeof p.name !== "string" || p.name.length === 0) continue;
               fnParams.push({
                 name: p.name,
-                type: (typeof p.type === "string") ? p.type : ""
+                type: (typeof p.type === "string") ? p.type : "",
+                description: (typeof p.description === "string") ? p.description : ""
               });
             }
           }
@@ -8759,6 +9285,7 @@ document.getElementById("btn-copy").onclick = actionCopy;
 document.getElementById("btn-paste").onclick = actionPaste;
 document.getElementById("btn-add-state").onclick = actionAddState;
 document.getElementById("btn-add-cp").onclick = actionAddCP;
+document.getElementById("btn-add-var").onclick = addStateVariable;
 document.getElementById("btn-add-trans").onclick = actionAddTransition;
 document.getElementById("btn-redirect").onclick = actionRedirectTransitions;
 document.getElementById("btn-add-conn").onclick = actionAddConnection;
@@ -8819,40 +9346,129 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
   handle.addEventListener("dblclick", () => { grid.style.height = "260px"; });
 })();
 
-// Vertical resize handle between transitions and action panel
+// Horizontal resize handle between the Transitions table and the Action
+// panel (now side-by-side, not stacked). The default widths are
+// computed from the lists-grid columns above so both the Transitions
+// right edge and the Action right edge visually align with the
+// Choice-points and State Variables right edges respectively — same
+// three-way vertical rail on the right side of the app. Once the
+// user drags the handle, their chosen widths are "sticky": we stop
+// auto-syncing so future viewport changes don't undo their choice.
 (function() {
   const handle = document.getElementById("resize-handle-action");
   const panel = document.getElementById("action-panel");
+  const transPanel = panel.parentElement.querySelector(".trans-panel");
   let dragging = false;
-  let startY = 0, startH = 0;
+  let startX = 0, startWAction = 0, startWTrans = 0;
+  let userOverride = false;
+
+  // Compute the target widths for Transitions and Action so their
+  // edges align with the lists-grid columns above:
+  //   - Action.left  = StateVariables.left  → Action_width = third_col
+  //   - Transitions.right = ChoicePoints.right → Transitions_width = leftPair
+  // Sum: Transitions + 12px-gap + Action = grid_width. Using the grid's
+  // own rendered width as the single source of truth ensures the two
+  // values are exactly consistent, regardless of rounding. We derive
+  // the third-column width from the grid width rather than measuring
+  // cols[2] separately — that way if the grid has any extra padding
+  // or scrollbar slop, both panels compensate together.
+  function listsGridColumnWidths() {
+    const grid = document.getElementById("lists-grid");
+    if (!grid) return null;
+    if (grid.children.length < 3) return null;
+    const gridWidth = grid.getBoundingClientRect().width;
+    // Three equal columns separated by two 12px gaps:
+    //   gridWidth = 3*col + 2*gap  →  col = (gridWidth - 2*gap) / 3
+    const gap = 12;
+    const col = (gridWidth - 2 * gap) / 3;
+    // Transitions spans cols 1+2 plus one inter-column gap:
+    //   leftPair = 2*col + gap
+    const leftPair = 2 * col + gap;
+    return {
+      leftPair: Math.round(leftPair),
+      third: Math.round(col)
+    };
+  }
+  function syncPanelWidths() {
+    if (userOverride) return;
+    const w = listsGridColumnWidths();
+    if (!w) return;
+    if (w.third >= 160) panel.style.width = w.third + "px";
+    // Lock Transitions to exactly the two-column-plus-gap span so its
+    // right edge sits flush with Choice-points. Flex would otherwise
+    // distribute any rounding error across the two panels.
+    if (w.leftPair >= 320) {
+      transPanel.style.flex = "0 0 auto";
+      transPanel.style.width = w.leftPair + "px";
+    }
+  }
+  window.addEventListener("load", syncPanelWidths);
+  window.addEventListener("resize", syncPanelWidths);
+  // Use requestAnimationFrame for the initial sync so measurements are
+  // taken after the browser has completed the first layout pass —
+  // setTimeout(0) can fire before layout in some browsers, yielding
+  // zero widths. Also re-sync when the view-system class toggles off
+  // (re-entering component view) since the component-panel measures
+  // as zero-width while hidden.
+  requestAnimationFrame(syncPanelWidths);
+  // Observe the body's class attribute for system↔component flips.
+  const viewObserver = new MutationObserver(() => {
+    if (!document.body.classList.contains("view-system")) {
+      // Back to component view — re-sync on the next frame once the
+      // panel has its real width again.
+      requestAnimationFrame(syncPanelWidths);
+    }
+  });
+  viewObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
 
   handle.addEventListener("mousedown", e => {
     dragging = true;
-    startY = e.clientY;
-    startH = panel.getBoundingClientRect().height;
+    startX = e.clientX;
+    startWAction = panel.getBoundingClientRect().width;
+    startWTrans = transPanel.getBoundingClientRect().width;
     handle.classList.add("dragging");
-    document.body.classList.add("resizing-v");
+    document.body.classList.add("resizing-h");
     e.preventDefault();
   });
   document.addEventListener("mousemove", e => {
     if (!dragging) return;
-    const rightPanel = panel.parentElement;
-    const available = rightPanel.getBoundingClientRect().height;
-    const min = 60;
-    const max = Math.max(min, available - 200); // leave at least ~200px for trans-panel
-    // Dragging the handle down increases the transitions area and shrinks the action panel.
-    let h = startH - (e.clientY - startY);
-    h = Math.max(min, Math.min(max, h));
-    panel.style.height = h + "px";
+    const row = panel.parentElement; // .trans-action-row
+    const rowRect = row.getBoundingClientRect();
+    // The handle is the only flex item between Transitions and Action
+    // and its own layout width is 12px (see CSS override above). So
+    // the remaining available width for the two panels is the row
+    // minus that 12px.
+    const handleWidth = 12;
+    const available = rowRect.width - handleWidth;
+    const minAction = 160;
+    // Leave ~320px minimum for the Transitions table — its five
+    // columns need room or the narrow ones collapse letter-by-letter.
+    const minTrans = 320;
+    // Dragging the handle right shrinks Action, grows Transitions.
+    // We set both widths explicitly on drag so the "right edge flush
+    // with Choice-points" alignment stays consistent even after the
+    // user's override — the sum stays equal to `available`.
+    const dx = e.clientX - startX;
+    let wAction = startWAction - dx;
+    wAction = Math.max(minAction, Math.min(available - minTrans, wAction));
+    const wTrans = available - wAction;
+    panel.style.width = wAction + "px";
+    transPanel.style.flex = "0 0 auto";
+    transPanel.style.width = wTrans + "px";
+    userOverride = true;
   });
   document.addEventListener("mouseup", () => {
     if (!dragging) return;
     dragging = false;
     handle.classList.remove("dragging");
-    document.body.classList.remove("resizing-v");
+    document.body.classList.remove("resizing-h");
   });
-  // Double-click resets to default
-  handle.addEventListener("dblclick", () => { panel.style.height = "140px"; });
+  // Double-click re-enables auto-sync and immediately re-aligns both
+  // panels to their matching lists-grid columns.
+  handle.addEventListener("dblclick", () => {
+    userOverride = false;
+    syncPanelWidths();
+  });
 })();
 
 // Vertical resize handle between description panel and component panel.
