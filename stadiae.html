@@ -325,7 +325,14 @@
   .canvas-panel .restored-banner button.keep { border-color: var(--accent); color: var(--accent); }
   .canvas-panel .restored-banner button:hover { transform: translateY(-1px); }
   .right-panel {
-    flex: 1;
+    /* Right panel holds four lists (States, Choice-points, State
+       variables, Local functions) plus Transitions + Action — it
+       needs more width than the canvas at default 50/50 split would
+       give. Flex grow of 1.5 tips the default to ~40% canvas / ~60%
+       right-panel, matching what most users end up dragging to
+       anyway. The user-draggable slider between the two still works
+       and sticks (userOverride pattern).*/
+    flex: 1.5 1 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -333,7 +340,7 @@
   }
   .lists-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
     gap: 12px;
     flex: 0 0 auto;
     height: 260px;
@@ -621,11 +628,11 @@
      UL its own horizontal scrollbar at the bottom of the list; the
      generic `.list-box li` truncation needs to be turned off so long
      rows stretch their full width instead of being clipped. */
-  #list-states, #list-cps, #list-vars, #list-ifaces, #list-msgs, #list-fns,
+  #list-states, #list-cps, #list-vars, #list-lfns, #list-ifaces, #list-msgs, #list-fns,
   #params-list, #fnparams-list {
     overflow-x: auto;
   }
-  #list-states li, #list-cps li, #list-vars li, #list-ifaces li, #list-msgs li, #list-fns li,
+  #list-states li, #list-cps li, #list-vars li, #list-lfns li, #list-ifaces li, #list-msgs li, #list-fns li,
   #params-list li, #fnparams-list li {
     overflow: visible;
     text-overflow: clip;
@@ -849,6 +856,70 @@
     box-shadow: inset 0 0 0 2px var(--accent-soft);
   }
 
+  /* === Steps panel ===
+     Sits inside the Local functions column, stacked below the Local
+     functions list. Only visible when exactly one local function is
+     selected — carries that function's multi-line step body (stored
+     as `localFunction.description` in the model; "Steps" is the UX
+     label because that's what a local function's content actually
+     is — a sequence of steps, structurally identical to a transition
+     action). Styled like Action panel for visual coherence. */
+  .steps-panel {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 140px;
+    min-height: 60px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .steps-panel .header {
+    background: var(--surface-3);
+    padding: 8px 14px;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .steps-panel .steps-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+  .steps-panel .steps-placeholder {
+    flex: 1;
+    padding: 14px 16px;
+    color: var(--text-faint);
+    font-style: italic;
+    font-size: 12.5px;
+  }
+  .steps-panel textarea {
+    flex: 1;
+    border: none;
+    outline: none;
+    resize: none;
+    padding: 10px 14px;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--surface);
+  }
+  .steps-panel textarea:focus {
+    background: var(--surface);
+    box-shadow: inset 0 0 0 2px var(--accent-soft);
+  }
+  /* Hidden state: panel + its top resize handle disappear; the
+     Local functions list-box reclaims the column height via its
+     own flex: 1. Driven by the `.hidden` class that JS toggles
+     when no local function is bound. Same pattern as params-panel. */
+  .steps-panel.hidden { display: none; }
+  #resize-handle-steps.hidden { display: none; }
+
   /* === Canvas column wrapper === */
   /* Stacks the canvas on top of the system-specification panel with a
      resize handle between them. The column takes `flex: 1` of the
@@ -990,13 +1061,13 @@
      `display: none` and the list-box reclaims the full column height.
      The grid cell itself is a plain flex column so everything stacks
      cleanly inside the grid's width. */
-  .msgs-column, .fns-column {
+  .msgs-column, .fns-column, .lfns-column {
     display: flex;
     flex-direction: column;
     min-height: 0;
     min-width: 0;
   }
-  .msgs-column > .list-box, .fns-column > .list-box {
+  .msgs-column > .list-box, .fns-column > .list-box, .lfns-column > .list-box {
     flex: 1 1 auto;
     min-height: 0;
   }
@@ -1426,51 +1497,42 @@
   .about-modal .actions { justify-content: center; }
 
   /* PlantUML source panel toggle */
-  .code-toggle {
-    position: fixed;
-    bottom: 12px; right: 12px;
-    background: var(--surface);
-    color: var(--text-muted);
-    border: 1px solid var(--border);
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-family: inherit;
-    font-size: 11px;
-    font-weight: 500;
-    cursor: pointer;
-    z-index: 500;
-    box-shadow: var(--shadow-md);
-    transition: all 0.12s;
-  }
-  .code-toggle:hover { color: var(--accent); border-color: var(--accent-soft-hover); }
+  /* Menubar spacer: pushes the server-status indicator to the right
+     edge without reliance on negative margins on the indicator itself.
+     Flex `margin-left: auto` on the spacer is the standard idiom; the
+     spacer takes all available space between the last menu and the
+     indicator. */
+  .menubar-spacer { flex: 1 1 auto; }
 
-  /* Small clickable indicator showing which PlantUML server is active.
-     Lives just to the left of the Show PlantUML toggle. Click to configure. */
+  /* Server-status indicator — lives in the menubar at the upper right.
+     Minimal text affordance: dot + "plantuml:" + current host, styled
+     to blend with the menubar's dark chrome. Click opens the PlantUML
+     server dialog. */
   .server-status {
-    position: fixed;
-    bottom: 12px;
-    right: 140px;
-    background: var(--surface);
-    color: var(--text-muted);
-    border: 1px solid var(--border);
-    padding: 6px 12px;
-    border-radius: 20px;
+    background: transparent;
+    color: var(--chrome-text);
+    border: 1px solid transparent;
+    padding: 4px 10px;
+    margin-right: 8px;
+    border-radius: 5px;
     font-family: inherit;
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 500;
     cursor: pointer;
-    z-index: 500;
-    box-shadow: var(--shadow-md);
-    transition: all 0.12s;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     max-width: 360px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
   }
-  .server-status:hover { color: var(--accent); border-color: var(--accent-soft-hover); }
+  .server-status:hover {
+    background: var(--chrome-3);
+    color: #ffffff;
+    border-color: var(--chrome-border);
+  }
   .server-status .dot {
     width: 7px; height: 7px; border-radius: 50%;
     background: #888;
@@ -1478,28 +1540,8 @@
   }
   .server-status.online .dot { background: #3b82f6; }
   .server-status.local  .dot { background: #10b981; }
-  .server-status .label { color: var(--text-muted); }
-  .server-status .value { color: var(--text); font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; }
-  .code-panel {
-    position: fixed;
-    bottom: 48px; right: 12px;
-    width: 480px;
-    max-height: 420px;
-    background: #0f172a;
-    color: #cbd5e1;
-    border-radius: 8px;
-    padding: 14px 16px;
-    font-family: "SF Mono", Menlo, Consolas, monospace;
-    font-size: 11.5px;
-    line-height: 1.55;
-    white-space: pre-wrap;
-    overflow: auto;
-    display: none;
-    z-index: 500;
-    box-shadow: var(--shadow-lg);
-    border: 1px solid rgba(255,255,255,0.08);
-  }
-  .code-panel.show { display: block; }
+  .server-status .label { color: var(--chrome-text-muted, #9ca3af); }
+  .server-status .value { color: var(--chrome-text); font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; }
 
   /* Scrollbars (WebKit) - subtle, modern */
   ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -1555,6 +1597,18 @@
       <div class="item" data-action="about">About</div>
     </div>
   </div>
+  <!--
+    Server status indicator at the right edge of the menubar. Clicking
+    opens the PlantUML server dialog (same entry point as File →
+    PlantUML server…). Minimal text-only affordance — no floating badge
+    hovering over the canvas; it lives here as chrome among the menus.
+  -->
+  <div class="menubar-spacer"></div>
+  <button class="server-status" id="server-status" title="PlantUML server — click to change">
+    <span class="dot"></span>
+    <span class="label">plantuml:</span>
+    <span class="value" id="server-status-value">online</span>
+  </button>
 </div>
 
 <div class="toolbar">
@@ -1689,6 +1743,25 @@
           </div>
           <ul id="list-vars"></ul>
         </div>
+        <div class="lfns-column">
+          <div class="list-box">
+            <div class="header">
+              <span>Local functions</span>
+              <button class="header-add" id="btn-add-lfn" title="Add local function">+</button>
+            </div>
+            <ul id="list-lfns"></ul>
+          </div>
+          <div class="resize-handle" id="resize-handle-steps" title="Drag to resize"></div>
+          <div class="steps-panel" id="steps-panel">
+            <div class="header">Steps</div>
+            <div class="steps-body">
+              <div class="steps-placeholder" id="steps-placeholder">
+                Select a single local function to view or edit its steps.
+              </div>
+              <textarea id="steps-textarea" placeholder="What the function does, one step per line." style="display:none;"></textarea>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="resize-handle" id="resize-handle" title="Drag to resize"></div>
       <div class="trans-action-row" id="trans-action-row">
@@ -1723,14 +1796,6 @@
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal" id="modal-container"></div>
 </div>
-
-<button class="server-status" id="server-status" title="PlantUML server — click to change">
-  <span class="dot"></span>
-  <span class="label">plantuml:</span>
-  <span class="value" id="server-status-value">online</span>
-</button>
-<button class="code-toggle" id="code-toggle">Show PlantUML</button>
-<pre class="code-panel" id="code-panel"></pre>
 
 <input type="file" id="file-input" accept=".json,.puml,.txt" style="display:none">
 
@@ -1776,6 +1841,14 @@ function makeEmptyComponent(name, displayName) {
     // Never emitted to PlantUML; round-trips in the .json save; appears
     // in the spec export as a table per component.
     stateVariables: [],  // {name, type, description}
+    // Local functions: per-component reusable action snippets. Named,
+    // take no parameters (they access the component's state variables
+    // by closure), documentation-only — never emitted to PlantUML.
+    // Purpose is to factor out repeated steps across transition
+    // actions. Each record: {name, description}. Description holds
+    // both the purpose and the step-by-step body as one free-text
+    // block — matches state variables' structure.
+    localFunctions: [],  // {name, description}
     // transitions: {source, target, messages: [{interface,name,action?}], connector, length}
     // Source/target are state/cp names. "START" is a special source,
     // "[H]" special target, "*" special source. Each message may carry a
@@ -1888,6 +1961,16 @@ const Component = {
     return c.stateVariables;
   },
   set stateVariables(v) { Model.components[Model.activeComponentIndex].stateVariables = v; },
+  // Local functions — per-component reusable action snippets. Same
+  // per-component-array storage pattern as stateVariables; getter
+  // ensures the field exists (files from before the feature load
+  // with the field absent).
+  get localFunctions() {
+    const c = Model.components[Model.activeComponentIndex];
+    if (!Array.isArray(c.localFunctions)) c.localFunctions = [];
+    return c.localFunctions;
+  },
+  set localFunctions(v) { Model.components[Model.activeComponentIndex].localFunctions = v; },
   get transitions()   { return Model.components[Model.activeComponentIndex].transitions; },
   set transitions(v)  { Model.components[Model.activeComponentIndex].transitions = v; }
 };
@@ -2090,6 +2173,10 @@ const Selection = {
   // for interfaces or messages). Same role as Selection.states for
   // states. Cleared on active-component switch and on view switch.
   stateVariables: new Set(),
+  // Local functions. Same per-component model as stateVariables:
+  // plain-name keys, only the active component's local functions
+  // are ever shown, cleared on component switch and view switch.
+  localFunctions: new Set(),
   start: false,            // START icon selected
   history: false,          // H (history) pseudostate selected
   any: false,              // * (any) pseudostate selected (wildcard source)
@@ -2142,6 +2229,7 @@ const Selection = {
     this.functions.clear();
     this.messageParameters.clear(); this.functionParameters.clear();
     this.stateVariables.clear();
+    this.localFunctions.clear();
     this.start = false; this.history = false; this.any = false;
     this.nodeOrder = [];
   }
@@ -2829,6 +2917,17 @@ function isUniqueStateVariableName(name, excludeName=null) {
   const vars = Array.isArray(Component.stateVariables) ? Component.stateVariables : [];
   return !vars.some(v => v.name === name && v.name !== excludeName);
 }
+// Local function names are per-component identifiers. Unique within
+// the component's local-functions list; they don't share a namespace
+// with state variables or anything else. A local function can happen
+// to share a name with, say, a handler's function — they're different
+// kinds and never appear together in the same context (a local
+// function is called from an action text, a handler function from a
+// dedicated handler call), so name reuse across those is harmless.
+function isUniqueLocalFunctionName(name, excludeName=null) {
+  const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
+  return !lfns.some(lf => lf.name === name && lf.name !== excludeName);
+}
 function isUniqueInterfaceName(name, excludeName=null) {
   return !Model.interfaces.some(i => i.name === name && i.name !== excludeName);
 }
@@ -2937,7 +3036,6 @@ function renderDiagram() {
 
   // === Build visible source (with selection highlighting) ===
   const visibleSrc = gen({ withSelection: true });
-  document.getElementById("code-panel").textContent = visibleSrc;
 
   // === Build mask source (unique colors per element) ===
   // Map key -> color; reverse map color -> {kind, key} goes into maskState.
@@ -3156,6 +3254,7 @@ function onDiagramClick(e) {
 function hasAnySelection() {
   return Selection.states.size || Selection.choicePoints.size ||
          Selection.stateVariables.size ||
+         Selection.localFunctions.size ||
          Selection.interfaces.size || Selection.messages.size ||
          Selection.transitions.size ||
          Selection.components.size || Selection.connections.size ||
@@ -3205,6 +3304,12 @@ function clearSelectionForContext(ctx) {
       // selections within the list. State variables are per-component
       // and documentation-only, parallel to choice-points structurally.
       Selection.stateVariables.clear();
+      break;
+    case "lfns":
+      // Plain-click on a local-function row: clear other local-function
+      // selections within the list. Parallel to "vars" — documentation-
+      // only per-component entity.
+      Selection.localFunctions.clear();
       break;
     case "ifaces":
       // Messages depend on their interfaces being selected for visibility;
@@ -3479,11 +3584,13 @@ function refresh() {
   buildStateList();
   buildCPList();
   buildStateVariableList();
+  buildLocalFunctionList();
   buildInterfaceList();
   buildMessageList();
   buildFunctionList();
   buildTransitionTable();
   buildActionPanel();
+  buildStepsPanel();
   buildDescriptionPanel();
   renderSystemSpecPanel();
   buildParamsPanel();
@@ -3594,6 +3701,89 @@ function initActionPanel() {
   });
   textarea.addEventListener("blur", () => {
     actionEditSession = { key: null, pushed: false };
+  });
+}
+
+// Steps panel — per-local-function editor. Structurally a twin of the
+// Action panel, just bound to a local function instead of a transition
+// message row. Visible when exactly one local function is selected;
+// typing in the textarea updates Component.localFunctions[i].description
+// live, matching the Action panel's edit-session coalescing for clean
+// undo history.
+function buildStepsPanel() {
+  const panel = document.getElementById("steps-panel");
+  const handle = document.getElementById("resize-handle-steps");
+  const placeholder = document.getElementById("steps-placeholder");
+  const textarea = document.getElementById("steps-textarea");
+
+  const sel = Selection.localFunctions;
+  if (sel.size !== 1) {
+    // Hide the whole panel and its top resize handle; the list-box
+    // above reclaims the column height via its own flex: 1. Same
+    // pattern as params-panel when no message/function is bound.
+    panel.classList.add("hidden");
+    handle.classList.add("hidden");
+    textarea.dataset.key = "";
+    return;
+  }
+  const name = [...sel][0];
+  const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
+  const lf = lfns.find(x => x.name === name);
+  if (!lf) {
+    // Selection points at a local function that no longer exists —
+    // unlikely but defensive. Treat as no-binding.
+    panel.classList.add("hidden");
+    handle.classList.add("hidden");
+    textarea.dataset.key = "";
+    return;
+  }
+  panel.classList.remove("hidden");
+  handle.classList.remove("hidden");
+  placeholder.style.display = "none";
+  textarea.style.display = "";
+  // Only assign .value when it differs to preserve cursor position
+  // while the user types. Reads from the `steps` field — the short
+  // one-line `description` lives separately and is edited via the
+  // Edit dialog, not this panel.
+  const current = lf.steps || "";
+  if (textarea.value !== current) textarea.value = current;
+  // Key the textarea by the local function's name (scoped to the
+  // active component — component switch clears selection so the
+  // panel rebuilds anyway). On rename, the re-key flows through the
+  // dialog which updates Selection.localFunctions.
+  textarea.dataset.key = name;
+  textarea.disabled = false;
+}
+
+// Keystroke-level edit session for Steps, same shape as actionEditSession:
+// push history once per session so undo reverts a whole typing burst
+// rather than character-by-character.
+let stepsEditSession = { key: null, pushed: false };
+function initStepsPanel() {
+  const textarea = document.getElementById("steps-textarea");
+  textarea.addEventListener("input", () => {
+    const key = textarea.dataset.key;
+    if (!key) return;
+    const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
+    const lf = lfns.find(x => x.name === key);
+    if (!lf) return;
+    if (stepsEditSession.key !== key || !stepsEditSession.pushed) {
+      pushHistory();
+      stepsEditSession = { key, pushed: true };
+    }
+    const newVal = textarea.value;
+    if ((lf.steps || "") !== newVal) {
+      lf.steps = newVal;
+      // No list rebuild needed — the Local functions list row shows
+      // the one-line `description`, not the step body. Just the
+      // bookkeeping: mark dirty, schedule autosave, refresh toolbar.
+      scheduleDraftSave();
+      Model.dirty = true;
+      updateToolbar();
+    }
+  });
+  textarea.addEventListener("blur", () => {
+    stepsEditSession = { key: null, pushed: false };
   });
 }
 
@@ -4569,6 +4759,49 @@ function buildStateVariableList() {
   }
 }
 
+// Build the Local functions list. Per-component documentation-only
+// entries — captured repeated steps referenced from action text. Row
+// layout: name · em-dash · description (short one-line summary).
+// Matches the state-variables list exactly in visual language, since
+// Description is now a proper short summary field (not a multi-line
+// step body — that lives in the separate `steps` field, edited in
+// the Steps panel below the list). Alphabetical order.
+function buildLocalFunctionList() {
+  const ul = document.getElementById("list-lfns");
+  ul.innerHTML = "";
+  const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
+  const sorted = [...lfns].sort((a, b) => a.name.localeCompare(b.name));
+  for (const lf of sorted) {
+    const li = document.createElement("li");
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = lf.name;
+    li.appendChild(labelSpan);
+    if (lf.description && lf.description.length > 0) {
+      // Flatten any stray newlines in the Description field to keep
+      // the list row single-line; Description is conceptually one
+      // line, but nothing stops the user from pressing Enter in it
+      // if they load an old file with step content still lingering
+      // there. Defensive, cheap.
+      const flat = lf.description.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+      if (flat.length > 0) {
+        const descSpan = document.createElement("span");
+        descSpan.className = "state-desc";
+        descSpan.textContent = " \u2014 " + flat;
+        li.appendChild(descSpan);
+      }
+    }
+    if (Selection.localFunctions.has(lf.name)) li.classList.add("selected");
+    li.addEventListener("click", (e) => {
+      selectClick(e, "lfns", () => {
+        if (Selection.localFunctions.has(lf.name)) Selection.localFunctions.delete(lf.name);
+        else Selection.localFunctions.add(lf.name);
+      }, Selection.localFunctions.has(lf.name));
+      refresh();
+    });
+    ul.appendChild(li);
+  }
+}
+
 // Build the Components list in the top-right catalogue. Each row
 // represents one component; a chevron marks which one is currently
 // "active" (state-machine view shows its body). Click semantics depend
@@ -5057,7 +5290,8 @@ function updateToolbar() {
                  Selection.messageParameters.size ||
                  Selection.functions.size ||
                  Selection.functionParameters.size ||
-                 Selection.stateVariables.size;
+                 Selection.stateVariables.size ||
+                 Selection.localFunctions.size;
   const includesProtected = Selection.start ||
                  [...Selection.interfaces].some(isDefaultInterface) ||
                  [...Selection.messages].some(k => {
@@ -5068,11 +5302,12 @@ function updateToolbar() {
   document.getElementById("btn-copy").disabled = !canCopy();
   document.getElementById("btn-paste").disabled = !canPaste();
 
-  // Add state / cp / state variable: only in component view (no
-  // meaning in system view).
+  // Add state / cp / state variable / local function: only in
+  // component view (no meaning in system view).
   document.getElementById("btn-add-state").disabled = inSystem;
   document.getElementById("btn-add-cp").disabled = inSystem;
   document.getElementById("btn-add-var").disabled = inSystem;
+  document.getElementById("btn-add-lfn").disabled = inSystem;
   // Add interface: always — interfaces are system-wide vocabulary.
   document.getElementById("btn-add-iface").disabled = false;
 
@@ -5408,12 +5643,19 @@ function canEdit() {
   const f = Selection.functions.size;
   const fp = Selection.functionParameters.size;
   const sv = Selection.stateVariables.size;
+  const lf = Selection.localFunctions.size;
   const otherTotal = s + c + i + m + (Selection.start?1:0);
   if (Selection.start) return false;
   // State variable: exactly one selected, nothing else. State variables
   // are per-component documentation and don't share a selection space
   // with anything else — plain case, no priority tangles.
-  if (sv === 1 && s === 0 && c === 0 && i === 0 && m === 0 && t === 0 && co === 0 && cn === 0 && h === 0 && hc === 0 && hca === 0 && f === 0 && fp === 0) {
+  if (sv === 1 && s === 0 && c === 0 && i === 0 && m === 0 && t === 0 && co === 0 && cn === 0 && h === 0 && hc === 0 && hca === 0 && f === 0 && fp === 0 && lf === 0) {
+    return true;
+  }
+  // Local function: exactly one selected, nothing else. Parallel to
+  // state variables — a documentation-only per-component entity with
+  // no selection-priority tangles.
+  if (lf === 1 && s === 0 && c === 0 && i === 0 && m === 0 && t === 0 && co === 0 && cn === 0 && h === 0 && hc === 0 && hca === 0 && f === 0 && fp === 0 && sv === 0) {
     return true;
   }
   // Function parameter row: exactly one function-parameter selected.
@@ -5631,6 +5873,7 @@ function showManual() {
     {id: "states", title: "States"},
     {id: "choicepoints", title: "Choice-points"},
     {id: "statevars", title: "State variables"},
+    {id: "localfns", title: "Local functions"},
     {id: "interfaces-msgs", title: "Interfaces & Messages"},
     {id: "transitions", title: "Transitions"},
     {id: "history", title: "History State"},
@@ -5743,14 +5986,13 @@ function manualContent() {
       <h3>Components list</h3>
       <p>One row per component. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas. In component view, click a row to switch the canvas and lower panels to that component. In system view, click a row to toggle selection (same as clicking the component's box on the canvas); the floating <code>Component ▸</code> button at the top-right of the canvas then enters the selected component's state machine. To rename a component, select it and click <strong>Edit</strong>; to delete it, select it and click <strong>Delete</strong>. Component names must be unique. The minimum is one component — the last one cannot be deleted.</p>
       <h3>Component panel (bottom right)</h3>
-      <p>The rest of the right panel shows the active component's <em>States</em>, <em>Choice-points</em>, and <em>State variables</em> lists (with the START / H / ∗ pseudo-states at the top of States), and below them the transitions table side-by-side with the Action panel. These panels are hidden in system view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. Each section is resizable via the thin bars between them — drag to adjust, double-click to reset. A separate vertical slider between the canvas and the right panel lets you shift the main left/right split, and a horizontal slider above the System Specification panel resizes that panel against the canvas.</p>
+      <p>The rest of the right panel shows the active component's <em>States</em>, <em>Choice-points</em>, <em>State variables</em>, and <em>Local functions</em> lists (with the START / H / ∗ pseudo-states at the top of States), and below them the transitions table side-by-side with the Action panel. These panels are hidden in system view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. Each section is resizable via the thin bars between them — drag to adjust, double-click to reset. A separate vertical slider between the canvas and the right panel lets you shift the main left/right split, and a horizontal slider above the System Specification panel resizes that panel against the canvas.</p>
       <h3>Transition table</h3>
       <p>Lists every transition of the active component, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. A small dot in the first column marks rows that have an action description. A small amber <code>!</code> next to it marks rows whose interface isn't wired to the active component in the system diagram — see <a href="#m-system-diagram" data-target="m-system-diagram">System Diagram</a>.</p>
       <h3>Action panel</h3>
       <p>Below the transitions table, a free-text area shows the <em>action</em> of the currently selected transition row. Actions are developer documentation that is saved with the diagram but not rendered into the PlantUML — see <a href="#m-transitions" data-target="m-transitions">Transitions</a>.</p>
       <h3>System Specification panel</h3>
       <p>Below the canvas, a free-text area titled <em>System specification</em> is always visible in both views. It is the design guide the developer writes the system against — architecture overview, requirements, constraints, rationale — whatever you want to keep in sight while modelling. The field is file-scoped (one specification per file), multi-line, persisted to the saved <code>.json</code> but never written to the generated PlantUML. Edits live-save to the model and coalesce into a single undo step per typing session; a blur or switching focus ends the session. The panel's height is adjustable via the thin slider above it — drag to resize, double-click to reset to the default 140 px.</p>
-      <div class="tip">A "Show PlantUML" button at the bottom-right opens a live view of the generated source for the active component. Useful for sanity-checking or for learning PlantUML.</div>
     </section>
 
     <section id="m-components">
@@ -5790,7 +6032,7 @@ function manualContent() {
       <p>Above the state machines sits the <strong>system diagram</strong>: a single picture of your whole file showing components as boxes, handlers as 3D-brick boxes, and interfaces as lollipops, with lines marking who is wired to what. This is Stadiæ's view of the system's decomposition — the "one level up" from individual component behaviour.</p>
 
       <h3>Opening the system view</h3>
-      <p>A floating <code>◇ System</code> button at the top-left of the diagram canvas switches from a state-machine view to the system diagram; the button stays accent-coloured while the system view is active. The States, Choice-points, State variables, Transitions, and Action panels hide in this view — they don't apply at the system level. The Components, Handlers, Functions, Interfaces, and Messages lists stay visible.</p>
+      <p>A floating <code>◇ System</code> button at the top-left of the diagram canvas switches from a state-machine view to the system diagram; the button stays accent-coloured while the system view is active. The States, Choice-points, State variables, Local functions, Transitions, and Action panels hide in this view — they don't apply at the system level. The Components, Handlers, Functions, Interfaces, and Messages lists stay visible.</p>
       <p>To return to a state-machine view from system view, select a component (click its row in the Components list or its box on the canvas) and click the floating <code>Component ▸</code> button at the top-right of the canvas. The button is the only way into a component &mdash; single-click selects, the button enters. In component view, clicking a component row still switches directly, since you're already in "navigate between components" mode.</p>
 
       <h3>The system box</h3>
@@ -5882,6 +6124,20 @@ function manualContent() {
         <li><em>Description</em> — free-text, optional, single line. A developer note explaining what the variable holds.</li>
       </ul>
       <p>The list renders each row as <em>name</em> &middot; <em>: type</em> &middot; <em>&mdash; description</em> (type and description only when set). The list scrolls horizontally when a long description outgrows the column. Select a row and click <strong>Edit</strong> to change any field, or <strong>Delete</strong> to remove. Variables are sorted alphabetically. The specification export includes a <em>State variables</em> section in each component's chapter, with a Name / Type / Description table.</p>
+    </section>
+
+    <section id="m-localfns">
+      <h2>Local functions</h2>
+      <p>A <strong>local function</strong> captures a sequence of steps that would otherwise be repeated across multiple transition actions. Name it once, describe what it does, spell out the steps, and refer to it by name from any action that needs those steps. Local functions take no parameters — they operate on the component's state variables by closure — and they return nothing. Like state variables, they are per-component, documentation-only, and never reach the generated PlantUML.</p>
+      <p>Click <strong>Add Local Function</strong> (the <code>+</code> button on the Local functions list, at the far right of the component-view list row) and fill in:</p>
+      <ul>
+        <li><em>Name</em> — single-word identifier, unique within the component. This is the name you reference from transition action text.</li>
+        <li><em>Description</em> — free-text, optional, single line. A short summary of the function's purpose, the way a state variable's description summarises what the variable holds.</li>
+      </ul>
+      <p>The <em>Steps</em> (the actual body of the function) are entered in the <strong>Steps panel</strong> below the list, not in the dialog. Select the newly-added function and the panel unfolds, ready for you to type the steps — one per line, using line breaks to separate them.</p>
+      <p>The <strong>Steps panel</strong> sits beneath the Local functions list and is structurally identical to the Action panel beneath the transitions table: a free-text editor that is live-saved as you type. Select a single local function in the list and the panel unfolds, showing its current steps (empty for a newly-added function). Click elsewhere or select multiple rows and the panel retreats behind its placeholder. Typing in the textarea updates the function's step body per keystroke — no save button, no confirmation — and the line breaks you type are preserved when the specification is exported.</p>
+      <p>The Local functions list shows each row as <em>name</em> &middot; <em>&mdash; description</em> (the short purpose summary, not the steps), matching how State variables render. To change either field, select the row and click <strong>Edit</strong>; to change the step body, edit it live in the Steps panel. Local functions are sorted alphabetically.</p>
+      <p>The specification export includes a <em>Local functions</em> section as the last H2 section of each component's chapter (after the state transition table). It renders a three-column table — <em>Name</em>, <em>Description</em>, <em>Steps</em> — with the Steps column preserving line breaks inside the cell just as typed.</p>
     </section>
 
     <section id="m-interfaces-msgs">
@@ -6066,7 +6322,7 @@ function manualContent() {
       <p>Open the configuration dialog in one of two ways:</p>
       <ul>
         <li>Use <em>File → PlantUML server…</em>.</li>
-        <li>Click the small <strong>plantuml:</strong> badge at the bottom-right of the canvas, next to the <em>Show PlantUML</em> button. The badge shows a blue dot when online, green when local, and displays the current host.</li>
+        <li>Click the small <strong>plantuml:</strong> indicator at the upper-right of the menu bar. The indicator shows a blue dot when online, green when local, and displays the current host.</li>
       </ul>
       <p>The dialog has two options:</p>
       <ul>
@@ -6374,6 +6630,95 @@ function deleteSelectedStateVariable() {
   const vars = Array.isArray(Component.stateVariables) ? Component.stateVariables : [];
   Component.stateVariables = vars.filter(v => !Selection.stateVariables.has(v.name));
   Selection.stateVariables.clear();
+  refresh();
+}
+
+// Local function CRUD. Per-component, documentation-only — captures
+// repeated-across-actions step sequences. Fields: name (required,
+// single-word identifier unique within component), description (free
+// text, multi-line allowed — the description is simultaneously the
+// purpose and the step body, by design kept as one field for
+// simplicity). The dialog uses a TEXTAREA (not INPUT) for description
+// because action-style step content benefits from visible line breaks
+// as the user types.
+function openLocalFunctionDialog(existing=null) {
+  const title = existing ? "Local function properties" : "Add local function";
+  modalContainer.innerHTML = `
+    <div class="title">${title}</div>
+    <div class="body">
+      <label>Name:</label>
+      <input type="text" id="lf-name" value="${escapeHTML(existing?.name||'')}">
+      <label>Description:</label>
+      <input type="text" id="lf-desc" value="${escapeHTML(existing?.description||'')}">
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const nameI = document.getElementById("lf-name");
+  const descI = document.getElementById("lf-desc");
+  const ok = document.getElementById("ok");
+  const update = () => { ok.disabled = !nameI.value.trim(); };
+  nameI.addEventListener("input", update);
+  update();
+  nameI.focus();
+  ok.onclick = () => {
+    const name = nameI.value.trim();
+    if (!isValidIdentifier(name)) {
+      showAlert("Error", "Local function name must be a single word (letters, digits, underscore)."); return;
+    }
+    if (!isUniqueLocalFunctionName(name, existing?.name)) {
+      showAlert("Error", "A local function with this name already exists in this component."); return;
+    }
+    pushHistory();
+    const desc = descI.value;
+    if (existing) {
+      const oldName = existing.name;
+      existing.name = name;
+      existing.description = desc;
+      // Steps is edited via the Steps panel, not the dialog — left
+      // alone here. Any rename / description change flows through
+      // this path; step-body changes happen live in the panel.
+      if (oldName !== name && Selection.localFunctions.has(oldName)) {
+        Selection.localFunctions.delete(oldName);
+        Selection.localFunctions.add(name);
+      }
+    } else {
+      if (!Array.isArray(Component.localFunctions)) Component.localFunctions = [];
+      // New function starts with empty steps; the user fills in the
+      // body in the Steps panel after it's created and selected.
+      Component.localFunctions.push({ name, description: desc, steps: "" });
+      // Auto-select the new function so the Steps panel opens on it
+      // — saves the user an extra click to start writing steps.
+      Selection.localFunctions.clear();
+      Selection.localFunctions.add(name);
+    }
+    hideModal();
+    refresh();
+  };
+  document.getElementById("cancel").onclick = hideModal;
+}
+
+function addLocalFunction() {
+  openLocalFunctionDialog(null);
+}
+
+function editSelectedLocalFunction() {
+  if (Selection.localFunctions.size !== 1) return;
+  const name = [...Selection.localFunctions][0];
+  const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
+  const lf = lfns.find(x => x.name === name);
+  if (lf) openLocalFunctionDialog(lf);
+}
+
+function deleteSelectedLocalFunction() {
+  if (Selection.localFunctions.size === 0) return;
+  pushHistory();
+  const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
+  Component.localFunctions = lfns.filter(lf => !Selection.localFunctions.has(lf.name));
+  Selection.localFunctions.clear();
   refresh();
 }
 
@@ -7276,6 +7621,11 @@ function actionDelete() {
     deleteSelectedStateVariable();
     return;
   }
+  // Local function: same clean-independent routing as state variables.
+  if (Selection.localFunctions.size > 0) {
+    deleteSelectedLocalFunction();
+    return;
+  }
   // Function parameter: take priority. Single fn-param selection means
   // the user clicked Delete while in the fn-parameters panel; remove
   // just that parameter. The bound function and handler stay.
@@ -7475,6 +7825,12 @@ function actionEdit() {
   // a clean independent selection (no priority tangles with others).
   if (Selection.stateVariables.size === 1) {
     editSelectedStateVariable();
+    return;
+  }
+  // Local function: same clean-independent pattern. Routed early for
+  // the same reason.
+  if (Selection.localFunctions.size === 1) {
+    editSelectedLocalFunction();
     return;
   }
   // Function-parameter takes priority when selected — the user's
@@ -7742,6 +8098,22 @@ function buildSerializedModel() {
           if (v.type && v.type.length > 0) vo.type = v.type;
           if (v.description && v.description.length > 0) vo.description = v.description;
           return vo;
+        });
+      }
+      // Local functions — per-component reusable action snippets,
+      // also post-initial-v3. Same emit-only-when-non-empty policy so
+      // files unchanged from before the feature stay byte-identical.
+      // Two independent optional fields per record: `description`
+      // (short one-line purpose) and `steps` (multi-line step body).
+      // Keeping them separate in the file too — no smashing together
+      // on save — so round-trips are lossless and each field stays
+      // where the user put it.
+      if (Array.isArray(c.localFunctions) && c.localFunctions.length > 0) {
+        out.localFunctions = c.localFunctions.map(lf => {
+          const lo = { name: lf.name };
+          if (lf.description && lf.description.length > 0) lo.description = lf.description;
+          if (lf.steps && lf.steps.length > 0) lo.steps = lf.steps;
+          return lo;
         });
       }
       return out;
@@ -8339,6 +8711,7 @@ async function buildSpecificationDocx(d, progress) {
   const pct = (percents) => percents.map(p => Math.round(TOTAL_DXA * p / 100));
   const COL_2 = pct([25, 75]);                  // Name | Description
   const COL_3 = pct([20, 20, 60]);              // Name | Type | Description  (state variables)
+  const COL_3S = pct([18, 30, 52]);             // Name | Description | Steps  (local functions)
   const COL_4 = pct([18, 40, 22, 20]);          // Name | Description | Param | Type  (unused after param-description column was added; kept for reference)
   const COL_5 = pct([13, 13, 16, 16, 42]);      // Source | Target | Iface | Msg | Action  (transition table)
   // Message/function tables with per-parameter descriptions: five
@@ -8709,6 +9082,32 @@ async function buildSpecificationDocx(d, progress) {
         COL_5
       ));
     }
+
+    // Local functions section, placed after the transition table
+    // (last in each component chapter). Three-column table: Name,
+    // Description (short one-line purpose summary), Steps (multi-line
+    // step body). Steps cell preserves newlines so authors' step
+    // separators survive into the Word output — one paragraph per
+    // line, rendering visible line breaks inside the cell. Same
+    // mechanism used for transition Action cells. Empty-case falls
+    // back to a one-liner.
+    children.push(mkHeading(d, "Local functions", 2));
+    const lfns = Array.isArray(c.localFunctions) ? c.localFunctions : [];
+    if (lfns.length === 0) {
+      children.push(mkPara(d, `The ${label} has no local functions.`));
+    } else {
+      children.push(mkPara(d, `The local functions of the ${label} are given in the table below.`));
+      const sortedLfns = [...lfns].sort((a, b) => a.name.localeCompare(b.name));
+      children.push(mkTable(d,
+        [ "Name", "Description", "Steps" ],
+        sortedLfns.map(lf => new d.TableRow({ children: [
+          mkCell(d, lf.name,              { width: COL_3S[0] }),
+          mkCell(d, desc(lf.description), { width: COL_3S[1] }),
+          mkCell(d, desc(lf.steps),       { width: COL_3S[2], preserveNewlines: true })
+        ]})),
+        COL_3S
+      ));
+    }
   }
 
   // --- Handler deep-dives ---
@@ -9038,6 +9437,20 @@ function loadModel(data) {
           type: (typeof v.type === "string") ? v.type : "",
           description: (typeof v.description === "string") ? v.description : ""
         })),
+        // Local functions: same post-initial-v3 policy — absent field
+        // loads as an empty array, records normalized to carry both
+        // fields even when the on-disk representation dropped empty
+        // values. Two independent fields: `description` (short one-
+        // line purpose) and `steps` (multi-line step body). No
+        // migration: files from before the steps/description split
+        // load with whatever they had in `description` kept in
+        // `description` (user moves content to `steps` manually if
+        // that's what it actually was).
+        localFunctions: (c.localFunctions || []).map(lf => ({
+          name: lf.name,
+          description: (typeof lf.description === "string") ? lf.description : "",
+          steps: (typeof lf.steps === "string") ? lf.steps : ""
+        })),
         transitions: c.transitions || []
       };
     });
@@ -9286,6 +9699,7 @@ document.getElementById("btn-paste").onclick = actionPaste;
 document.getElementById("btn-add-state").onclick = actionAddState;
 document.getElementById("btn-add-cp").onclick = actionAddCP;
 document.getElementById("btn-add-var").onclick = addStateVariable;
+document.getElementById("btn-add-lfn").onclick = addLocalFunction;
 document.getElementById("btn-add-trans").onclick = actionAddTransition;
 document.getElementById("btn-redirect").onclick = actionRedirectTransitions;
 document.getElementById("btn-add-conn").onclick = actionAddConnection;
@@ -9300,15 +9714,8 @@ document.getElementById("btn-system").onclick = switchToSystem;
 document.getElementById("btn-enter-component").onclick = enterSelectedComponent;
 document.getElementById("btn-edit").onclick = actionEdit;
 
-// Code panel toggle
-document.getElementById("code-toggle").onclick = () => {
-  const p = document.getElementById("code-panel");
-  p.classList.toggle("show");
-  document.getElementById("code-toggle").textContent =
-    p.classList.contains("show") ? "Hide PlantUML" : "Show PlantUML";
-};
-
-// Server-status badge — click opens the PlantUML server config dialog.
+// Server-status indicator in the menubar — click opens the PlantUML
+// server config dialog.
 document.getElementById("server-status").onclick = showPlantUMLServerDialog;
 
 // Vertical resize handle: drag to change lists-grid height
@@ -9364,42 +9771,39 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
 
   // Compute the target widths for Transitions and Action so their
   // edges align with the lists-grid columns above:
-  //   - Action.left  = StateVariables.left  → Action_width = third_col
-  //   - Transitions.right = ChoicePoints.right → Transitions_width = leftPair
+  //   - Action.left  = LocalFunctions.left    → Action_width = fourth_col
+  //   - Transitions.right = StateVariables.right → Transitions_width = leftTrio
   // Sum: Transitions + 12px-gap + Action = grid_width. Using the grid's
   // own rendered width as the single source of truth ensures the two
-  // values are exactly consistent, regardless of rounding. We derive
-  // the third-column width from the grid width rather than measuring
-  // cols[2] separately — that way if the grid has any extra padding
-  // or scrollbar slop, both panels compensate together.
+  // values are exactly consistent, regardless of rounding.
   function listsGridColumnWidths() {
     const grid = document.getElementById("lists-grid");
     if (!grid) return null;
-    if (grid.children.length < 3) return null;
+    if (grid.children.length < 4) return null;
     const gridWidth = grid.getBoundingClientRect().width;
-    // Three equal columns separated by two 12px gaps:
-    //   gridWidth = 3*col + 2*gap  →  col = (gridWidth - 2*gap) / 3
+    // Four equal columns separated by three 12px gaps:
+    //   gridWidth = 4*col + 3*gap  →  col = (gridWidth - 3*gap) / 4
     const gap = 12;
-    const col = (gridWidth - 2 * gap) / 3;
-    // Transitions spans cols 1+2 plus one inter-column gap:
-    //   leftPair = 2*col + gap
-    const leftPair = 2 * col + gap;
+    const col = (gridWidth - 3 * gap) / 4;
+    // Transitions spans cols 1+2+3 plus two inter-column gaps:
+    //   leftTrio = 3*col + 2*gap
+    const leftTrio = 3 * col + 2 * gap;
     return {
-      leftPair: Math.round(leftPair),
-      third: Math.round(col)
+      leftTrio: Math.round(leftTrio),
+      fourth: Math.round(col)
     };
   }
   function syncPanelWidths() {
     if (userOverride) return;
     const w = listsGridColumnWidths();
     if (!w) return;
-    if (w.third >= 160) panel.style.width = w.third + "px";
-    // Lock Transitions to exactly the two-column-plus-gap span so its
-    // right edge sits flush with Choice-points. Flex would otherwise
-    // distribute any rounding error across the two panels.
-    if (w.leftPair >= 320) {
+    if (w.fourth >= 120) panel.style.width = w.fourth + "px";
+    // Lock Transitions to exactly the three-column-plus-two-gaps span
+    // so its right edge sits flush with State Variables. Flex would
+    // otherwise distribute any rounding error across the two panels.
+    if (w.leftTrio >= 320) {
       transPanel.style.flex = "0 0 auto";
-      transPanel.style.width = w.leftPair + "px";
+      transPanel.style.width = w.leftTrio + "px";
     }
   }
   window.addEventListener("load", syncPanelWidths);
@@ -9842,6 +10246,7 @@ document.addEventListener("keydown", e => {
 loadPlantUMLServerConfig();
 updateServerStatus();
 initActionPanel();
+initStepsPanel();
 initDescriptionPanel();
 initSystemSpecPanel();
 resetModel("Component Name");

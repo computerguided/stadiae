@@ -27,7 +27,7 @@ The single HTML file is organised as three logical layers:
 │ <style> ... </style>            — Presentation (CSS)        │
 ├─────────────────────────────────────────────────────────────┤
 │ <body>                          — Structure (HTML)          │
-│   menubar / toolbar / main / modal-overlay / code-panel     │
+│   menubar / toolbar / main / modal-overlay                  │
 ├─────────────────────────────────────────────────────────────┤
 │ <script>                        — Behaviour (JavaScript)    │
 │   Model ── History ── Selection                             │
