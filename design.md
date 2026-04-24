@@ -82,6 +82,19 @@ Model = {
       // identifier unique within the component. Type and description
       // are free-text and may be empty.
       stateVariables: [ {name, type, description} ],
+      // Per-component local functions — reusable action snippets
+      // referenced by name from transition action text. Take no
+      // parameters; access the component's state variables by
+      // closure. Documentation-only: never reach PlantUML, round-trip
+      // in the save file, appear as a table in the spec export.
+      // Two independent free-text fields:
+      //   - description: short one-line summary of the function's
+      //     purpose (the same role as a state variable's description).
+      //   - steps: multi-line body describing the actual steps in
+      //     execution order. Edited live in the Steps panel below
+      //     the Local functions list. Newlines preserved end-to-end
+      //     (dialog input → JSON save → spec export cell).
+      localFunctions: [ {name, description, steps} ],
       transitions:  [ {source, target, messages, connector, length} ]
     },
     ...
@@ -191,6 +204,7 @@ Selection = {
   states:         Set<name>,
   choicePoints:   Set<name>,
   stateVariables: Set<name>,           // per-component documentation rows
+  localFunctions: Set<name>,           // per-component action snippets
   interfaces:     Set<name>,
   messages:       Set<"iface:name">,
   transitions:    Set<"src|tgt|iface|msg">,  // per-message granularity
@@ -699,6 +713,36 @@ The panel is a sibling of `#canvas-panel` under `#canvas-column`, with a draggab
 
 Persisted via `buildSerializedModel()` only when non-empty; loaded with a string-type fallback defaulting to `""`. Round-trips through `snapshot()`/`restore()` like every other field on `Model`, so undo/redo over a typing session behaves exactly like undo/redo on Description or Action text.
 
+### 10.7 The Steps panel (local function bodies)
+
+The **Steps panel** is a fourth textarea-based panel, structurally a twin of the Action panel but bound to a local function instead of a transition message row. Each local function carries two independent free-text fields: a single-line `description` (short purpose summary, same role as a state variable's description) and a multi-line `steps` field holding the actual step-by-step body. The Steps panel edits `steps`; `description` is a separate one-line field edited via the Add/Edit dialog.
+
+This split emerged from UX feedback: a single combined field had to pull double duty as both summary and body, which made the list-row preview awkward (first line of a multi-line body is rarely a good summary) and the spec export ambiguous (one column to show both "what it is for" and "what it does"). Two fields read more naturally everywhere:
+
+- **In the list row:** `name — description` matches state variables exactly, with the short summary being a proper one-liner.
+- **In the dialog:** Name + Description, like state variables and handler functions.
+- **In the Steps panel:** a dedicated textarea for the body, no summary text competing for the same space.
+- **In the spec export:** three distinct columns — Name | Description | Steps — with only the Steps column preserving newlines.
+
+**Layout.** The panel sits *inside* a new per-column wrapper `.lfns-column` in the top lists row — same pattern used for `.msgs-column` and `.fns-column`, which both split a list-box stacked above a `.params-panel`. The Local functions column is structurally:
+
+```
+.lfns-column
+  └ .list-box            (Local functions list, flex: 1 1 auto)
+  └ #resize-handle-steps (draggable divider; horizontal-drag)
+  └ .steps-panel         (flex: 0 0 140px, user-resizable)
+```
+
+When no local function is bound, the panel and its top resize handle carry the `.hidden` class (`display: none`); the list-box then reclaims the column via its own `flex: 1`, giving the Local functions list the full column height as if no panel existed.
+
+**Binding and visibility.** Parallel to Action panel semantics: visible only when exactly one local function is selected. Zero or multiple selections → placeholder shown on the panel header's sibling element, textarea hidden. The `.hidden` class on the outer panel handles the "nothing bound" case by removing the panel from the layout entirely, so the column doesn't show an empty-but-present placeholder block; the Parameters panels use the same idiom.
+
+**Live save + session coalescing.** `stepsEditSession = { key, pushed }` mirrors `actionEditSession`. First keystroke in a session pushes history; subsequent keystrokes mutate `lf.steps` directly; blur ends the session. `scheduleDraftSave()` + `Model.dirty = true` + `updateToolbar()` run on each mutation for autosave + Save-button state. No list rebuild (the list row shows `description`, not `steps`) and no diagram re-render (local function content, like actions, never reaches PlantUML).
+
+**No parameter list.** Local functions take no parameters by design (they close over state variables), so unlike the Messages and Functions columns there's no Parameters sub-panel. The column's second element is directly the Steps editor.
+
+**Dialog carries Description only.** The Add/Edit dialog asks for Name and Description. Steps live in the panel; putting them in the dialog too would duplicate the editing surface for that field. A newly created function starts with empty steps and is auto-selected so the Steps panel opens on it ready to type. The Edit path touches name and description; step-body changes happen live in the panel. No auto-migration: when loading a file from before the description/steps split, whatever was in `description` stays in `description` — the user can move it to `steps` manually in the rare case the old content was actually step-body text.
+
 ---
 
 ## 11. Dialogs and validation
@@ -1016,7 +1060,7 @@ H1 is the literal phrase "System specification" — the system's own display nam
 
 - **H1 "System specification"** → H2 Description (user-authored system specification text) + H2 System architecture (full diagram, component summary table, handler summary table).
 - **H1 "Interfaces"** → H2 per interface with its messages table (row-span for multi-parameter messages).
-- **H1 per component** → H2 Context (filtered-diagram image, no outer system wrapper) + H2 State variables + H2 States + H2 Choice-points + H2 State diagram (full state machine image) + H2 State transition table (row-span for multi-message transitions).
+- **H1 per component** → H2 Context (filtered-diagram image, no outer system wrapper) + H2 State variables + H2 States + H2 Choice-points + H2 State diagram (full state machine image) + H2 State transition table (row-span for multi-message transitions) + H2 Local functions (per-component reusable action snippets — last section in the chapter so the reader has the full state-machine picture before encountering the refactored step sequences that the actions delegate to).
 - **H1 per handler** → H2 Functions (row-span for multi-parameter functions).
 
 A well-formed output opens with a table of contents that reads: System specification / Interfaces / each Component / each Handler. The structure matches the user-provided PDF template that drove the design.
@@ -1059,6 +1103,7 @@ Body prose (the system specification textarea, component descriptions, handler d
 
 - `COL_2 = pct([25, 75])` — two-column summary tables (Component/Description, Handler/Description, Interface name/Description, State/Description, Choice-point Question/Description).
 - `COL_3 = pct([20, 20, 60])` — three-column state-variables table (Name | Type | Description).
+- `COL_3S = pct([18, 30, 52])` — three-column local-functions table (Name | Description | Steps). Description is a short one-line summary; Steps is a multi-line body (the Steps column renders with `preserveNewlines: true` in `mkCell`, so line breaks the user typed survive to the Word output).
 - `COL_4 = pct([18, 40, 22, 20])` — four-column table. Historically used for messages and functions before per-parameter descriptions got their own column; kept in the code as a reference profile and for any future four-column use.
 - `COL_5 = pct([13, 13, 16, 16, 42])` — five-column transition table (Source | Target | Interface | Message | Action). Action gets nearly half the width because action text is the most verbose column.
 - `COL_5P = pct([13, 30, 15, 12, 30])` — five-column message and function tables (Entity name | Entity description | Parameter | Type | Parameter description). The two description columns get equal weight at 30% each; name columns stay narrow because the reading flow is scan-right-to-read, not scan-right-to-identify. Distinct from the transition `COL_5` because the prose-density profile is different (two mid-prose columns vs one long-prose column).
@@ -1128,7 +1173,7 @@ If you want to:
 
 - **Add a new element type** (e.g. an "end" pseudostate): add a flag to `Selection`, a row to the States list in `buildStateList`, emission logic in `generatePlantUML` (both modes — visible with styling, mask with id assignment), a case in `canAddTransition` if it participates in transitions, a resolution case in `nodeLabelInComponent` (for the spec transition table), a `pruneNodeOrder` case and `noteNodeSelected`/`noteNodeDeselected` calls at the new element's selection sites (if it can participate in transitions — so click-order direction inference works for it too, see §8.7), and a manual section.
 
-- **Add a new documentation-only per-component field** (like `stateVariables`): add the field to `makeEmptyComponent`, to the serializer (only when non-empty to keep files from users who don't use the feature byte-minimal), to the loader (defensive normalisation), and to `snapshot()` via the component object. Build a UI list with `build{Field}List`, wire it into `refresh()`, add CRUD helpers and a dialog matching `openStateVariableDialog`, a Selection set + `clearAll` case + `clearSelectionForContext` case, a toolbar `+` button + enabled-state rule, `canEdit` / `actionEdit` / `actionDelete` branches. For the spec export, add an H2 section in the per-component chapter and a column-width profile if the shape is new.
+- **Add a new documentation-only per-component field** (like `stateVariables` or `localFunctions`): add the field to `makeEmptyComponent`, a getter/setter to the `Component` proxy (this is the step that was initially missed for `stateVariables` — without a proxy accessor the feature silently writes to a global property instead of the per-component record), to the serializer (only when non-empty to keep files from users who don't use the feature byte-minimal), to the loader (defensive normalisation), and to `snapshot()` via the component object. Build a UI list with `build{Field}List`, wire it into `refresh()`, add CRUD helpers and a dialog matching `openStateVariableDialog` / `openLocalFunctionDialog`, a Selection set + `clearAll` case + `clearSelectionForContext` case, a toolbar `+` button + enabled-state rule, `canEdit` / `actionEdit` / `actionDelete` branches. For the spec export, add an H2 section in the per-component chapter and a column-width profile if the shape is new.
 
 - **Add a new per-transition-row field** (like the `action` field): extend the message objects in `Component.transitions[*].messages`, add UI for viewing/editing it (following the Action panel pattern — live save with per-session history via `pushHistory`, suppressed diagram re-renders since it doesn't affect PlantUML), and surface presence in the table via an indicator column or cell. Extend the spec exporter's transition table to include it; widths in `COL_5` may need rebalancing.
 
