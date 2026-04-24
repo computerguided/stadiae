@@ -102,7 +102,7 @@ The format is forward-compatible within v3: optional fields are only written whe
 
 Issues and pull requests are welcome. Since the whole tool is a single HTML file, changes are easy to review and easy to try out locally — just open `stadiae.html`.
 
-For developers wanting to understand or extend the internals, see [DESIGN.md](DESIGN.md).
+For developers wanting to understand or extend the internals, see [design.md](design.md).
 
 ## License
 
