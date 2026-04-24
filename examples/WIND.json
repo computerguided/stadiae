@@ -1,0 +1,799 @@
+{
+  "format": "stadiae-v3",
+  "interfaces": [
+    {
+      "name": "System",
+      "description": "System status messages."
+    },
+    {
+      "name": "Connection",
+      "description": "Wireless transceiver messages for connection handling."
+    },
+    {
+      "name": "Peripherals",
+      "description": "Status indications of all the peripherals."
+    },
+    {
+      "name": "Content",
+      "description": "Exchange of interaction with the server."
+    },
+    {
+      "name": "Audio",
+      "description": "Status indication from the audio."
+    },
+    {
+      "name": "Display",
+      "description": "Display status and control messages."
+    }
+  ],
+  "messages": [
+    {
+      "interface": "System",
+      "name": "ReadyInd",
+      "description": "All peripherals are ready and the system can be initialised."
+    },
+    {
+      "interface": "System",
+      "name": "ErrorInd",
+      "description": "An error occurred and the system is no longer operational."
+    },
+    {
+      "interface": "Connection",
+      "name": "ConnectReq",
+      "description": "Request received to connect to a server.",
+      "parameters": [
+        {
+          "name": "serverId",
+          "type": "uint"
+        }
+      ]
+    },
+    {
+      "interface": "Connection",
+      "name": "AdvertiseInd",
+      "description": "Broadcast to be discoverable.",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "uint"
+        }
+      ]
+    },
+    {
+      "interface": "Connection",
+      "name": "ReadyInd",
+      "description": "The transceiver is ready for operation."
+    },
+    {
+      "interface": "Connection",
+      "name": "ConnectedInd",
+      "description": "Connected to the server."
+    },
+    {
+      "interface": "Connection",
+      "name": "DisconnectedInd",
+      "description": "The transceiver detected that the server is disconnected."
+    },
+    {
+      "interface": "Peripherals",
+      "name": "ReadyInd",
+      "description": "Indication that a specific peripheral is ready.",
+      "parameters": [
+        {
+          "name": "peripheralId",
+          "type": "uint"
+        }
+      ]
+    },
+    {
+      "interface": "Peripherals",
+      "name": "FailureInd",
+      "description": "A peripheral initialisation failed or is no longer operational."
+    },
+    {
+      "interface": "Content",
+      "name": "NewContentInd",
+      "description": "A new image to display with touch map and audio queues.",
+      "parameters": [
+        {
+          "name": "image",
+          "type": "byte[][]",
+          "description": "The PNG image to display."
+        },
+        {
+          "name": "touchMap",
+          "type": "uint[][]",
+          "description": "Mapping the pixels in the image to touch area IDs."
+        }
+      ]
+    },
+    {
+      "interface": "Audio",
+      "name": "ReadyInd",
+      "description": "Indication that the audio device is ready.",
+      "parameters": [
+        {
+          "name": "numSounds",
+          "type": "uint",
+          "description": "The number of stored sounds in the audio device."
+        }
+      ]
+    },
+    {
+      "interface": "Display",
+      "name": "ReadyInd",
+      "description": "Indication that the touch display is initialized."
+    },
+    {
+      "interface": "Display",
+      "name": "TouchedInd",
+      "description": "Indication that a touch event occurred on the display.",
+      "parameters": [
+        {
+          "name": "coordinates",
+          "type": "{uint,uint}",
+          "description": "Touch coordinates."
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "name": "Server_Connector",
+      "arrowFontSize": 9,
+      "stateFontSize": 12,
+      "states": [
+        {
+          "name": "Advertising",
+          "description": "Broadcasting advertisement packets on the network to be discoverable by a server. "
+        },
+        {
+          "name": "Initialising",
+          "description": "Waiting until all components are ready."
+        },
+        {
+          "name": "Uninitialised",
+          "description": "Waiting for the system to become ready."
+        },
+        {
+          "name": "Connected",
+          "description": "Connected to the server."
+        },
+        {
+          "name": "Connecting",
+          "description": "Establishing a connection to the server."
+        }
+      ],
+      "choicePoints": [
+        {
+          "name": "WhiteListed",
+          "question": "Is Server\\nWhitelisted?",
+          "description": "Check whether the server that tries to connect is whitelisted."
+        }
+      ],
+      "transitions": [
+        {
+          "source": "START",
+          "target": "Uninitialised",
+          "messages": [],
+          "connector": "Down",
+          "length": 1
+        },
+        {
+          "source": "Uninitialised",
+          "target": "Initialising",
+          "messages": [
+            {
+              "interface": "System",
+              "name": "ReadyInd"
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        },
+        {
+          "source": "Initialising",
+          "target": "Advertising",
+          "messages": [
+            {
+              "interface": "Connection",
+              "name": "ReadyInd",
+              "action": "Call the sendAdvertisePacket() of the Wireless Transceiver.\nStart the time with the ADVERTISEMENT interval.\n\n"
+            }
+          ],
+          "connector": "Down",
+          "length": 1
+        },
+        {
+          "source": "Advertising",
+          "target": "CP_WhiteListed",
+          "messages": [
+            {
+              "interface": "Connection",
+              "name": "ConnectReq",
+              "action": "Stop the timer.\nStore the ConnectReq:serverId in the serverId state variable."
+            }
+          ],
+          "connector": "Left",
+          "length": 1
+        },
+        {
+          "source": "CP_WhiteListed",
+          "target": "Advertising",
+          "messages": [
+            {
+              "interface": "Logical",
+              "name": "No",
+              "action": "Call the rejectServer() function of the Wireless Transceiver.\nCall the sendAdvertisePacket() of the Wireless Transceiver.\nStart the time with the ADVERTISEMENT interval."
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        },
+        {
+          "source": "Connecting",
+          "target": "Connected",
+          "messages": [
+            {
+              "interface": "Connection",
+              "name": "ConnectedInd"
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        },
+        {
+          "source": "Connected",
+          "target": "Advertising",
+          "messages": [
+            {
+              "interface": "Connection",
+              "name": "DisconnectedInd",
+              "action": "Call the sendAdvertisePacket() of the Wireless Transceiver.\nStart the time with the ADVERTISEMENT interval."
+            }
+          ],
+          "connector": "Up",
+          "length": 1
+        },
+        {
+          "source": "Advertising",
+          "target": "Advertising",
+          "messages": [
+            {
+              "interface": "Timer",
+              "name": "Timeout",
+              "action": "Call the sendAdvertisePacket() of the Wireless Transceiver.\nStart the time with the ADVERTISEMENT interval."
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        },
+        {
+          "source": "CP_WhiteListed",
+          "target": "Connecting",
+          "messages": [
+            {
+              "interface": "Logical",
+              "name": "Yes",
+              "action": "Call the connectServer() function of the Wireless Transceiver with the received serverId.\nStart the timer with the CONNECTION_TIMEOUT interval."
+            }
+          ],
+          "connector": "Down",
+          "length": 1
+        },
+        {
+          "source": "Connecting",
+          "target": "Advertising",
+          "messages": [
+            {
+              "interface": "Timer",
+              "name": "Timeout",
+              "action": "Call the sendAdvertisePacket() of the Wireless Transceiver.\nStart the timer with the ADVERTISEMENT interval."
+            }
+          ],
+          "connector": "Up",
+          "length": 1
+        },
+        {
+          "source": "*",
+          "target": "Uninitialised",
+          "messages": [
+            {
+              "interface": "System",
+              "name": "ErrorInd",
+              "action": "Call the disable() function of the Wireless Transceiver."
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        },
+        {
+          "source": "Connected",
+          "target": "Connected",
+          "messages": [
+            {
+              "interface": "Connection",
+              "name": "ConnectedInd",
+              "action": "NOP"
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        }
+      ],
+      "displayName": "Server\\nConnector",
+      "description": "Controls and establishes the connection with the server. It waits for the system to become ready and then starts advertising it presence on the network to be discoverable by a server.",
+      "stateVariables": [
+        {
+          "name": "serverId",
+          "type": "uint",
+          "description": "The ID of the connected or connecting server."
+        },
+        {
+          "name": "whitelist",
+          "type": "uint[]",
+          "description": "Whitelist of servers."
+        }
+      ]
+    },
+    {
+      "name": "SystemStatusController",
+      "arrowFontSize": 9,
+      "stateFontSize": 12,
+      "states": [
+        {
+          "name": "AwaitingPeripherals",
+          "displayName": "Awaiting\\nPeripherals",
+          "description": "Waiting for all the peripherals to become ready."
+        },
+        {
+          "name": "Operational",
+          "description": "All peripherals are operational."
+        },
+        {
+          "name": "Error",
+          "description": "Initialisation of the system failed or peripherals became unavailable."
+        }
+      ],
+      "choicePoints": [
+        {
+          "name": "AllReady",
+          "question": "All Peripherals\\nOperational?",
+          "description": "Are all known peripherals operational?"
+        }
+      ],
+      "transitions": [
+        {
+          "source": "START",
+          "target": "AwaitingPeripherals",
+          "messages": [],
+          "connector": "Down",
+          "length": 1
+        },
+        {
+          "source": "AwaitingPeripherals",
+          "target": "CP_AllReady",
+          "messages": [
+            {
+              "interface": "Peripherals",
+              "name": "ReadyInd",
+              "action": "Add the readyInd:peripheralId in the peripherals list."
+            }
+          ],
+          "connector": "Down",
+          "length": 1
+        },
+        {
+          "source": "CP_AllReady",
+          "target": "AwaitingPeripherals",
+          "messages": [
+            {
+              "interface": "Logical",
+              "name": "No"
+            }
+          ],
+          "connector": "Up",
+          "length": 1
+        },
+        {
+          "source": "CP_AllReady",
+          "target": "Operational",
+          "messages": [
+            {
+              "interface": "Logical",
+              "name": "Yes",
+              "action": "Send the System:ReadyInd message."
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        },
+        {
+          "source": "AwaitingPeripherals",
+          "target": "Error",
+          "messages": [
+            {
+              "interface": "Peripherals",
+              "name": "FailureInd",
+              "action": "Send the Ssytem:ErrorInd message."
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        },
+        {
+          "source": "Operational",
+          "target": "Error",
+          "messages": [
+            {
+              "interface": "Peripherals",
+              "name": "FailureInd"
+            }
+          ],
+          "connector": "Up",
+          "length": 1
+        }
+      ],
+      "displayName": "System Status\\nController",
+      "description": "Takes care of initializing the components in the system by waiting for all the peripherals to be operational.",
+      "stateVariables": [
+        {
+          "name": "peripherals",
+          "type": "uint[]",
+          "description": "List of operational peripherals."
+        }
+      ]
+    },
+    {
+      "name": "UiController",
+      "arrowFontSize": 9,
+      "stateFontSize": 12,
+      "states": [
+        {
+          "name": "Uninitialised"
+        },
+        {
+          "name": "InitialisingAudio",
+          "displayName": "Initializing\\nAudio",
+          "description": "Initializing the audio device."
+        },
+        {
+          "name": "InitializingDisplay",
+          "displayName": "Initializing\\nDisplay",
+          "description": "Initializing the touch display."
+        },
+        {
+          "name": "Operational",
+          "description": "Ready to interact."
+        },
+        {
+          "name": "Interacting",
+          "description": "Interactive content is shown on the display."
+        }
+      ],
+      "choicePoints": [],
+      "transitions": [
+        {
+          "source": "START",
+          "target": "Uninitialised",
+          "messages": [],
+          "connector": "Down",
+          "length": 1
+        },
+        {
+          "source": "Uninitialised",
+          "target": "InitialisingAudio",
+          "messages": [
+            {
+              "interface": "System",
+              "name": "ReadyInd",
+              "action": "Call the initialize() function of the Audio Handler."
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        },
+        {
+          "source": "InitialisingAudio",
+          "target": "InitializingDisplay",
+          "messages": [
+            {
+              "interface": "Audio",
+              "name": "ReadyInd",
+              "action": "Store the ReadyInd:numSounds in the numSounds state variable.\nCall the initialize() function of the Touch Display."
+            }
+          ],
+          "connector": "Down",
+          "length": 1
+        },
+        {
+          "source": "InitializingDisplay",
+          "target": "Operational",
+          "messages": [
+            {
+              "interface": "Display",
+              "name": "ReadyInd",
+              "action": "Call "
+            }
+          ],
+          "connector": "Left",
+          "length": 1
+        },
+        {
+          "source": "Operational",
+          "target": "Uninitialised",
+          "messages": [
+            {
+              "interface": "System",
+              "name": "ErrorInd",
+              "action": "Call the disable() function of the Touch Display."
+            }
+          ],
+          "connector": "Up",
+          "length": 1
+        },
+        {
+          "source": "Operational",
+          "target": "Interacting",
+          "messages": [
+            {
+              "interface": "Content",
+              "name": "NewContentInd",
+              "action": "Copy the NewContentInd:image and NewContentInd:touchMap in the image and touchMap state variables respectively.\nCall the display() function of the Touch Display with the image as the parameter."
+            }
+          ],
+          "connector": "Down",
+          "length": 1
+        },
+        {
+          "source": "Interacting",
+          "target": "Operational",
+          "messages": [
+            {
+              "interface": "Display",
+              "name": "TouchedInd",
+              "action": "Call the unresponsive() function of the Touch Display.\nCall the sendTouchEvent() function of the Wireless Tranceiver.\n"
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        }
+      ],
+      "displayName": "UI\\nController",
+      "description": "Controls the user interaction by interfacing with the touch display and the ",
+      "stateVariables": [
+        {
+          "name": "numSounds",
+          "type": "uint",
+          "description": "Number of sounds stored in the audio device."
+        },
+        {
+          "name": "touchMap",
+          "type": "uint[][]",
+          "description": "Mapping the pixels in the image to touch area IDs."
+        },
+        {
+          "name": "image",
+          "type": "byte[]",
+          "description": "The PNG image currently displayed or to be displayed."
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "component": "Server_Connector",
+      "interface": "System",
+      "connector": "Up",
+      "length": 1
+    },
+    {
+      "component": "Server_Connector",
+      "interface": "Connection",
+      "connector": "Left",
+      "length": 1
+    },
+    {
+      "component": "SystemStatusController",
+      "interface": "System",
+      "connector": "Left",
+      "length": 1
+    },
+    {
+      "component": "SystemStatusController",
+      "interface": "Peripherals",
+      "connector": "Down",
+      "length": 1
+    },
+    {
+      "component": "UiController",
+      "interface": "System",
+      "connector": "Down",
+      "length": 1
+    },
+    {
+      "component": "UiController",
+      "interface": "Audio",
+      "connector": "Right",
+      "length": 1
+    },
+    {
+      "component": "UiController",
+      "interface": "Display",
+      "connector": "Right",
+      "length": 1
+    },
+    {
+      "component": "UiController",
+      "interface": "Content",
+      "connector": "Down",
+      "length": 1
+    }
+  ],
+  "activeComponentIndex": 2,
+  "handlers": [
+    {
+      "name": "WirelessTransceiver",
+      "displayName": "Wireless\\nTransceiver",
+      "description": "Takes care of receiving and transmitting data packets on the radio front-end by interfacing with the radio hardware peripheral.",
+      "functions": [
+        {
+          "name": "sendAdvertisePacket",
+          "description": "Send a single advertise packet to become discoverable."
+        },
+        {
+          "name": "initialise",
+          "description": "Initialise the radio frontend."
+        },
+        {
+          "name": "connectServer",
+          "description": "Connect to the indicated server.",
+          "parameters": [
+            {
+              "name": "serverId",
+              "type": "uint",
+              "description": "The ID of the server to connect to."
+            }
+          ]
+        },
+        {
+          "name": "rejectServer",
+          "description": "Block furhter requests from the indicated server.",
+          "parameters": [
+            {
+              "name": "serverId",
+              "type": "uint"
+            }
+          ]
+        },
+        {
+          "name": "disable",
+          "description": "Disable the radio frontend."
+        },
+        {
+          "name": "sendTouchEvent",
+          "description": "Send the touch event information to the server.",
+          "parameters": [
+            {
+              "name": "touchAreaId",
+              "type": "uint",
+              "description": "ID of the area that was touched."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PeripheralHandler",
+      "displayName": "Peripheral\\nHandler",
+      "description": "Takes care of detecting, initializing and configuring hardware peripherals, e.g. by accessing low level drivers and serial communication lines.",
+      "functions": [
+        {
+          "name": "start",
+          "description": "Start initialising and configuring the peripherals."
+        }
+      ]
+    },
+    {
+      "name": "TouchDisplay",
+      "displayName": "Touch\\nDisplay",
+      "functions": [
+        {
+          "name": "unresponsive",
+          "description": "Disable the touch sensitivity to allow for handling the touch event first."
+        },
+        {
+          "name": "initialize",
+          "description": "Initialize the touch display."
+        },
+        {
+          "name": "display",
+          "description": "Display the supplied image.",
+          "parameters": [
+            {
+              "name": "image",
+              "type": "byte[][]",
+              "description": "The PNG image to be displayed."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AudioHandler",
+      "displayName": "Audio\\nHandler",
+      "functions": [
+        {
+          "name": "initialize",
+          "description": "Initialize the audio device."
+        }
+      ]
+    }
+  ],
+  "handlerConnections": [
+    {
+      "handler": "WirelessTransceiver",
+      "interface": "Connection",
+      "connector": "Down",
+      "length": 1
+    },
+    {
+      "handler": "PeripheralHandler",
+      "interface": "Peripherals",
+      "connector": "Up",
+      "length": 1
+    },
+    {
+      "handler": "AudioHandler",
+      "interface": "Audio",
+      "connector": "Down",
+      "length": 1
+    },
+    {
+      "handler": "TouchDisplay",
+      "interface": "Display",
+      "connector": "Right",
+      "length": 1
+    },
+    {
+      "handler": "WirelessTransceiver",
+      "interface": "Content",
+      "connector": "Left",
+      "length": 1
+    }
+  ],
+  "handlerCalls": [
+    {
+      "component": "Server_Connector",
+      "handler": "WirelessTransceiver",
+      "connector": "Left",
+      "length": 1
+    },
+    {
+      "component": "SystemStatusController",
+      "handler": "PeripheralHandler",
+      "connector": "Left",
+      "length": 1
+    },
+    {
+      "component": "UiController",
+      "handler": "TouchDisplay",
+      "connector": "Up",
+      "length": 1
+    },
+    {
+      "component": "UiController",
+      "handler": "AudioHandler",
+      "connector": "Up",
+      "length": 1
+    },
+    {
+      "component": "UiController",
+      "handler": "WirelessTransceiver",
+      "connector": "Right",
+      "length": 1
+    }
+  ],
+  "systemDisplayName": "Wireles Interactive Networked Display (WIND)",
+  "systemSpecification": "The system is a Wireless Interactive Networked Display (WIND) which controlled by a central server (not in scope). It operates by creating a connection to the server and then handling requests to display content formatted as a PNG image. Some content must be interactive which is enabled by the display being touch sensitive and the server sending an indexed coordinates map of touch-squares on the display. The system must be extremely low cost, so interaction is limited by the system mapping touch coordinates to the proper id and sending that id back to the server.\n\nThe system further has a speaker for supplying audio queues, which comprises a set of indexed predefined sounds. Each square on the touch-map can have a audio queue associated with it, specified by the index of the sound."
+}

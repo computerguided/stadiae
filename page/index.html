@@ -525,7 +525,7 @@ footer.foot .links a + a { margin-left: 18px; }
       <div class="badges">
         <span class="badge">runs in any modern browser</span>
         <span class="sep">&middot;</span>
-        <span class="badge">exports .puml / .png / .md</span>
+        <span class="badge">exports .puml / .png / .md / .docx</span>
         <span class="sep">&middot;</span>
         <span class="badge">git-friendly JSON save format</span>
         <span class="sep">&middot;</span>
@@ -751,7 +751,7 @@ footer.foot .links a + a { margin-left: 18px; }
             <tbody>
               <tr>
                 <td class="name">.json</td>
-                <td class="desc">Full round-trip save. Every component and handler (with display names and descriptions), every handler's functions (with parameters), every shared interface/message (with parameters), every wiring and call dependency, every action note, the system specification text, plus system-level settings like the system name and font sizes. Re-open and continue editing. Version: <code>stadiae-v3</code>.</td>
+                <td class="desc">Full round-trip save. Every component and handler (with display names and descriptions), every handler's functions (with parameters), every component's state variables (name, type, description), every shared interface/message (with parameters), every wiring and call dependency, every action note, the system specification text, plus system-level settings like the system name and font sizes. Re-open and continue editing. Version: <code>stadiae-v3</code>.</td>
               </tr>
               <tr>
                 <td class="name">.puml</td>
@@ -764,6 +764,10 @@ footer.foot .links a + a { margin-left: 18px; }
               <tr>
                 <td class="name">.md table</td>
                 <td class="desc">Transitions as a Markdown table &mdash; <code>Source</code>, <code>Target</code>, <code>Interface</code>, <code>Message</code>, <code>Action</code>. Drop it into a specification document or pull request description.</td>
+              </tr>
+              <tr>
+                <td class="name">.docx spec</td>
+                <td class="desc">Full system specification as a Word document. Native headings, paragraphs, and tables, with row-span for multi-parameter messages and multi-message transitions. Diagrams embedded as SVG (with PNG fallback) &mdash; crisp vector graphics in Word and LibreOffice, graceful fallback in Google Docs. Opens directly in any <code>.docx</code>-compatible tool.</td>
               </tr>
             </tbody>
           </table>
