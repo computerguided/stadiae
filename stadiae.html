@@ -5458,6 +5458,12 @@ function buildComponentList() {
 function buildHandlerList() {
   const ul = document.getElementById("list-handlers");
   ul.innerHTML = "";
+  // Linkage check applies only in component view — at the system level
+  // every handler renders plainly because the concept of "linked to
+  // the active component" doesn't exist there. Parallel to how
+  // buildInterfaceList scopes its wiring check.
+  const inComponentView = Model.activeView === "component";
+  const activeCompName = inComponentView ? Component.name : null;
   Model.handlers.forEach((h) => {
     const li = document.createElement("li");
     li.classList.add("handler-row");
@@ -5476,6 +5482,16 @@ function buildHandlerList() {
       dot.className = "comp-desc-dot";   // reuse the comp-desc-dot CSS; same visual convention
       dot.title = "Has a description";
       li.appendChild(dot);
+    }
+
+    // Dim the row when the handler isn't linked to the active component
+    // (no direct call dependency and no shared interface). Parallel to
+    // the interface "unwired" treatment in buildInterfaceList. Default
+    // handlers (none currently) would be exempt; today every handler is
+    // user-defined so the conditional is purely view-scoped.
+    if (inComponentView && !isHandlerLinkedToComponent(h.name, activeCompName)) {
+      li.classList.add("unwired");
+      li.title = `Not connected to "${activeCompName}" in the system diagram.`;
     }
 
     // Click: toggle selection regardless of view. Handlers only exist
@@ -5933,6 +5949,35 @@ function isDefaultMessage(iface, name) {
 // Is component `cname` wired to interface `iname` in the system diagram?
 function isWired(cname, iname) {
   return Model.connections.some(c => c.component === cname && c.interface === iname);
+}
+
+// Does the specified handler have any link to the specified component?
+// Two ways count as linked:
+//   1. Direct call dependency: the component has a handlerCalls entry
+//      pointing at this handler (dashed arrow in the system diagram).
+//   2. Shared interface: the handler is wired to an interface that
+//      this component is also wired to. Both endpoints meet in the
+//      middle through the interface.
+// Used by buildHandlerList to dim handlers that aren't linked to the
+// currently-active component, parallel to how interfaces dim when
+// they aren't wired to it.
+function isHandlerLinkedToComponent(handlerName, componentName) {
+  // Direct: Component → Handler call.
+  if (Model.handlerCalls.some(hc => hc.component === componentName && hc.handler === handlerName)) {
+    return true;
+  }
+  // Indirect: shared interface. Build the set of interfaces the handler
+  // is wired to, then check whether the component is wired to any of
+  // those.
+  const handlerIfaces = new Set(
+    Model.handlerConnections
+      .filter(hc => hc.handler === handlerName)
+      .map(hc => hc.interface)
+  );
+  if (handlerIfaces.size === 0) return false;
+  return Model.connections.some(c =>
+    c.component === componentName && handlerIfaces.has(c.interface)
+  );
 }
 
 // Does the specified component's state machine have any transition that
