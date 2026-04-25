@@ -395,6 +395,36 @@ This guarantees that every ANY-source transition renders as its own distinct `*`
 
 Transitions to `target === "[H]"` are emitted literally as `SourceState --> [H] : Message`. PlantUML recognises `[H]` and draws an "H" pseudostate without any declaration. Multiple such transitions produce multiple H icons, matching the user's expectation.
 
+### 6.4 ANY-message wildcards
+
+The ANY-message wildcard is a *message* whose name is `*`. Two flavours coexist, distinguished by the interface field:
+
+```js
+{ source: "Idle", target: "Error", messages: [
+  { interface: "*", name: "*" },                 // global wildcard
+  { interface: "Connection", name: "*" },        // per-interface wildcard
+  { interface: "Connection", name: "Disconnect" }
+]}
+```
+
+Semantics. The **global wildcard** `*:*` matches any message arriving in the source state that isn't handled by another transition. The **per-interface wildcard** `Iface:*` matches any message on the named interface that isn't otherwise handled in the source state. The two compose: explicit messages take precedence over the per-interface wildcard within their interface, which takes precedence over the global wildcard. So with `Connection:Connect`, `Connection:*`, and `*:*` all leaving the same source state: a `Connection:Heartbeat` hits the per-interface fallback, a `Storage:WriteComplete` hits the global fallback, and `Connection:Connect` goes through the explicit transition.
+
+In the model, neither wildcard pair corresponds to a real message record — `Model.messages` knows nothing about them. The global wildcard's interface is also not a real interface — `Model.interfaces` doesn't list `*`. The per-interface wildcard's interface field, by contrast, **is** a real interface name; its message name (`*`) is the only fictional part. Rename cascades to the interface field already work because the existing interface-rename pass walks every transition's messages array and updates the `interface` field for any matching entries — `Connection:*` automatically becomes `Conn:*` when `Connection` renames.
+
+Both wildcards are recognised by renderers (PlantUML, transition table, spec output) via an explicit `m.name === "*"` check. The global wildcard adds the further check `m.interface === "*"`; the per-interface wildcard's interface field passes through normal interface-related logic (auto-link, wiring warning, alphabetical sort, etc.) since it's a real name.
+
+The Messages list shows the global wildcard as a special pseudo-row at the top — always visible regardless of interface selection — and a per-interface wildcard pseudo-row for each selected non-default interface, in alphabetical order. Selection keys are the literal strings `"*:*"` and `"Iface:*"`. Validation:
+
+- At most one global wildcard per source state, and at most one per-interface wildcard *per interface* per source state. Both enforced by `sourceAlreadyHandlesAnyOf`'s exact-match check on `(interface, name)` — duplicate sentinels are caught the same way as duplicate specific messages.
+- Cannot be sourced from a choice-point (CPs only emit Yes/No).
+- Cannot be mixed with Yes/No on the same transition (CP-vs-state sources are mutually exclusive). The validator's `hasAnyMsg` flag — `msgs.some(([_, n]) => n === "*")` — catches both flavours.
+
+PlantUML emission: the alias step is skipped for any message whose name is `*`. The global wildcard emits the literal `*`; the per-interface wildcard emits the literal `Iface:*`. Bold and red highlighting still apply when selected/matched.
+
+Wiring warnings: the row's `iface` field is checked against `"*"` to suppress the warning for the global wildcard only — its interface isn't a real one to wire. The per-interface wildcard's interface IS real and goes through the standard `isWired` check, so `Connection:*` on a transition correctly warns if `Connection` isn't wired to the active component.
+
+Spec rendering. For the global wildcard, both Interface and Message cells render as plain text `*` because `idx.interfaces.get("*")` returns undefined. For the per-interface wildcard, the Interface cell auto-links to the interface (lookup hits) while the Message cell renders as plain `*` (lookup misses on `*` message name). No special cases needed in the spec emitter beyond what was already there.
+
 ---
 
 ## 7. The selection mask

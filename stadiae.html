@@ -2986,7 +2986,22 @@ function generatePlantUML(opts = {}) {
         // (When messages are individually selected, the interface alone
         // doesn't count as a match — see isUsageMatch.)
         const matched = !isMask && withSelection && isUsageMatch(m.interface, m.name);
-        let text = `$${m.interface}_${m.name}`;
+        // Wildcard messages render as literal text rather than via
+        // alias expansion. Two shapes:
+        //   `*:*`     — bare `*` on the diagram (global fallback)
+        //   `Iface:*` — `Iface:*` literal (per-interface fallback)
+        // Distinct from regular messages where `$Iface_Msg` expands
+        // through the alias section to the friendly form `Iface:Msg`.
+        // The wildcards have no alias (no `$Iface_*` defined), so we
+        // emit the literal directly. Bold and red highlighting still
+        // apply when selected/matched.
+        const isWildcard = m.name === "*";
+        let text;
+        if (isWildcard) {
+          text = (m.interface === "*") ? "*" : `${m.interface}:*`;
+        } else {
+          text = `$${m.interface}_${m.name}`;
+        }
         if (selected) text = `<color:#FF0000>${text}</color>`;
         if (matched) text = `<b>${text}</b>`;
         return text;
@@ -5744,7 +5759,65 @@ function buildFunctionList() {
 function buildMessageList() {
   const ul = document.getElementById("list-msgs");
   ul.innerHTML = "";
+
+  // Wildcard pseudo-rows at the top. Two flavours:
+  //
+  //   Global wildcard `*:*` — always shown. Selecting it adds a
+  //   sentinel matching ANY message on ANY interface. Pure global
+  //   fallback for the source state.
+  //
+  //   Per-interface wildcard `Iface:*` — one row per selected
+  //   interface (default interfaces excluded — Yes/No/Timeout don't
+  //   compose with a fallback). Selecting it adds a sentinel matching
+  //   any message on that specific interface that isn't otherwise
+  //   handled in the source state. Disappears when its interface is
+  //   deselected.
+  //
+  // The two wildcards coexist on the same transition. Both render as
+  // distinct selectable rows so the user can pick exactly the
+  // semantics they want.
+  //
+  // Helper: build a wildcard pseudo-row with the given key and label.
+  // Visual treatment matches default-item (italic, muted) since these
+  // aren't literal messages.
+  const addWildcardRow = (key, name, descText) => {
+    const li = document.createElement("li");
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = name;
+    labelSpan.style.fontWeight = "600";
+    li.appendChild(labelSpan);
+    const descSpan = document.createElement("span");
+    descSpan.className = "state-desc";
+    descSpan.textContent = " \u2014 " + descText;
+    li.appendChild(descSpan);
+    li.classList.add("default-item");
+    if (Selection.messages.has(key)) li.classList.add("selected");
+    li.addEventListener("click", (e) => {
+      selectClick(e, "msgs", () => {
+        if (Selection.messages.has(key)) Selection.messages.delete(key);
+        else Selection.messages.add(key);
+      }, Selection.messages.has(key));
+      refresh();
+    });
+    ul.appendChild(li);
+  };
+
+  // Global wildcard row — always present.
+  addWildcardRow("*:*", "*", "any other message");
+
+  // Per-interface wildcards. Iterate selected non-default interfaces
+  // in alphabetical order so the rows have a stable position.
   const selectedIfaces = [...Selection.interfaces];
+  const userSelectedIfaces = selectedIfaces
+    .filter(name => {
+      const iface = Model.interfaces.find(i => i.name === name);
+      return iface && !iface.isDefault;
+    })
+    .sort();
+  for (const iname of userSelectedIfaces) {
+    addWildcardRow(`${iname}:*`, `${iname}:*`, `any other message on ${iname}`);
+  }
+
   let msgs;
   if (selectedIfaces.length === 0) {
     msgs = [];
@@ -5821,7 +5894,11 @@ function buildTransitionTable() {
     // component in the system diagram? Default interfaces (Timer, Logical)
     // and the initial transition (empty iface) are exempt.
     let unwiredWarning = false;
-    if (r.iface !== "" && !isDefaultInterface(r.iface)) {
+    // Wiring warning: only meaningful for non-default real interfaces.
+    // Excludes the ANY-message sentinel (`*`), which has no interface
+    // to wire — it's a wildcard, not a candidate for "did you forget
+    // to connect this?".
+    if (r.iface !== "" && r.iface !== "*" && !isDefaultInterface(r.iface)) {
       unwiredWarning = !isWired(Component.name, r.iface);
     }
     // Highlight cells whose interface/message matches the current selection,
@@ -6166,6 +6243,14 @@ function canAddTransition() {
   const msgs = selMsgs.map(k => k.split(":"));
   const hasYesNo = msgs.some(([i,n]) => i==="Logical" && (n==="Yes"||n==="No"));
   const onlyYesNo = msgs.length > 0 && msgs.every(([i,n]) => i==="Logical" && (n==="Yes"||n==="No"));
+  // Wildcard messages: any entry whose name is `*`. Two shapes coexist:
+  //   `*:*`     — global wildcard (any message on any interface)
+  //   `Iface:*` — per-interface wildcard (any message on Iface)
+  // Both are constrained the same way: cannot be sourced from a
+  // choice-point (CPs only emit Yes/No), and cannot be mixed with
+  // Yes/No on the same transition (CP-vs-state sources are mutually
+  // exclusive).
+  const hasAnyMsg = msgs.some(([_, n]) => n === "*");
 
   // Initial transition: START + 1 state, and START has no transition yet
   if (selStart && selStates.length === 1 && selCPs.length === 0 && !selHistory && !selAny && selMsgs.length === 0) {
@@ -6175,7 +6260,7 @@ function canAddTransition() {
   if (selHistory && !selStart && !selAny && (selStates.length + selCPs.length) === 1 && selMsgs.length >= 1) {
     const source = selStates.length === 1 ? selStates[0] : ("CP_" + selCPs[0]);
     if (selCPs.length === 1) {
-      if (!onlyYesNo) return false;
+      if (!onlyYesNo) return false;  // CPs can only emit Yes/No (so no * either)
     } else {
       if (hasYesNo) return false;
     }
@@ -6195,11 +6280,17 @@ function canAddTransition() {
   // The direction is constrained by the domain rules:
   //   - States cannot source Yes/No messages (those come out of CPs).
   //   - CPs cannot source non-Yes/No messages (the CP is a decision node).
+  //   - The `*:*` ANY-message sentinel falls in the "non-Yes/No" bucket
+  //     and so is constrained the same way: CPs cannot source it.
   // So whichever node can legitimately be the source must satisfy those
   // rules and must not already handle the selected messages.
   if (totalNodes === 2 && !selStart && !selHistory && !selAny && selMsgs.length >= 1) {
     // Mixing Yes/No with other messages on the same transition is not allowed
     if (hasYesNo && !onlyYesNo) return false;
+    // Mixing `*:*` with Yes/No is also impossible — CP-vs-state sources
+    // are mutually exclusive. (hasYesNo + hasAnyMsg both true => caught
+    // by the previous check via !onlyYesNo, but state explicitly.)
+    if (hasYesNo && hasAnyMsg) return false;
     const allNodes = [...selStates, ...selCPs.map(n => "CP_" + n)];
     const isCP = name => name.startsWith("CP_");
     const candidates = allNodes.filter(n => {
@@ -6503,6 +6594,7 @@ function showManual() {
     {id: "transitions", title: "Transitions"},
     {id: "history", title: "History State"},
     {id: "any", title: "ANY State"},
+    {id: "anymsg", title: "ANY Message"},
     {id: "selection", title: "Selection"},
     {id: "editing", title: "Editing & Deleting"},
     {id: "files", title: "Saving, Opening & Exporting"},
@@ -6871,6 +6963,31 @@ function manualContent() {
       </ol>
       <p>Each ANY-source transition renders from a <em>single</em> shared <code>∗</code> node in the diagram — all wildcard arrows originate from that one node, so the reader sees at a glance that there is just one "any" concept in play. A given message can only be used on one ANY-source transition at a time — otherwise the behaviour would be ambiguous.</p>
       <p>ANY can be combined with H: a transition from <code>∗</code> to <code>[H]</code> means "from any state, go back to the last active one".</p>
+    </section>
+
+    <section id="m-anymsg">
+      <h2>ANY Message</h2>
+      <p>Distinct from the <em>ANY state</em> above, the <strong>ANY-message wildcard</strong> represents "any other message" on a transition. A transition that lists the wildcard fires when a message arrives that isn't handled by another transition leaving the same source state. Two flavours coexist:</p>
+      <ul>
+        <li><strong>Global wildcard</strong> &mdash; <code>*:*</code>. Matches any message on any interface that isn't otherwise handled. The unconstrained fallback.</li>
+        <li><strong>Per-interface wildcard</strong> &mdash; <code>Iface:*</code>. Matches any message <em>on the named interface</em> that isn't otherwise handled in this state. Useful when you want to absorb unexpected messages on a specific interface (e.g. "any unexpected <code>Connection</code> message resets to <code>Idle</code>") without affecting messages on other interfaces.</li>
+      </ul>
+      <p>Use ANY-message sparingly. Well-designed state machines handle every message they could legitimately receive; an unexpected message is usually a bug rather than something to absorb silently. The cases where ANY-message earns its place are narrow:</p>
+      <ul>
+        <li><strong>Defensive logging.</strong> "Any unexpected message in this state logs a warning and stays here."</li>
+        <li><strong>Universal cleanup.</strong> "Any message during shutdown is dropped."</li>
+        <li><strong>Reset on noise.</strong> "Any unexpected <code>Connection</code> message resets to <code>Idle</code>."</li>
+      </ul>
+      <p>In the Messages list, the global wildcard appears at the very top as a single bold-italic <strong>∗</strong> entry &mdash; "any other message" &mdash; always visible regardless of which interfaces are selected. When you select a non-default interface, an additional row <strong>Iface:∗</strong> appears below, "any other message on Iface". Select the variant that matches your intent, then click Add Transition.</p>
+      <p>Rules:</p>
+      <ul>
+        <li>At most one global wildcard transition per source state, and at most one per-interface wildcard <em>per interface</em> per source state. Multiples on the same source for the same scope would be ambiguous.</li>
+        <li>Cannot be sourced from a choice-point. Choice-points only emit <code>Yes</code> and <code>No</code> &mdash; both must be explicit.</li>
+        <li>Cannot be mixed with <code>Yes</code>/<code>No</code> on the same transition. Wildcards and Yes/No have mutually exclusive sources (states vs. choice-points).</li>
+        <li>Can coexist with specific messages on the same transition. <em>"On <code>Connection:Disconnect</code> or any other message, go to <code>Closed</code>."</em></li>
+        <li>Specific messages take precedence over the per-interface wildcard within their interface, which takes precedence over the global wildcard. <em>"<code>Connection:Connect</code> &rarr; <code>Active</code>; <code>Connection:*</code> &rarr; log and stay; <code>*:*</code> &rarr; reset."</em> &mdash; a <code>Connection:Heartbeat</code> hits the per-interface fallback, a <code>Storage:WriteComplete</code> hits the global fallback, and <code>Connection:Connect</code> goes through the explicit transition.</li>
+      </ul>
+      <p>The global wildcard renders as a bare <code>∗</code> on the diagram and as <code>∗</code> in both Interface and Message columns of the spec's transition table. The per-interface wildcard renders as <code>Iface:∗</code> on the diagram, and in the spec table the Interface column links to the interface definition while the Message column shows <code>∗</code> as plain text. Neither flavour can be referenced via backticks &mdash; they're behavioural fallbacks, not named entities.</p>
     </section>
 
     <section id="m-selection">

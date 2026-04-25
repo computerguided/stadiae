@@ -218,7 +218,7 @@
               "name": "ReadyInd"
             }
           ],
-          "connector": "Right",
+          "connector": "Down",
           "length": 1
         },
         {
@@ -241,7 +241,7 @@
             {
               "interface": "Connection",
               "name": "ConnectReq",
-              "action": "Stop the timer.\nStore the `ConnectReq:serverId` in the `serverId` state variable."
+              "action": "Stop the timer.\n`serverId` =`ConnectReq:serverId`"
             }
           ],
           "connector": "Left",
@@ -254,7 +254,7 @@
             {
               "interface": "Logical",
               "name": "No",
-              "action": "Call the `WirelessTransceiver:rejectServer()`.\nCall the `WirelessTransceiver:sendAdvertisementPacket()`.\nStart the time with the `ADVERTISEMENT` interval."
+              "action": "Call the `WirelessTransceiver:rejectServer()`.\nCall the `WirelessTransceiver:sendAdvertisementPacket()`.\nStart the timer with the `ADVERTISEMENT` interval."
             }
           ],
           "connector": "Right",
@@ -345,6 +345,18 @@
               "interface": "Connection",
               "name": "ConnectedInd",
               "action": ""
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        },
+        {
+          "source": "Uninitialised",
+          "target": "Uninitialised",
+          "messages": [
+            {
+              "interface": "*",
+              "name": "*"
             }
           ],
           "connector": "Right",
@@ -480,6 +492,18 @@
             }
           ],
           "connector": "Up",
+          "length": 1
+        },
+        {
+          "source": "Error",
+          "target": "Error",
+          "messages": [
+            {
+              "interface": "*",
+              "name": "*"
+            }
+          ],
+          "connector": "Right",
           "length": 1
         }
       ],
