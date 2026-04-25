@@ -6573,21 +6573,32 @@ function manualContent() {
 
     <section id="m-concepts">
       <h2>Core Concepts</h2>
+      <h3>System</h3>
+      <p>A Stadiæ file describes a <strong>system</strong> made up of one or more <strong>components</strong> that talk to each other and to <strong>handlers</strong> through shared <strong>interfaces</strong>. The system is the top-level entity; everything else hangs off it. The system has a name, an optional system-wide specification (free-text prose), and a set of optional <strong>type definitions</strong> describing the domain types used in parameters and state variables.</p>
       <h3>Components</h3>
-      <p>A Stadiæ file can contain one or more <strong>components</strong>. Each component is a complete state machine with its own states, choice-points, transitions, and name. Components share the system's <em>interfaces</em> and <em>messages</em> — that's the contract vocabulary they communicate with. Components are selected through the <strong>Components list</strong> in the top-right catalogue; clicking a row switches the canvas and the lower panels to that component's state machine. See <a href="#m-components" data-target="m-components">Components</a>.</p>
-      <h3>States</h3>
-      <p>A <strong>state</strong> is a distinct situation the component can be in (e.g. <code>Advertising</code>, <code>Connecting</code>). Each state has a <em>name</em> (single word, unique <em>within the component</em>, used in PlantUML) and an optional <em>display name</em> (free text, can use <code>\\n</code> for line breaks) shown on the rendered diagram.</p>
-      <h3>Choice-points</h3>
-      <p>A <strong>choice-point</strong> is a decision node. It asks a question (e.g. <em>"Is Server Whitelisted?"</em>) and branches on <code>Yes</code> or <code>No</code>. Choice-points are drawn as white rectangles to distinguish them from regular states. Like states, they are component-local.</p>
-      <h3>Interfaces and messages</h3>
+      <p>A <strong>component</strong> is a complete state machine with its own states, choice-points, transitions, state variables, constants, and local functions. Components share the system's <em>interfaces</em> and <em>messages</em> — that's the contract vocabulary they communicate with — but each component's behaviour is its own. Components are selected through the <strong>Components list</strong> in the top-right catalogue; clicking a row switches the canvas and the lower panels to that component's state machine. See <a href="#m-components" data-target="m-components">Components</a>.</p>
+      <h3>Handlers</h3>
+      <p>A <strong>handler</strong> is a system-level entity that wraps an external resource (radio, sockets, timers, hardware, the network) — anything that has a name and an API but no internal state machine. Components talk to handlers either through shared interfaces or via direct function calls (handler functions exposed as a synchronous API). Handlers have descriptions and functions but no states or transitions. In the Handlers list, a handler dims when it isn't connected to the currently-active component, the same way unconnected interfaces dim.</p>
+      <h3>States and Choice-points</h3>
+      <p>A <strong>state</strong> is a distinct situation the component can be in (e.g. <code>Advertising</code>, <code>Connecting</code>). Each state has a <em>name</em> (single word, unique <em>within the component</em>, used in PlantUML) and an optional <em>display name</em> (free text, can use <code>\\n</code> for line breaks) shown on the rendered diagram. A <strong>choice-point</strong> is a decision node: it asks a question (e.g. <em>"Is Server Whitelisted?"</em>) and branches on <code>Yes</code> or <code>No</code>. Choice-points are drawn as white rectangles to distinguish them from regular states. Both states and choice-points are component-local.</p>
+      <h3>Interfaces and Messages</h3>
       <p>A <strong>message</strong> triggers a transition. Messages belong to an <strong>interface</strong> that groups related messages together (e.g. the <code>RTx</code> interface owns <code>ConnectReq</code>, <code>ConnectedInd</code>, etc.). Interfaces and messages are <strong>shared across all components</strong> in the file — if two components both speak <code>RTx</code>, they are speaking the same <code>RTx</code>. Two interfaces are always present:</p>
       <ul>
         <li><strong>Timer</strong> — contains the <code>Timeout</code> message for time-based transitions.</li>
         <li><strong>Logical</strong> — contains <code>Yes</code> and <code>No</code>, used exclusively on transitions out of choice-points.</li>
       </ul>
-      <p>These defaults cannot be renamed or deleted.</p>
+      <p>These defaults cannot be renamed or deleted. In the Interfaces list, an interface dims when it isn't wired to the active component, and shows an amber <code>!</code> badge if the component's transitions reference it without being wired to it (a spec inconsistency).</p>
+      <h3>State variables, constants, and local functions</h3>
+      <p>Per-component documentation entries that don't reach the diagram but enrich the specification:</p>
+      <ul>
+        <li><strong>State variables</strong> — name, type, description. The data each component holds in addition to its current state. See <a href="#m-statevars" data-target="m-statevars">State variables</a>.</li>
+        <li><strong>Constants</strong> — name, value, description. Named values referenced by name from action text. See <a href="#m-constants" data-target="m-constants">Constants</a>.</li>
+        <li><strong>Local functions</strong> — name, description, multi-line steps. Reusable action snippets referenced by name from transition actions. See <a href="#m-localfns" data-target="m-localfns">Local functions</a>.</li>
+      </ul>
+      <h3>Type definitions</h3>
+      <p>System-wide named definitions of domain types (<code>UserId</code>, <code>Timestamp</code>, <code>Currency</code>) with optional descriptions and free-text specifications. Defined under <em>System &rarr; Type definitions...</em>. Auto-link to the type's definition in the spec when a parameter or state-variable type field exactly matches a type name. See <a href="#m-typedefs" data-target="m-typedefs">Type definitions</a>.</p>
       <h3>Transitions</h3>
-      <p>A <strong>transition</strong> describes how the component moves from a <em>source</em> state to a <em>target</em> state when one or more messages are received. Transitions that share a source and target can be grouped — multiple messages on one arrow declutter the diagram. Transitions are component-local; a transition cannot cross from one component to another.</p>
+      <p>A <strong>transition</strong> describes how the component moves from a <em>source</em> state to a <em>target</em> state when one or more messages are received. Transitions that share a source and target can be grouped — multiple messages on one arrow declutter the diagram. Each transition row has an <em>Action</em> field (free-text prose describing what the transition does); actions are documented in the spec but stay out of PlantUML.</p>
       <h3>Pseudo-states</h3>
       <p>Three special non-editable entries appear at the top of the States list:</p>
       <ul>
@@ -6595,12 +6606,14 @@ function manualContent() {
         <li><strong>H (history)</strong> — targets a "history" pseudostate. See <a href="#m-history" data-target="m-history">History State</a>.</li>
         <li><strong>∗ (any)</strong> — a wildcard source, the inverse of H. See <a href="#m-any" data-target="m-any">ANY State</a>.</li>
       </ul>
+      <h3>Cross-references in prose</h3>
+      <p>Any free-text field in the model — System Specification, transition Actions, descriptions on every entity — supports <strong>backtick-delimited references</strong> to named entities elsewhere in the model. Wrap a name in backticks and the spec export turns it into a hyperlink. Bare names like <code>\`Idle\`</code> resolve in the surrounding context first; qualified names like <code>\`Card:Charge\`</code> or <code>\`Connection:ConnectReq:serverId\`</code> link to a specific message or parameter. Renames cascade automatically — change a name and references update everywhere. Hover any link in the rendered spec to see the target's description in a tooltip.</p>
     </section>
 
     <section id="m-interface">
       <h2>The Interface</h2>
       <h3>Menu bar</h3>
-      <p><strong>File</strong> manages diagrams (new, open, save, save as, export). <strong>Component</strong> (visible in component view) acts on the <em>active</em> component — change its name, font sizes, or copy its transition table as Markdown. <strong>System</strong> (visible in system view) acts on the system as a whole — change its name, change the label font size for Components and Handlers, or change the font size for Interfaces. <strong>Help</strong> opens this manual and the About box.</p>
+      <p><strong>File</strong> manages diagrams (new, open, save, save as, export). <strong>Component</strong> (visible in component view) acts on the <em>active</em> component — change its name, font sizes, or copy its transition table as Markdown. <strong>System</strong> (visible in system view) acts on the system as a whole — change its name, change the label font sizes for Components/Handlers and Interfaces, and open the Type definitions dialog. <strong>Help</strong> opens this manual and the About box.</p>
       <h3>Toolbar</h3>
       <p>All common actions are one click away. A button is greyed out when the current selection does not make the action meaningful. Hover the Add Transition or Edit button when it is disabled and check your selection — the rules in <a href="#m-rules" data-target="m-rules">Rules Reference</a> explain each enablement condition.</p>
       <h3>Diagram canvas (left)</h3>
@@ -6951,7 +6964,7 @@ function manualContent() {
       <h3>Export Specification</h3>
       <p>Under <em>File → Export Specification…</em>, Stadiæ opens a preview modal containing the system's specification rendered as a navigable HTML document. The modal has three buttons: <strong>Download HTML</strong>, <strong>Download .docx</strong>, and <strong>Close</strong>. The HTML version is the primary preview format — read it inside the modal, drill into sections through the sidebar, then download as either format depending on what you need. Esc closes the modal at any point.</p>
       <p><strong>Sidebar navigation.</strong> The HTML preview has a sticky table-of-contents on the left listing every chapter and section: System overview, System specification, System diagram, then a Components group (each component lists its Context, Constants, State variables, States, Choice-points, State diagram, State transitions, Local functions), Handlers, and Interfaces. Click any entry to jump there with a smooth scroll. The active section highlights as you scroll, so you always know where you are in the document.</p>
-      <p><strong>Self-contained HTML.</strong> The downloaded HTML file embeds everything inline — CSS, sidebar interactivity, and rendered diagram PNGs as base64 data URLs — so it works offline, sits at a single URL, and can be opened from any browser without dependencies. Print the HTML directly from the browser to get a clean PDF (the sidebar is hidden in print, links de-styled).</p>
+      <p><strong>Self-contained HTML.</strong> The downloaded HTML file embeds everything inline — CSS, sidebar interactivity, and diagrams as inline SVG — so it works offline, sits at a single URL, and can be opened from any browser without dependencies. SVG diagrams stay crisp at any zoom level, and their text is searchable (Ctrl-F finds state names directly inside diagrams). Print the HTML directly from the browser to get a clean PDF (the sidebar is hidden in print, links de-styled).</p>
       <p><strong>Cross-references in free text.</strong> Inside any free-text field — the System Specification textarea, transition Action text, local-function Steps, descriptions on components, handlers, interfaces, messages, parameters, states, choice-points, state variables, constants, and local functions — wrap a name in backticks (<code>\`Name\`</code>) to make it a live hyperlink in the rendered HTML. The reference resolver:</p>
       <ul>
         <li><strong>Bare names</strong> (no colon) are resolved in the surrounding context first. Inside a transition action of <code>OrderManager</code>, <code>\`Idle\`</code> resolves to that component's Idle state, <code>\`PAYMENT_TIMEOUT\`</code> to its constant, <code>\`recomputeTotal\`</code> to its local function. If the bare name isn't found in context, the resolver falls back to system-level entities (component / handler / interface names) and then alphabetical scans across other components.</li>
@@ -9662,8 +9675,8 @@ function mkTable(d, headers, bodyRows, columnWidths) {
 // ============================================================
 // HTML specification generator
 // ============================================================
-// Produces a self-contained .html file (CSS inline, PNGs base64-
-// embedded, sidebar TOC + active-section highlighting in a small
+// Produces a self-contained .html file (CSS inline, diagrams inlined
+// as SVG, sidebar TOC + active-section highlighting in a small
 // inline script) describing the entire system. Same content as the
 // docx export — components, handlers, interfaces, transitions,
 // constants, state variables, local functions — but rendered as a
@@ -9678,8 +9691,8 @@ function mkTable(d, headers, bodyRows, columnWidths) {
 // style, so the reader can spot typos.
 //
 // The PlantUML diagrams are fetched once at modal-open time and
-// embedded as base64 PNGs. The user's PlantUML server choice is
-// honoured (online/local).
+// embedded inline as SVG (crisp at any zoom, searchable diagram
+// text). The user's PlantUML server choice is honoured (online/local).
 
 // --- Anchor IDs ---
 // Slug rules: identifiers are already a-z A-Z 0-9 _ (validated by
@@ -10060,24 +10073,37 @@ function renderTypeCell(typeStr, idx) {
   return `<a class="ref" href="#${escapeHTML(entry.anchor)}"${tipAttr}>${escapeHTML(typeStr)}</a>`;
 }
 
-// Diagram fetcher — reuses the existing fetchDiagramImage which
-// returns ArrayBuffers. We convert the PNG buffer to a base64 data
-// URL for inline embedding. Returns { dataURL, width, height } or
-// null on fetch failure (so the HTML can substitute a placeholder).
-async function fetchDiagramAsBase64(plantUMLSource) {
+// Diagram fetcher for the HTML spec — reuses fetchDiagramImage and
+// extracts the SVG markup ready for inline embedding inside the
+// generated document. SVG keeps the diagram crisp at any zoom and
+// makes the diagram text searchable (Ctrl-F finds state names
+// inside diagrams). Returns the cleaned SVG string, or null on
+// fetch failure (so the HTML can substitute a placeholder).
+//
+// Cleanup steps:
+//   - Decode the SVG buffer as UTF-8 text.
+//   - Strip the <?xml...?> prolog and any DOCTYPE — they belong in
+//     a stand-alone .svg file, not inside an HTML document.
+//   - Strip width/height attributes on the root <svg> element so
+//     the diagram scales to its CSS container (max-width:100% on
+//     the wrapping .diagram class).
+async function fetchDiagramAsInlineSVG(plantUMLSource) {
   try {
     const img = await fetchDiagramImage(plantUMLSource);
-    // ArrayBuffer → base64. Use Uint8Array.reduce for compactness; the
-    // images are small enough (a few hundred KB) that this is fine.
-    const bytes = new Uint8Array(img.png);
-    let bin = "";
-    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    const b64 = btoa(bin);
-    return {
-      dataURL: `data:image/png;base64,${b64}`,
-      width: img.width,
-      height: img.height
-    };
+    let svg = new TextDecoder("utf-8").decode(img.svg);
+    // Remove XML prolog and DOCTYPE declarations.
+    svg = svg.replace(/<\?xml[^?]*\?>/i, "");
+    svg = svg.replace(/<!DOCTYPE[^>]*>/i, "");
+    // Strip width / height attributes from the root <svg> element so
+    // CSS can size the rendered diagram. Match the FIRST <svg ...>
+    // tag in the string; PlantUML output has exactly one root.
+    svg = svg.replace(/<svg\b([^>]*)>/i, (_, attrs) => {
+      const cleaned = attrs
+        .replace(/\swidth\s*=\s*"[^"]*"/i, "")
+        .replace(/\sheight\s*=\s*"[^"]*"/i, "");
+      return `<svg${cleaned}>`;
+    });
+    return svg.trim();
   } catch (e) {
     return null;
   }
@@ -10308,7 +10334,11 @@ code.ref-unresolved {
   padding: 0 1px;
 }
 .diagram { margin: 16px 0; text-align: center; }
-.diagram img { max-width: 100%; border: 1px solid var(--border); border-radius: 4px; background: white; }
+/* Diagrams now render as inline SVG. The browser uses the SVG's
+   viewBox to scale to the container; max-width caps width on small
+   viewports. No border — the diagram speaks for itself. */
+.diagram svg { max-width: 100%; height: auto; }
+.diagram img { max-width: 100%; }
 .diagram-missing {
   padding: 24px;
   background: var(--surface);
@@ -10518,9 +10548,9 @@ async function buildSpecBody(idx, progress) {
     // of the currently-active component, which is wrong for this
     // section.
     const sysSrc = generateComponentDiagramPlantUML({ withSelection: false, includeSalt: false });
-    const img = await fetchDiagramAsBase64(sysSrc);
-    if (img) {
-      parts.push(`<div class="diagram"><img src="${img.dataURL}" alt="System diagram"></div>`);
+    const sysSvg = await fetchDiagramAsInlineSVG(sysSrc);
+    if (sysSvg) {
+      parts.push(`<div class="diagram">${sysSvg}</div>`);
     } else {
       parts.push(`<div class="diagram-missing">System diagram could not be rendered (PlantUML server unavailable).</div>`);
     }
@@ -10662,9 +10692,9 @@ async function buildSpecBody(idx, progress) {
       withSelection: false, includeSalt: false,
       focus: buildFocusFilter(c.name)
     });
-    const ctxImg = await fetchDiagramAsBase64(ctxSrc);
-    if (ctxImg) {
-      parts.push(`<div class="diagram"><img src="${ctxImg.dataURL}" alt="Context diagram"></div>`);
+    const ctxSvg = await fetchDiagramAsInlineSVG(ctxSrc);
+    if (ctxSvg) {
+      parts.push(`<div class="diagram">${ctxSvg}</div>`);
     } else {
       parts.push(`<div class="diagram-missing">Context diagram could not be rendered.</div>`);
     }
@@ -10752,9 +10782,9 @@ async function buildSpecBody(idx, progress) {
     } finally {
       Model.activeComponentIndex = savedActive;
     }
-    const sdImg = await fetchDiagramAsBase64(sdSrc);
-    if (sdImg) {
-      parts.push(`<div class="diagram"><img src="${sdImg.dataURL}" alt="State diagram"></div>`);
+    const sdSvg = await fetchDiagramAsInlineSVG(sdSrc);
+    if (sdSvg) {
+      parts.push(`<div class="diagram">${sdSvg}</div>`);
     } else {
       parts.push(`<div class="diagram-missing">State diagram could not be rendered.</div>`);
     }

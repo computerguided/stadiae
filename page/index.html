@@ -766,14 +766,22 @@ footer.foot .links a + a { margin-left: 18px; }
                 <td class="desc">Transitions as a Markdown table &mdash; <code>Source</code>, <code>Target</code>, <code>Interface</code>, <code>Message</code>, <code>Action</code>. Drop it into a specification document or pull request description.</td>
               </tr>
               <tr>
+                <td class="name">.html spec</td>
+                <td class="desc">Full system specification as a self-contained HTML document. Sticky sidebar TOC navigates every chapter and section. Every named entity is hyperlinked &mdash; click <code>OrderManager</code>, <code>Card:Charge</code>, or <code>recomputeTotal()</code> in any prose field and jump to its definition. Hover any link to see the target's description in a tooltip. CSS inlined, diagrams embedded as inline SVG (crisp at any zoom, with searchable diagram text). The file works offline from any browser, prints cleanly to PDF.</td>
+              </tr>
+              <tr>
                 <td class="name">.docx spec</td>
-                <td class="desc">Full system specification as a Word document. Native headings, paragraphs, and tables, with row-span for multi-parameter messages and multi-message transitions. Diagrams embedded as SVG (with PNG fallback) &mdash; crisp vector graphics in Word and LibreOffice, graceful fallback in Google Docs. Opens directly in any <code>.docx</code>-compatible tool.</td>
+                <td class="desc">Same content as the HTML, rendered as a Word document. Native headings, paragraphs, and tables, with row-span for multi-parameter messages and multi-message transitions. Diagrams embedded as SVG (with PNG fallback) &mdash; crisp vector graphics in Word and LibreOffice, graceful fallback in Google Docs. Both formats are downloaded from the same preview modal under <em>File &rarr; Export Specification...</em>.</td>
               </tr>
             </tbody>
           </table>
 
           <p style="margin-top:22px">
             The <code>action</code> field on each transition row is where the behavioural description lives &mdash; "post ConnectReq to RTx; arm retry timer" &mdash; stored in the JSON save, surfaced in the Markdown export, <em>omitted</em> from PlantUML so the diagram stays uncluttered. Each component also carries a free-text <code>description</code>, edited live in a panel below the system catalogue. Behaviour and visualisation, separated.
+          </p>
+
+          <p>
+            Names in any prose field can be turned into <strong>cross-references</strong> by wrapping them in backticks &mdash; <code>\`Idle\`</code>, <code>\`Card:Charge\`</code>, <code>\`Connection:ConnectReq:serverId\`</code>, <code>\`recomputeTotal()\`</code>. The HTML spec resolves each one to a hyperlink to the named state, message, parameter, function, or whatever else the model knows about. Bare names use context (a backtick reference inside <code>OrderManager</code>'s actions resolves to <code>OrderManager</code>'s entities first); qualified names jump anywhere. Renames cascade automatically: rename an interface and every backtick reference to it across the model updates as one history step. Deletes leave references unresolved (warning style) so the holes are easy to spot.
           </p>
         </div>
       </div>
@@ -803,7 +811,10 @@ footer.foot .links a + a { margin-left: 18px; }
           </figure>
 
           <p>
-            Components, handlers, interfaces, and messages live in the <em>system catalogue</em> at the top of the right panel; all four are shared across the file. The Components list switches between components with one click &mdash; <code>Node</code>, <code>Gateway</code>, <code>Session</code>, whatever your subsystem contains. Each component has its own states, choice-points, transitions, and action notes, but the protocol vocabulary is shared. <strong>Handlers</strong> are system-level entities without a state machine &mdash; asynchronous edges to the outside world (radio, sockets, timers) that talk to components over interfaces or expose functions for components to call directly.
+            Components, handlers, interfaces, and messages live in the <em>system catalogue</em> at the top of the right panel; all four are shared across the file. The Components list switches between components with one click &mdash; <code>Node</code>, <code>Gateway</code>, <code>Session</code>, whatever your subsystem contains. Each component has its own states, choice-points, transitions, and action notes, plus optional <em>state variables</em>, <em>constants</em>, and <em>local functions</em> in their own panels &mdash; all documentation-only fields that enrich the spec without touching the diagram. <strong>Handlers</strong> are system-level entities without a state machine &mdash; asynchronous edges to the outside world (radio, sockets, timers) that talk to components over interfaces or expose functions for components to call directly. Both interfaces and handlers dim in their lists when not connected to the active component, so you always see what's in scope at a glance.
+          </p>
+          <p>
+            <strong>Type definitions</strong> live one menu away under <em>System &rarr; Type definitions...</em>. They're the system-wide reference of what each domain type means &mdash; a single name, a description, a free-text specification body. Parameter and state-variable type fields auto-link to their definition in the rendered spec when the cell text exactly matches a type name.
           </p>
         </div>
       </div>
