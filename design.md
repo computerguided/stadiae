@@ -82,6 +82,12 @@ Model = {
       // identifier unique within the component. Type and description
       // are free-text and may be empty.
       stateVariables: [ {name, type, description} ],
+      // Per-component constants — named values referenced by name in
+      // action text (e.g. "Start the timer with the ADVERTISEMENT
+      // interval"). Free-text `value` field — no type discipline so
+      // the user can put whatever notation fits the domain.
+      // Documentation-only; never reach PlantUML.
+      constants: [ {name, value, description} ],
       // Per-component local functions — reusable action snippets
       // referenced by name from transition action text. Take no
       // parameters; access the component's state variables by
@@ -204,6 +210,7 @@ Selection = {
   states:         Set<name>,
   choicePoints:   Set<name>,
   stateVariables: Set<name>,           // per-component documentation rows
+  constants:      Set<name>,           // per-component named values
   localFunctions: Set<name>,           // per-component action snippets
   interfaces:     Set<name>,
   messages:       Set<"iface:name">,
@@ -805,35 +812,35 @@ Unlike the .puml and .png exports which operate on the currently-visible canvas,
 The layout is a standard CSS flex/grid arrangement; no layout framework is used. Structure:
 
 ```
-┌───────────────────────────────────────────────────────────────────────┐
-│ Menu bar (dark chrome)                                                │
-├───────────────────────────────────────────────────────────────────────┤
-│ Toolbar (dark chrome)                                                 │
-├────────────────────────────────┬──────────────────────────────────────┤
-│ ┌──────────┐    ┌─────────────┐│ ┌── System catalogue (5 cols) ──────┐│
-│ │ ◇ System │    │ Component ▸ ││ │Comps+│Hdlrs+│Fns+│Ifaces+│ Msgs+  ││
-│ └──────────┘    └─────────────┘│ │▸CompA│Rad   │    │ RTx   │        ││
-│   (system-view only ─ top-right│ │ CompB│      │    │Storage│        ││
-│    when a component selected)  │ │      │      ├────┤       ├────────┤│
-│                                │ │      │      │Prms│       │ Prms   ││
-│                                │ │      │      │+   │       │   +    ││
-│                                │ └───────────────────────────────────┘│
-│                                │ ──── resize handle ────              │
-│ Canvas panel                   │ ┌── Description (active component)──┐│
-│ (rendered PlantUML PNG of      │ │ [ free-text textarea ]            ││
-│  the active component, or      │ └───────────────────────────────────┘│
-│  the system diagram)           │ ──── resize handle ────              │
-│                                │ ┌── Component panel (active) ──────┐ │
-│  ──── resize handle ────       │ │ States + │ Choice-pts + │ Vars  +│ │
-│ ┌── System specification ────┐ │ ├───────────────────────────────┬──┤ │
-│ │ [ free-text textarea ]     │ │ │                               │  │ │
-│ │                            │ │ │  Transitions table            │A │ │
-│ └──────────────────────────-─┘ │ │  • │ Src │ Tgt │ Iface │ Msg  │c │ │
+┌──────────────────────────────────────────────────────────────────────┐
+│ Menu bar (dark chrome)                                               │
+├──────────────────────────────────────────────────────────────────────┤
+│ Toolbar (dark chrome)                                                │
+├────────────────────────────────┬─────────────────────────────────────┤
+│ ┌──────────┐    ┌─────────────┐│ ┌── System catalogue (5 cols) ─────┐│
+│ │ ◇ System │    │ Component ▸ ││ │Comps+│Hdlrs+│Fns+│Ifaces+│ Msgs+ ││
+│ └──────────┘    └─────────────┘│ │▸CompA│Rad   │    │ RTx   │       ││
+│   (system-view only ─ top-right│ │ CompB│      │    │Storage│       ││
+│    when a component selected)  │ │      │      ├────┤       ├───────┤│
+│                                │ │      │      │Prms│       │ Prms  ││
+│                                │ │      │      │+   │       │   +   ││
+│                                │ └──────────────────────────────────┘│
+│                                │ ──── resize handle ────             │
+│ Canvas panel                   │ ┌── Description (active component)─┐│
+│ (rendered PlantUML PNG of      │ │ [ free-text textarea ]           ││
+│  the active component, or      │ └──────────────────────────────────┘│
+│  the system diagram)           │ ──── resize handle ────             │
+│                                │ ┌── Component panel (active) ─────┐ │
+│  ──── resize handle ────       │ │ States + │ Choice-pts + │ Vars +│ │
+│ ┌── System specification ────┐ │ ├───────────────────────────────┬─┤ │
+│ │ [ free-text textarea ]    │ │ │                               │  │ │
+│ │                           │ │ │  Transitions table           │A │ │
+│ └───────────────────────────┘ │ │  • │ Src │ Tgt │ Iface │ Msg │c │ │
 │                                │ │                               │t │ │
 │                                │ │                               │io│ │
 │                                │ │                               │n │ │
-│                                │ └───────────────────────────────┴──┘ │
-└────────────────────────────────┴──────────────────────────────────────┘
+│                                │ └───────────────────────────────┴─┘ │
+└────────────────────────────────┴─────────────────────────────────────┘
             ↑                                   ↑
             canvas-column                       right-panel
      (canvas + System spec, stacked)     (catalogue, description, component stack)
@@ -1008,13 +1015,82 @@ These are intentionally separate from `component.arrowFontSize` and `component.s
 
 ## 15. Specification export
 
-The `File → Export Specification…` menu item produces a Word document (`.docx`) describing the entire system. The output is self-contained: native Word paragraphs and tables, rendered diagram images embedded as SVG (with PNG fallback for older viewers). Opens directly in Word, LibreOffice Writer, Google Docs, and other .docx-compatible tools.
+The `File → Export Specification…` menu item opens a preview modal containing the system's specification rendered as a navigable HTML document. The modal carries three buttons: **Download HTML**, **Download .docx**, and **Close**. The HTML version is the primary preview format — the modal embeds it via an iframe with a sticky table-of-contents sidebar on the left and the rendered prose on the right. Both formats are produced from the same model walk; they diverge only at the rendering layer.
 
-### Why .docx
+### Why both formats
 
-An earlier iteration emitted Markdown with embedded HTML tables and PlantUML source in fenced blocks. Rendering the result required a viewer that supported all three at once; in practice different tools handle one or two but rarely all three cleanly. The .docx format side-steps every piece of that: tables with row-span work natively, diagram images are inline vector graphics, styling comes from the docx's own built-in heading/paragraph styles, and the output opens in every consumer office tool without a plugin.
+- **HTML** is the format optimised for reading and reviewing. Self-contained (CSS inline, PlantUML diagrams base64-embedded as PNGs), navigable via the sidebar, with backtick-delimited cross-references inside free-text fields rendered as live hyperlinks. Prints cleanly to PDF (`@media print` hides the sidebar and de-styles links). The single .html file works offline and from anywhere.
+- **.docx** is the format optimised for hand-off into a corporate documentation pipeline — the same content as the HTML, but with native Word paragraphs and tables, rendered diagrams embedded as SVG (with PNG fallback for older viewers), opens directly in Word / LibreOffice Writer / Google Docs without a plugin.
 
-The cost is a runtime dependency on a .docx-building library. The export uses Dolan Miu's [`docx`](https://github.com/dolanmiu/docx), pinned to version 8.5.0, loaded from unpkg.com. It's ~600KB minified, lazy-loaded on first export, and cached thereafter on `window._docxLib`. Users who never export never pay the cost; users who export once don't pay it again within the same session.
+### Why .docx (history)
+
+An earlier iteration emitted Markdown with embedded HTML tables and PlantUML source in fenced blocks. Rendering the result required a viewer that supported all three at once; in practice different tools handle one or two but rarely all three cleanly. The .docx format side-stepped every piece of that: tables with row-span work natively, diagram images are inline vector graphics, styling comes from the docx's own built-in heading/paragraph styles, and the output opens in every consumer office tool without a plugin.
+
+The cost is a runtime dependency on a .docx-building library. The export uses Dolan Miu's [`docx`](https://github.com/dolanmiu/docx), pinned to version 8.5.0, loaded from unpkg.com. It's ~600KB minified, lazy-loaded on first export, and cached thereafter on `window._docxLib`. Users who never export never pay the cost; users who export once don't pay it again within the same session. The HTML export does not require any external library — it's a single string built by `buildSpecificationHTML` from the model and the fetched diagram PNGs.
+
+### HTML specification — architecture
+
+`buildSpecificationHTML(progress)` produces a single self-contained HTML string. The inputs are the live `Model` and the user's PlantUML server config; the outputs are the iframe `srcdoc` contents (used by the modal) and the downloadable HTML file (the same string, written via Blob + anchor-click).
+
+**Anchor scheme.** Every named entity gets a deterministic, slug-safe anchor ID derived from its identifier:
+
+- `comp-{name}` — component chapter
+- `comp-{name}-context`, `comp-{name}-states`, `comp-{name}-cps`, `comp-{name}-statevars`, `comp-{name}-constants`, `comp-{name}-statediagram`, `comp-{name}-transitions`, `comp-{name}-localfns` — sub-sections within a component chapter
+- `comp-{name}-state-{stateName}`, `comp-{name}-cp-{cpName}`, `comp-{name}-var-{varName}`, `comp-{name}-const-{constName}`, `comp-{name}-lfn-{lfnName}` — per-row anchors inside the per-component tables
+- `iface-{name}`, `iface-{name}-msg-{msgName}`, `iface-{name}-msg-{msgName}-param-{paramName}` — interface chapter, message rows, and per-parameter sub-rows
+- `handler-{name}`, `handler-{name}-fn-{fnName}`, `handler-{name}-fn-{fnName}-param-{paramName}` — handler chapter, function rows, and per-parameter sub-rows
+
+Identifiers are already constrained to a-z A-Z 0-9 _ by `isValidIdentifier` (validated on every Add dialog), so they slug as URL fragments without escaping. Display names (which may contain spaces or punctuation for state and CP labels) are not used in anchors — only the underlying `name` field, which is the model's stable identifier.
+
+Per-parameter anchors live on the parameter-name `<td>` cell rather than the row's `<tr>` because the row's `<tr>` already carries the parent message/function anchor — and an element can only have one `id`. The cell-level id works fine with `scrollIntoView` and gets a brief accent highlight when navigated to (`.ref-target` class added by the iframe's click handler, removed by `setTimeout` after the fade transition completes).
+
+**Index and resolution.** `buildSpecAnchorIndex()` builds nested Maps over all components, handlers, interfaces, and their members — done once at the start of generation. Each interface entry's `messages` Map and each handler entry's `functions` Map stores `{anchor, parameters: Map(name → anchor)}` rather than a bare anchor string, so a single lookup can yield either the parent's anchor (two-segment use) or a parameter's anchor (three-segment use). `resolveSpecReference(idx, token, context)` consumes that index plus the current rendering context and returns either an `{ anchor, label }` for a successful lookup or `null` for an unresolved reference.
+
+The resolver dispatches by segment count (split on `:`). Empty segments (`A::B`, leading/trailing `:`) and 4+ segments are rejected as malformed.
+
+**Function-call ornament.** Before splitting on `:`, each segment has any trailing `(...)` stripped. `recomputeTotal()` resolves to `recomputeTotal`; `Timer:getCurrentTime()` resolves to `Timer:getCurrentTime`; `doThis(arg)` resolves to `doThis`. The original token is preserved as the link's display text so prose like *Call `doThis(arg)` and check the result* keeps its call-syntax in the rendered output. The strip is segment-by-segment: anything from the first `(` of a segment onward is dropped from the lookup key, never affecting other segments.
+
+**1 segment** — bare token like `Foo`:
+
+- Search the current context first (the component / handler / interface whose chapter is being rendered).
+- Then system-level entities (component / handler / interface names by themselves).
+- Then alphabetical scans across other components, interfaces, and handlers.
+- Tie-breaker on cross-list collision within a component: state variable beats constant (variables are more common in action prose).
+
+**2 segments** — `Owner:Member` like `OrderManager:Idle`, `Card:Charge`, `Timer:getCurrentTime`:
+
+- `Interface:Message` — exact lookup.
+- `Handler:Function` — exact lookup.
+- `Component:State|CP|Variable|Constant|LocalFunction` — exact lookup, in that priority.
+- **Action-context fallback**: when `context.kind === "component"` and `context.rowMessage` is set, the resolver recognises `Message:Parameter` references whose first segment matches the row's message. The interface qualifier is implicit — the row's own message establishes it. Inside an Action whose row mentions `Connection / ConnectReq`, `ConnectReq:serverId` resolves to the `serverId` parameter without repeating the interface name. The fallback is strictly action-local: it never searches system-wide for messages matching the first segment, to avoid colliding with the existing `Owner:Member` kinds.
+
+**3 segments** — `Iface:Msg:Param` and `Handler:Fn:Param`:
+
+- Walks the index nesting: `idx.perInterface.get(iface).messages.get(msg).parameters.get(param)`.
+- Same for handlers.
+- Anything else (component-prefixed three-segment, etc.) is unresolved.
+
+**Rendering context.** Each call into `renderProse` carries a `{ kind, ... }` object describing the surrounding chapter — `{ kind: "component", componentName }` while emitting a component chapter, `{ kind: "interface", interfaceName }` for an interface chapter, `{ kind: "handler", handlerName }` for a handler chapter, `{ kind: "system" }` for the system specification. The transition table's per-row Action cell extends this with `rowMessage: { interface, name }` so the action-context two-segment fallback knows which message the implicit qualifier maps to. The resolver consults `rowMessage` only when handling two-segment tokens; everywhere else it's ignored.
+
+**Backtick parsing.** `renderProse(text, context, idx)` walks the input character-by-character. A backslash before a backtick is consumed as an escape, emitting a literal backtick and skipping past it. An un-escaped backtick opens a span that closes at the next un-escaped backtick. The contents go to `resolveSpecReference`; a successful resolution emits `<a class="ref" href="#{anchor}">{label}</a>`, an unresolved one emits `<code class="ref-unresolved" title="Unresolved reference">{token}</code>`. Unterminated backtick spans (no closing backtick before end-of-string) are emitted as literal text — defensive, in case the user typed an opening backtick without closing it.
+
+`renderProseMultiline(text, context, idx)` splits on real newlines, runs each line through `renderProse`, and joins with `<br>` — backticks don't span lines anyway, and per-line processing keeps the parser simple.
+
+**Diagram embedding.** `fetchDiagramAsBase64(plantUMLSource)` is a thin wrapper around the existing `fetchDiagramImage` helper used by the .docx export. It converts the PNG ArrayBuffer to a base64 data URL via `btoa(String.fromCharCode(...bytes))`. Failures (PlantUML server unreachable, network error) return `null` instead of throwing, and `buildSpecBody` substitutes a `<div class="diagram-missing">` placeholder for the affected diagram. The HTML file remains fully usable even if some diagrams couldn't render.
+
+**Sidebar TOC.** Rendered into the iframe document as a `<nav class="toc">` element, sticky-positioned on the left. The structure mirrors the document outline: System overview / System specification / System diagram / Components (each component expandable to its sections) / Handlers / Interfaces. Active-section highlighting via `IntersectionObserver` inside the iframe — when an H1/H2 enters the upper portion of the viewport (`rootMargin: '-10% 0px -75% 0px'`), the matching TOC entry gets the `.active` class. Click-to-scroll uses `scrollIntoView({ behavior: 'smooth' })`.
+
+**Print stylesheet.** A `@media print` block hides `.toc`, expands `<main>` to full width, removes the dotted-underline reference styling (printed links don't need the visual affordance), and applies `page-break-after: avoid` to H1/H2 so chapter headings don't strand at the bottom of a page.
+
+**Modal architecture.** `openSpecificationModal()` is the menu-bound entry point. It:
+
+1. Calls `buildSpecificationHTML(progress)` while showing a progress overlay (`Building specification…` → `Rendering system diagram…` → `Rendering {component} context…` → `Rendering {component} state diagram…`).
+2. Replaces the progress overlay with the spec modal — `<div class="modal modal-spec">` containing a title strip, an iframe in the body, and three buttons in the footer.
+3. Sets the iframe via `srcdoc=` (not `src=`) so the entire HTML lives inside the attribute and the iframe never makes a network request.
+4. Wires the Download HTML button to write the same string as a `Blob` + anchor click; wires Download .docx to fall through to the existing `buildSpecificationDocx` pipeline; wires Close to `hideModal`.
+5. Listens for `message` events from the iframe — the inline iframe script forwards Esc keypresses via `postMessage({ type: 'spec-modal-escape' })` so Esc closes the modal even when focus has moved into the iframe (where the parent's keydown handler can't reach it).
+
+**Why an iframe.** The spec HTML is a complete document with its own CSS and `<script>`. Rendering it inline in the parent page would require either (a) injecting the styles into the parent (collisions with editor styles) or (b) using a Shadow DOM root. An iframe gives complete style and script isolation for free, plus it doubles as the "what does the downloaded file look like" preview — what you see in the modal is byte-for-byte what gets written to disk.
 
 ### Flow
 
@@ -1060,7 +1136,7 @@ H1 is the literal phrase "System specification" — the system's own display nam
 
 - **H1 "System specification"** → H2 Description (user-authored system specification text) + H2 System architecture (full diagram, component summary table, handler summary table).
 - **H1 "Interfaces"** → H2 per interface with its messages table (row-span for multi-parameter messages).
-- **H1 per component** → H2 Context (filtered-diagram image, no outer system wrapper) + H2 State variables + H2 States + H2 Choice-points + H2 State diagram (full state machine image) + H2 State transition table (row-span for multi-message transitions) + H2 Local functions (per-component reusable action snippets — last section in the chapter so the reader has the full state-machine picture before encountering the refactored step sequences that the actions delegate to).
+- **H1 per component** → H2 Context (filtered-diagram image, no outer system wrapper) + H2 Constants + H2 State variables + H2 States + H2 Choice-points + H2 State diagram (full state machine image) + H2 State transition table (row-span for multi-message transitions) + H2 Local functions (per-component reusable action snippets — last section in the chapter so the reader has the full state-machine picture before encountering the refactored step sequences that the actions delegate to).
 - **H1 per handler** → H2 Functions (row-span for multi-parameter functions).
 
 A well-formed output opens with a table of contents that reads: System specification / Interfaces / each Component / each Handler. The structure matches the user-provided PDF template that drove the design.

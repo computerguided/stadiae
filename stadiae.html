@@ -628,11 +628,11 @@
      UL its own horizontal scrollbar at the bottom of the list; the
      generic `.list-box li` truncation needs to be turned off so long
      rows stretch their full width instead of being clipped. */
-  #list-states, #list-cps, #list-vars, #list-lfns, #list-ifaces, #list-msgs, #list-fns,
+  #list-states, #list-cps, #list-vars, #list-consts, #list-lfns, #list-ifaces, #list-msgs, #list-fns,
   #params-list, #fnparams-list {
     overflow-x: auto;
   }
-  #list-states li, #list-cps li, #list-vars li, #list-lfns li, #list-ifaces li, #list-msgs li, #list-fns li,
+  #list-states li, #list-cps li, #list-vars li, #list-consts li, #list-lfns li, #list-ifaces li, #list-msgs li, #list-fns li,
   #params-list li, #fnparams-list li {
     overflow: visible;
     text-overflow: clip;
@@ -1061,16 +1061,24 @@
      `display: none` and the list-box reclaims the full column height.
      The grid cell itself is a plain flex column so everything stacks
      cleanly inside the grid's width. */
-  .msgs-column, .fns-column, .lfns-column {
+  .msgs-column, .fns-column, .lfns-column, .vars-column {
     display: flex;
     flex-direction: column;
     min-height: 0;
     min-width: 0;
   }
-  .msgs-column > .list-box, .fns-column > .list-box, .lfns-column > .list-box {
+  .msgs-column > .list-box, .fns-column > .list-box, .lfns-column > .list-box, .vars-column > .list-box {
     flex: 1 1 auto;
     min-height: 0;
   }
+  /* Vars column splits its height between two list-boxes (State
+     variables on top, Constants below). Default split 60/40 — state
+     variables are usually more numerous than constants in an FCM —
+     with a draggable handle between them. The first list-box gets
+     flex: 3, the second flex: 2. The user-draggable resize handle
+     between them mutates the inline flex-basis to override. */
+  .vars-column > .list-box:first-of-type { flex: 3 1 0; }
+  .vars-column > .list-box:last-of-type  { flex: 2 1 0; }
   /* === Parameters panel ===
      Sits inside the Messages column, stacked below the Messages list.
      Only visible when exactly one Message is selected — carries the
@@ -1157,6 +1165,31 @@
     box-shadow: var(--shadow-dialog);
     overflow: hidden;
     animation: modal-in 0.15s ease-out;
+  }
+  /* Specification preview modal — much larger than typical dialogs.
+     Takes ~90% of viewport in both directions and contains an iframe
+     showing the rendered HTML. The body is a plain block (overrides
+     the .modal .body grid layout used by form dialogs). */
+  .modal-spec {
+    width: 90vw;
+    height: 90vh;
+    max-width: 1400px;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-spec .body.spec-modal-body {
+    display: block;
+    grid-template-columns: none;
+    flex: 1;
+    padding: 0;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .spec-iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #fff;
   }
   @keyframes modal-in {
     from { opacity: 0; transform: translateY(6px) scale(0.98); }
@@ -1568,7 +1601,7 @@
       <div class="separator"></div>
       <div class="item" data-action="export-puml">Export as PlantUML (.puml)...</div>
       <div class="item" data-action="export-png">Export as PNG image...</div>
-      <div class="item" data-action="export-spec">Export Specification (.docx)...</div>
+      <div class="item" data-action="export-spec">Export Specification...</div>
       <div class="separator"></div>
       <div class="item" data-action="plantuml-server">PlantUML server...</div>
       <div class="separator"></div>
@@ -1736,12 +1769,22 @@
           </div>
           <ul id="list-cps"></ul>
         </div>
-        <div class="list-box">
-          <div class="header">
-            <span>State variables</span>
-            <button class="header-add" id="btn-add-var" title="Add state variable">+</button>
+        <div class="vars-column">
+          <div class="list-box">
+            <div class="header">
+              <span>State variables</span>
+              <button class="header-add" id="btn-add-var" title="Add state variable">+</button>
+            </div>
+            <ul id="list-vars"></ul>
           </div>
-          <ul id="list-vars"></ul>
+          <div class="resize-handle" id="resize-handle-consts" title="Drag to resize"></div>
+          <div class="list-box">
+            <div class="header">
+              <span>Constants</span>
+              <button class="header-add" id="btn-add-const" title="Add constant">+</button>
+            </div>
+            <ul id="list-consts"></ul>
+          </div>
         </div>
         <div class="lfns-column">
           <div class="list-box">
@@ -1849,6 +1892,13 @@ function makeEmptyComponent(name, displayName) {
     // both the purpose and the step-by-step body as one free-text
     // block — matches state variables' structure.
     localFunctions: [],  // {name, description}
+    // Constants: per-component named values referenced by name in
+    // action text (e.g. "Start the timer with the ADVERTISEMENT
+    // interval"). Free-text value field — no type — so the user can
+    // put numeric ("30000"), human ("30 seconds"), hex ("0xFF"), or
+    // any other notation that fits the domain. Documentation-only;
+    // never reach PlantUML.
+    constants: [],       // {name, description, value}
     // transitions: {source, target, messages: [{interface,name,action?}], connector, length}
     // Source/target are state/cp names. "START" is a special source,
     // "[H]" special target, "*" special source. Each message may carry a
@@ -1971,6 +2021,15 @@ const Component = {
     return c.localFunctions;
   },
   set localFunctions(v) { Model.components[Model.activeComponentIndex].localFunctions = v; },
+  // Constants — same per-component-array storage pattern as
+  // stateVariables / localFunctions; getter ensures the field exists
+  // (files from before the feature load with the field absent).
+  get constants() {
+    const c = Model.components[Model.activeComponentIndex];
+    if (!Array.isArray(c.constants)) c.constants = [];
+    return c.constants;
+  },
+  set constants(v) { Model.components[Model.activeComponentIndex].constants = v; },
   get transitions()   { return Model.components[Model.activeComponentIndex].transitions; },
   set transitions(v)  { Model.components[Model.activeComponentIndex].transitions = v; }
 };
@@ -2177,6 +2236,8 @@ const Selection = {
   // plain-name keys, only the active component's local functions
   // are ever shown, cleared on component switch and view switch.
   localFunctions: new Set(),
+  // Constants. Same per-component pattern. Plain-name keys.
+  constants: new Set(),
   start: false,            // START icon selected
   history: false,          // H (history) pseudostate selected
   any: false,              // * (any) pseudostate selected (wildcard source)
@@ -2230,6 +2291,7 @@ const Selection = {
     this.messageParameters.clear(); this.functionParameters.clear();
     this.stateVariables.clear();
     this.localFunctions.clear();
+    this.constants.clear();
     this.start = false; this.history = false; this.any = false;
     this.nodeOrder = [];
   }
@@ -2928,6 +2990,17 @@ function isUniqueLocalFunctionName(name, excludeName=null) {
   const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
   return !lfns.some(lf => lf.name === name && lf.name !== excludeName);
 }
+// Constant names are per-component identifiers. Unique within the
+// component's constants list. Constants and state variables don't
+// share a namespace — a state variable named `count` and a constant
+// named `count` could in theory coexist (different kinds, distinct
+// roles in action text), but practically that would be confusing,
+// so we keep the namespace clean within each kind without enforcing
+// cross-kind uniqueness.
+function isUniqueConstantName(name, excludeName=null) {
+  const consts = Array.isArray(Component.constants) ? Component.constants : [];
+  return !consts.some(k => k.name === name && k.name !== excludeName);
+}
 function isUniqueInterfaceName(name, excludeName=null) {
   return !Model.interfaces.some(i => i.name === name && i.name !== excludeName);
 }
@@ -3255,6 +3328,7 @@ function hasAnySelection() {
   return Selection.states.size || Selection.choicePoints.size ||
          Selection.stateVariables.size ||
          Selection.localFunctions.size ||
+         Selection.constants.size ||
          Selection.interfaces.size || Selection.messages.size ||
          Selection.transitions.size ||
          Selection.components.size || Selection.connections.size ||
@@ -3310,6 +3384,11 @@ function clearSelectionForContext(ctx) {
       // selections within the list. Parallel to "vars" — documentation-
       // only per-component entity.
       Selection.localFunctions.clear();
+      break;
+    case "consts":
+      // Plain-click on a constant row: clear other constant selections.
+      // Same documentation-only per-component pattern.
+      Selection.constants.clear();
       break;
     case "ifaces":
       // Messages depend on their interfaces being selected for visibility;
@@ -3585,6 +3664,7 @@ function refresh() {
   buildCPList();
   buildStateVariableList();
   buildLocalFunctionList();
+  buildConstantList();
   buildInterfaceList();
   buildMessageList();
   buildFunctionList();
@@ -4802,6 +4882,46 @@ function buildLocalFunctionList() {
   }
 }
 
+// Build the Constants list. Per-component documentation-only entries —
+// named values (free-text, no type) referenced by name from action
+// text (e.g. "Start the timer with the ADVERTISEMENT interval").
+// Row layout: name = value — description (matches how engineers
+// write constants in code), with value/description styled as the
+// same muted secondary text used for state-variable types.
+function buildConstantList() {
+  const ul = document.getElementById("list-consts");
+  ul.innerHTML = "";
+  const consts = Array.isArray(Component.constants) ? Component.constants : [];
+  const sorted = [...consts].sort((a, b) => a.name.localeCompare(b.name));
+  for (const k of sorted) {
+    const li = document.createElement("li");
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = k.name;
+    li.appendChild(labelSpan);
+    if (k.value && k.value.length > 0) {
+      const valSpan = document.createElement("span");
+      valSpan.className = "state-desc";
+      valSpan.textContent = " = " + k.value;
+      li.appendChild(valSpan);
+    }
+    if (k.description && k.description.length > 0) {
+      const descSpan = document.createElement("span");
+      descSpan.className = "state-desc";
+      descSpan.textContent = " \u2014 " + k.description;
+      li.appendChild(descSpan);
+    }
+    if (Selection.constants.has(k.name)) li.classList.add("selected");
+    li.addEventListener("click", (e) => {
+      selectClick(e, "consts", () => {
+        if (Selection.constants.has(k.name)) Selection.constants.delete(k.name);
+        else Selection.constants.add(k.name);
+      }, Selection.constants.has(k.name));
+      refresh();
+    });
+    ul.appendChild(li);
+  }
+}
+
 // Build the Components list in the top-right catalogue. Each row
 // represents one component; a chevron marks which one is currently
 // "active" (state-machine view shows its body). Click semantics depend
@@ -5291,7 +5411,8 @@ function updateToolbar() {
                  Selection.functions.size ||
                  Selection.functionParameters.size ||
                  Selection.stateVariables.size ||
-                 Selection.localFunctions.size;
+                 Selection.localFunctions.size ||
+                 Selection.constants.size;
   const includesProtected = Selection.start ||
                  [...Selection.interfaces].some(isDefaultInterface) ||
                  [...Selection.messages].some(k => {
@@ -5307,6 +5428,7 @@ function updateToolbar() {
   document.getElementById("btn-add-state").disabled = inSystem;
   document.getElementById("btn-add-cp").disabled = inSystem;
   document.getElementById("btn-add-var").disabled = inSystem;
+  document.getElementById("btn-add-const").disabled = inSystem;
   document.getElementById("btn-add-lfn").disabled = inSystem;
   // Add interface: always — interfaces are system-wide vocabulary.
   document.getElementById("btn-add-iface").disabled = false;
@@ -5644,18 +5766,24 @@ function canEdit() {
   const fp = Selection.functionParameters.size;
   const sv = Selection.stateVariables.size;
   const lf = Selection.localFunctions.size;
+  const ks = Selection.constants.size;
   const otherTotal = s + c + i + m + (Selection.start?1:0);
   if (Selection.start) return false;
   // State variable: exactly one selected, nothing else. State variables
   // are per-component documentation and don't share a selection space
   // with anything else — plain case, no priority tangles.
-  if (sv === 1 && s === 0 && c === 0 && i === 0 && m === 0 && t === 0 && co === 0 && cn === 0 && h === 0 && hc === 0 && hca === 0 && f === 0 && fp === 0 && lf === 0) {
+  if (sv === 1 && s === 0 && c === 0 && i === 0 && m === 0 && t === 0 && co === 0 && cn === 0 && h === 0 && hc === 0 && hca === 0 && f === 0 && fp === 0 && lf === 0 && ks === 0) {
     return true;
   }
   // Local function: exactly one selected, nothing else. Parallel to
   // state variables — a documentation-only per-component entity with
   // no selection-priority tangles.
-  if (lf === 1 && s === 0 && c === 0 && i === 0 && m === 0 && t === 0 && co === 0 && cn === 0 && h === 0 && hc === 0 && hca === 0 && f === 0 && fp === 0 && sv === 0) {
+  if (lf === 1 && s === 0 && c === 0 && i === 0 && m === 0 && t === 0 && co === 0 && cn === 0 && h === 0 && hc === 0 && hca === 0 && f === 0 && fp === 0 && sv === 0 && ks === 0) {
+    return true;
+  }
+  // Constant: exactly one selected, nothing else. Same pattern as
+  // state variables and local functions.
+  if (ks === 1 && s === 0 && c === 0 && i === 0 && m === 0 && t === 0 && co === 0 && cn === 0 && h === 0 && hc === 0 && hca === 0 && f === 0 && fp === 0 && sv === 0 && lf === 0) {
     return true;
   }
   // Function parameter row: exactly one function-parameter selected.
@@ -5873,6 +6001,7 @@ function showManual() {
     {id: "states", title: "States"},
     {id: "choicepoints", title: "Choice-points"},
     {id: "statevars", title: "State variables"},
+    {id: "constants", title: "Constants"},
     {id: "localfns", title: "Local functions"},
     {id: "interfaces-msgs", title: "Interfaces & Messages"},
     {id: "transitions", title: "Transitions"},
@@ -5986,7 +6115,7 @@ function manualContent() {
       <h3>Components list</h3>
       <p>One row per component. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas. In component view, click a row to switch the canvas and lower panels to that component. In system view, click a row to toggle selection (same as clicking the component's box on the canvas); the floating <code>Component ▸</code> button at the top-right of the canvas then enters the selected component's state machine. To rename a component, select it and click <strong>Edit</strong>; to delete it, select it and click <strong>Delete</strong>. Component names must be unique. The minimum is one component — the last one cannot be deleted.</p>
       <h3>Component panel (bottom right)</h3>
-      <p>The rest of the right panel shows the active component's <em>States</em>, <em>Choice-points</em>, <em>State variables</em>, and <em>Local functions</em> lists (with the START / H / ∗ pseudo-states at the top of States), and below them the transitions table side-by-side with the Action panel. These panels are hidden in system view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. Each section is resizable via the thin bars between them — drag to adjust, double-click to reset. A separate vertical slider between the canvas and the right panel lets you shift the main left/right split, and a horizontal slider above the System Specification panel resizes that panel against the canvas.</p>
+      <p>The rest of the right panel shows the active component's <em>States</em>, <em>Choice-points</em>, <em>State variables</em> (with <em>Constants</em> beneath them in the same column), and <em>Local functions</em> lists (with the START / H / ∗ pseudo-states at the top of States), and below them the transitions table side-by-side with the Action panel. These panels are hidden in system view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. Each section is resizable via the thin bars between them — drag to adjust, double-click to reset. A separate vertical slider between the canvas and the right panel lets you shift the main left/right split, and a horizontal slider above the System Specification panel resizes that panel against the canvas.</p>
       <h3>Transition table</h3>
       <p>Lists every transition of the active component, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. A small dot in the first column marks rows that have an action description. A small amber <code>!</code> next to it marks rows whose interface isn't wired to the active component in the system diagram — see <a href="#m-system-diagram" data-target="m-system-diagram">System Diagram</a>.</p>
       <h3>Action panel</h3>
@@ -6032,7 +6161,7 @@ function manualContent() {
       <p>Above the state machines sits the <strong>system diagram</strong>: a single picture of your whole file showing components as boxes, handlers as 3D-brick boxes, and interfaces as lollipops, with lines marking who is wired to what. This is Stadiæ's view of the system's decomposition — the "one level up" from individual component behaviour.</p>
 
       <h3>Opening the system view</h3>
-      <p>A floating <code>◇ System</code> button at the top-left of the diagram canvas switches from a state-machine view to the system diagram; the button stays accent-coloured while the system view is active. The States, Choice-points, State variables, Local functions, Transitions, and Action panels hide in this view — they don't apply at the system level. The Components, Handlers, Functions, Interfaces, and Messages lists stay visible.</p>
+      <p>A floating <code>◇ System</code> button at the top-left of the diagram canvas switches from a state-machine view to the system diagram; the button stays accent-coloured while the system view is active. The States, Choice-points, State variables, Constants, Local functions, Transitions, and Action panels hide in this view — they don't apply at the system level. The Components, Handlers, Functions, Interfaces, and Messages lists stay visible.</p>
       <p>To return to a state-machine view from system view, select a component (click its row in the Components list or its box on the canvas) and click the floating <code>Component ▸</code> button at the top-right of the canvas. The button is the only way into a component &mdash; single-click selects, the button enters. In component view, clicking a component row still switches directly, since you're already in "navigate between components" mode.</p>
 
       <h3>The system box</h3>
@@ -6124,6 +6253,18 @@ function manualContent() {
         <li><em>Description</em> — free-text, optional, single line. A developer note explaining what the variable holds.</li>
       </ul>
       <p>The list renders each row as <em>name</em> &middot; <em>: type</em> &middot; <em>&mdash; description</em> (type and description only when set). The list scrolls horizontally when a long description outgrows the column. Select a row and click <strong>Edit</strong> to change any field, or <strong>Delete</strong> to remove. Variables are sorted alphabetically. The specification export includes a <em>State variables</em> section in each component's chapter, with a Name / Type / Description table.</p>
+    </section>
+
+    <section id="m-constants">
+      <h2>Constants</h2>
+      <p>A <strong>constant</strong> is a per-component named value referenced by name from action text — for example, <em>"Start the timer with the ADVERTISEMENT interval"</em>. Constants live in the same column as State variables (with State variables on top, Constants below); the divider between them is draggable, double-click to reset. Like state variables, constants are documentation-only and never reach the generated PlantUML.</p>
+      <p>Click <strong>Add Constant</strong> (the <code>+</code> button on the Constants list) and fill in:</p>
+      <ul>
+        <li><em>Name</em> — single-word identifier, unique within the component. This is the name you'll reference from action text.</li>
+        <li><em>Value</em> — free-text. Any notation that fits the domain — <code>30 seconds</code>, <code>0xFF</code>, <code>#FFAA00</code>, <code>42</code>, an enum literal — there's no type discipline. Optional but typically the whole point of having a constant.</li>
+        <li><em>Description</em> — free-text, optional, single line. A developer note explaining what the constant represents.</li>
+      </ul>
+      <p>The list renders each row as <em>name</em> &middot; <em>= value</em> &middot; <em>&mdash; description</em> (value and description only when set). Constants are sorted alphabetically. The specification export includes a <em>Constants</em> section in each component's chapter, placed before <em>State variables</em>, with a Name / Value / Description table.</p>
     </section>
 
     <section id="m-localfns">
@@ -6296,19 +6437,31 @@ function manualContent() {
       <p>Writes the clean PlantUML source of whatever is currently showing on the canvas (no selection highlighting) to a <code>.puml</code> file. In component view this is the active component's state machine; in system view it is the system diagram (the whole component + handler + interface topology, enclosed in the outer system box). To export every component, switch the active component (one click in the Components list) and export each one; to export the system diagram, switch to system view and export. Feed the files to any PlantUML tool, check them into source control, or paste them into an online PlantUML renderer.</p>
       <h3>Export as PNG</h3>
       <p>Downloads whatever is currently rendered on the canvas as a PNG image — the active component's state machine in component view, the system diagram in system view. Useful for embedding in reports and slides.</p>
-      <h3>Export Specification (.docx)</h3>
-      <p>Under <em>File → Export Specification…</em>, Stadiæ produces a Word document (<code>.docx</code>) describing the entire system — everything the file knows, presented as native Word headings, paragraphs, and tables with rendered diagram images. The file opens directly in Word, LibreOffice Writer, Google Docs, or any other .docx-compatible tool. No plugins, no toolchain.</p>
-      <p>The document opens with a fixed structure of chapters (heading 1) and sections (heading 2):</p>
+      <h3>Export Specification</h3>
+      <p>Under <em>File → Export Specification…</em>, Stadiæ opens a preview modal containing the system's specification rendered as a navigable HTML document. The modal has three buttons: <strong>Download HTML</strong>, <strong>Download .docx</strong>, and <strong>Close</strong>. The HTML version is the primary preview format — read it inside the modal, drill into sections through the sidebar, then download as either format depending on what you need. Esc closes the modal at any point.</p>
+      <p><strong>Sidebar navigation.</strong> The HTML preview has a sticky table-of-contents on the left listing every chapter and section: System overview, System specification, System diagram, then a Components group (each component lists its Context, Constants, State variables, States, Choice-points, State diagram, State transitions, Local functions), Handlers, and Interfaces. Click any entry to jump there with a smooth scroll. The active section highlights as you scroll, so you always know where you are in the document.</p>
+      <p><strong>Self-contained HTML.</strong> The downloaded HTML file embeds everything inline — CSS, sidebar interactivity, and rendered diagram PNGs as base64 data URLs — so it works offline, sits at a single URL, and can be opened from any browser without dependencies. Print the HTML directly from the browser to get a clean PDF (the sidebar is hidden in print, links de-styled).</p>
+      <p><strong>Cross-references in free text.</strong> Inside any free-text field — the System Specification textarea, transition Action text, local-function Steps, descriptions on components, handlers, interfaces, messages, parameters, states, choice-points, state variables, constants, and local functions — wrap a name in backticks (<code>\`Name\`</code>) to make it a live hyperlink in the rendered HTML. The reference resolver:</p>
       <ul>
-        <li><strong>Chapter "System specification"</strong> — Description section (the contents of the <em>System Specification</em> textarea, with its line breaks preserved as separate paragraphs) and System architecture section (the system diagram, followed by a component summary table and a handler summary table).</li>
-        <li><strong>Chapter "Interfaces"</strong> — a summary table of the system's public interfaces, then one section per interface listing its messages and parameters. Multi-parameter messages use true row-span cell merging (the Message and Description cells span across the parameter rows).</li>
-        <li><strong>Chapter per component</strong> — description, then sections for <em>Context</em> (the system diagram filtered to this component's immediate neighbourhood — interfaces it's wired to, handlers on those interfaces, and handlers it calls directly), <em>States</em>, <em>Choice-points</em> (as Question / Description — the internal name isn't shown), <em>State diagram</em>, and <em>State transition table</em> listing every transition with its action text.</li>
-        <li><strong>Chapter per handler</strong> — description, then a Functions section listing the handler's exposed API with its parameters.</li>
+        <li><strong>Bare names</strong> (no colon) are resolved in the surrounding context first. Inside a transition action of <code>OrderManager</code>, <code>\`Idle\`</code> resolves to that component's Idle state, <code>\`PAYMENT_TIMEOUT\`</code> to its constant, <code>\`recomputeTotal\`</code> to its local function. If the bare name isn't found in context, the resolver falls back to system-level entities (component / handler / interface names) and then alphabetical scans across other components.</li>
+        <li><strong>Qualified names</strong> use <code>:</code> as separator. Two-segment forms address members directly: <code>\`Component:State\`</code>, <code>\`Component:Variable\`</code>, <code>\`Component:Constant\`</code>, <code>\`Component:LocalFunction\`</code>, <code>\`Interface:Message\`</code>, <code>\`Handler:Function\`</code>. Three-segment forms address parameters: <code>\`Interface:Message:Parameter\`</code> and <code>\`Handler:Function:Parameter\`</code> link to the exact parameter row in the spec's Interfaces or Handlers chapter.</li>
+        <li><strong>Inside transition Action text</strong>, the interface qualifier on a message:parameter reference is implicit \u2014 the row's own message establishes it. Inside an Action whose row mentions <em>Connection / ConnectReq</em>, you can write <code>\`ConnectReq:serverId\`</code> to link to the <code>serverId</code> parameter without repeating the interface name. The full <code>\`Connection:ConnectReq:serverId\`</code> form works too and reads identically; the short form just spares the typing when the surrounding row already names the message.</li>
+        <li><strong>Function-call syntax</strong> is allowed and treated as decorative. <code>\`recomputeTotal()\`</code>, <code>\`Timer:getCurrentTime()\`</code>, and <code>\`recomputeTotal(amount)\`</code> all resolve to the function or local-function whose name is to the left of the parens. The parens stay in the rendered text \u2014 the link reads as you wrote it \u2014 but the resolver ignores them when looking up the target. Anything from the first <code>(</code> onward is stripped before resolution.</li>
+        <li><strong>Unresolved references</strong> render as muted monospace with a dotted underline in a warning colour. The reader sees that <em>this was meant to be a reference, but the target doesn't exist</em> — it's a useful soft validator for typos and renames.</li>
+        <li><strong>Literal backticks</strong> in prose can be written by preceding them with a backslash; the escape sequence renders as a single backtick in the output, not as a reference.</li>
       </ul>
-      <p>Diagrams are embedded as SVG (with a PNG fallback) — the same PlantUML server that feeds the canvas preview renders each diagram at export time. Word and recent LibreOffice versions render the crisp vector graphics natively; Google Docs falls back to the PNG on import. If a diagram fails to render (CORS issue, server unreachable), the document still generates with a short placeholder paragraph in that section's slot so the rest of the spec remains intact.</p>
-      <p>Empty sections get a one-line fallback (<em>This interface has no messages.</em>, <em>This handler exposes no functions.</em>, etc.) so the document structure is always visible. Empty descriptions get replaced by <em>No description provided.</em> — grep-friendly when auditing for gaps.</p>
-      <p>The default filename is <code>&lt;systemname&gt;-spec.docx</code>.</p>
-      <div class="tip">The first export of a session downloads the .docx library from <code>unpkg.com</code> (~600KB). Subsequent exports in the same session reuse the cached library. This means the first export needs network access to unpkg.com; if you're offline, wait until you're back on a network, then try again.</div>
+      <p><strong>Document structure.</strong> Both formats use the same chapter layout, with H1 per major section and H2 per subsection inside:</p>
+      <ul>
+        <li><strong>System overview</strong> — name, intro paragraph.</li>
+        <li><strong>System specification</strong> — the contents of the System Specification textarea (line breaks preserved as paragraphs).</li>
+        <li><strong>System diagram</strong> — the system-level diagram with components, handlers, interfaces, and connections.</li>
+        <li><strong>Component chapters</strong> — one per component. Description, then sections in order: Context (filtered diagram), Constants, State variables, States, Choice-points, State diagram, State transition table (with row-span cell merging for multi-message transitions), Local functions (Name / Description / Steps with line breaks preserved).</li>
+        <li><strong>Handlers</strong> — one section per handler with its functions and parameters.</li>
+        <li><strong>Interfaces</strong> — one section per interface with its messages and parameters.</li>
+      </ul>
+      <p><strong>Empty sections</strong> get a one-line fallback (<em>This component has no constants.</em>, <em>This interface has no messages.</em>, etc.) so the document structure is always visible. Empty descriptions get replaced by <em>No description provided.</em> — grep-friendly when auditing for gaps.</p>
+      <p>The default filename is <code>&lt;systemname&gt;-spec.html</code> or <code>&lt;systemname&gt;-spec.docx</code>.</p>
+      <div class="tip">The first .docx export of a session downloads the docx library from <code>unpkg.com</code> (~600KB). Subsequent exports in the same session reuse the cached library. This means the first .docx export needs network access to unpkg.com; if you're offline, wait until you're back on a network, then try again. The HTML export does not need any external library — it's all rendered inline.</div>
       <h3>Copy transitions as Markdown</h3>
       <p>Under <em>Component → Copy transitions as Markdown table…</em>, Stadiæ produces a markdown table of the <em>active</em> component's transitions, with columns <em>Source</em>, <em>Target</em>, <em>Interface</em>, <em>Message</em>, and <em>Action</em>. Source and target use their display names / questions, and newlines inside cells become <code>&lt;br&gt;</code> so the markdown stays well-formed. Click <em>Copy to clipboard</em> or just select-all in the textarea and paste elsewhere.</p>
       <div class="tip">Exports always use the unselected (clean) version of the diagram — the red highlighting you may have on screen is not baked into the output.</div>
@@ -6719,6 +6872,94 @@ function deleteSelectedLocalFunction() {
   const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
   Component.localFunctions = lfns.filter(lf => !Selection.localFunctions.has(lf.name));
   Selection.localFunctions.clear();
+  refresh();
+}
+
+// Constant CRUD. Per-component, documentation-only — named values
+// referenced by name in action text. Three free-text fields in the
+// dialog: Name (single-word identifier, unique within component),
+// Value (free-text — the user can put "30 seconds", "0xFF", a UUID,
+// whatever the domain calls for; no type discipline), and Description
+// (optional one-line summary). Same UX shape as state variables.
+function openConstantDialog(existing=null) {
+  const title = existing ? "Constant properties" : "Add constant";
+  modalContainer.innerHTML = `
+    <div class="title">${title}</div>
+    <div class="body">
+      <label>Name:</label>
+      <input type="text" id="const-name" value="${escapeHTML(existing?.name||'')}">
+      <label>Value:</label>
+      <input type="text" id="const-value" value="${escapeHTML(existing?.value||'')}">
+      <label>Description:</label>
+      <input type="text" id="const-desc" value="${escapeHTML(existing?.description||'')}">
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+  const nameI = document.getElementById("const-name");
+  const valueI = document.getElementById("const-value");
+  const descI = document.getElementById("const-desc");
+  const ok = document.getElementById("ok");
+  const update = () => { ok.disabled = !nameI.value.trim(); };
+  nameI.addEventListener("input", update);
+  update();
+  nameI.focus();
+  ok.onclick = () => {
+    const name = nameI.value.trim();
+    if (!isValidIdentifier(name)) {
+      showAlert("Error", "Constant name must be a single word (letters, digits, underscore)."); return;
+    }
+    if (!isUniqueConstantName(name, existing?.name)) {
+      showAlert("Error", "A constant with this name already exists in this component."); return;
+    }
+    pushHistory();
+    const value = valueI.value;
+    const desc = descI.value;
+    if (existing) {
+      const oldName = existing.name;
+      existing.name = name;
+      existing.value = value;
+      existing.description = desc;
+      // Re-key selection on rename. No other places hold constant
+      // references — they're not in transitions, PlantUML, or any
+      // selection key beyond Selection.constants — so this is the
+      // only fixup needed.
+      if (oldName !== name && Selection.constants.has(oldName)) {
+        Selection.constants.delete(oldName);
+        Selection.constants.add(name);
+      }
+    } else {
+      if (!Array.isArray(Component.constants)) Component.constants = [];
+      Component.constants.push({ name, value, description: desc });
+      Selection.constants.add(name);
+    }
+    hideModal();
+    refresh();
+  };
+  document.getElementById("cancel").onclick = hideModal;
+}
+
+function addConstant() {
+  openConstantDialog(null);
+}
+
+function editSelectedConstant() {
+  if (Selection.constants.size !== 1) return;
+  const name = [...Selection.constants][0];
+  const consts = Array.isArray(Component.constants) ? Component.constants : [];
+  const k = consts.find(x => x.name === name);
+  if (k) openConstantDialog(k);
+}
+
+function deleteSelectedConstant() {
+  if (Selection.constants.size === 0) return;
+  pushHistory();
+  const consts = Array.isArray(Component.constants) ? Component.constants : [];
+  Component.constants = consts.filter(k => !Selection.constants.has(k.name));
+  Selection.constants.clear();
   refresh();
 }
 
@@ -7626,6 +7867,11 @@ function actionDelete() {
     deleteSelectedLocalFunction();
     return;
   }
+  // Constant: same clean-independent routing.
+  if (Selection.constants.size > 0) {
+    deleteSelectedConstant();
+    return;
+  }
   // Function parameter: take priority. Single fn-param selection means
   // the user clicked Delete while in the fn-parameters panel; remove
   // just that parameter. The bound function and handler stay.
@@ -7831,6 +8077,11 @@ function actionEdit() {
   // the same reason.
   if (Selection.localFunctions.size === 1) {
     editSelectedLocalFunction();
+    return;
+  }
+  // Constant: same clean-independent pattern.
+  if (Selection.constants.size === 1) {
+    editSelectedConstant();
     return;
   }
   // Function-parameter takes priority when selected — the user's
@@ -8114,6 +8365,16 @@ function buildSerializedModel() {
           if (lf.description && lf.description.length > 0) lo.description = lf.description;
           if (lf.steps && lf.steps.length > 0) lo.steps = lf.steps;
           return lo;
+        });
+      }
+      // Constants: emit only when non-empty; per-record drop empty
+      // optional fields. Same byte-minimal pattern.
+      if (Array.isArray(c.constants) && c.constants.length > 0) {
+        out.constants = c.constants.map(k => {
+          const ko = { name: k.name };
+          if (k.value && k.value.length > 0) ko.value = k.value;
+          if (k.description && k.description.length > 0) ko.description = k.description;
+          return ko;
         });
       }
       return out;
@@ -8519,33 +8780,6 @@ function showExportProgress(initial) {
   };
 }
 
-// Top-level export entry point. Menu-bound.
-async function exportSpecification() {
-  // Ask for a filename first; if the user cancels, we don't want to
-  // have loaded the library or fetched anything.
-  const defaultBase = nameToFilename(Model.systemDisplayName || Model.systemName) || "system";
-  showPrompt("Export specification", "File name:", defaultBase + "-spec.docx", null, async (filename) => {
-    if (!filename.endsWith(".docx")) filename += ".docx";
-    const progress = showExportProgress("Loading document library…");
-    try {
-      const docx = await loadDocxLibrary();
-      progress.update("Rendering diagrams…");
-      const doc = await buildSpecificationDocx(docx, progress);
-      progress.update("Packaging document…");
-      const blob = await docx.Packer.toBlob(doc);
-      progress.dismiss();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch (err) {
-      progress.dismiss();
-      showAlert("Export failed", "Could not generate the specification document.\n\n" + err.message);
-    }
-  });
-}
-
 // Helpers to keep the docx tree-building less verbose. Each returns a
 // docx node or array of nodes. `d` is the loaded docx module.
 
@@ -8692,8 +8926,1190 @@ function mkTable(d, headers, bodyRows, columnWidths) {
   return new d.Table(tableOpts);
 }
 
-// The heart of the export. Walks the Model, fetches diagram images as
-// needed, assembles the document. Returns a docx.Document.
+// ============================================================
+// HTML specification generator
+// ============================================================
+// Produces a self-contained .html file (CSS inline, PNGs base64-
+// embedded, sidebar TOC + active-section highlighting in a small
+// inline script) describing the entire system. Same content as the
+// docx export — components, handlers, interfaces, transitions,
+// constants, state variables, local functions — but rendered as a
+// navigable web document with backtick-delimited cross-references.
+//
+// Reference syntax: `Token` inside any free-text field becomes a
+// hyperlink to the named entity. Bare tokens (no colon) resolve in
+// the current context (current component if we're in one, then
+// alphabetical fallback). Qualified tokens use ":" as separator —
+// `Component:State`, `Interface:Message`, `Handler:Function`. Tokens
+// that don't resolve render as <code> with a muted "unresolved"
+// style, so the reader can spot typos.
+//
+// The PlantUML diagrams are fetched once at modal-open time and
+// embedded as base64 PNGs. The user's PlantUML server choice is
+// honoured (online/local).
+
+// --- Anchor IDs ---
+// Slug rules: identifiers are already a-z A-Z 0-9 _ (validated by
+// isValidIdentifier on every Add dialog), so they're safe URL
+// fragments. We just prefix with the kind to avoid collisions.
+function anchorComp(name)               { return `comp-${name}`; }
+function anchorState(comp, name)        { return `comp-${comp}-state-${name}`; }
+function anchorCP(comp, name)           { return `comp-${comp}-cp-${name}`; }
+function anchorVar(comp, name)          { return `comp-${comp}-var-${name}`; }
+function anchorConst(comp, name)        { return `comp-${comp}-const-${name}`; }
+function anchorLfn(comp, name)          { return `comp-${comp}-lfn-${name}`; }
+function anchorIface(name)              { return `iface-${name}`; }
+function anchorMsg(iface, name)         { return `iface-${iface}-msg-${name}`; }
+// Per-parameter anchor inside a message's row — `Iface:Msg:Param`
+// references land on the exact parameter sub-row in the interfaces
+// table. Same convention for handler-function parameters below.
+function anchorMsgParam(iface, msg, param) { return `iface-${iface}-msg-${msg}-param-${param}`; }
+function anchorHandler(name)            { return `handler-${name}`; }
+function anchorFn(handler, name)        { return `handler-${handler}-fn-${name}`; }
+function anchorFnParam(handler, fn, param) { return `handler-${handler}-fn-${fn}-param-${param}`; }
+
+// Build an index of all named entities → anchor ID. Used for both
+// reference resolution and for emitting the anchor targets in the
+// rendered HTML. Built once at HTML-generation time so resolution
+// is O(1) and lookups don't re-scan the model.
+function buildSpecAnchorIndex() {
+  const idx = {
+    components: new Map(),       // name -> anchor
+    handlers: new Map(),         // name -> anchor
+    interfaces: new Map(),       // name -> anchor
+    perComponent: new Map(),     // compName -> { states, cps, vars, consts, lfns: Map(name -> anchor) }
+    perInterface: new Map(),     // ifaceName -> { messages: Map(name -> anchor) }
+    perHandler: new Map()        // handlerName -> { functions: Map(name -> anchor) }
+  };
+  for (const c of Model.components) {
+    idx.components.set(c.name, anchorComp(c.name));
+    const sub = {
+      states: new Map(),
+      cps: new Map(),
+      vars: new Map(),
+      consts: new Map(),
+      lfns: new Map()
+    };
+    for (const s of (c.states || []))         sub.states.set(s.name,  anchorState(c.name, s.name));
+    for (const cp of (c.choicePoints || []))  sub.cps.set(cp.name,    anchorCP(c.name, cp.name));
+    for (const v of (c.stateVariables || [])) sub.vars.set(v.name,    anchorVar(c.name, v.name));
+    for (const k of (c.constants || []))      sub.consts.set(k.name,  anchorConst(c.name, k.name));
+    for (const lf of (c.localFunctions || []))sub.lfns.set(lf.name,   anchorLfn(c.name, lf.name));
+    idx.perComponent.set(c.name, sub);
+  }
+  for (const h of Model.handlers) {
+    idx.handlers.set(h.name, anchorHandler(h.name));
+    const fns = new Map();
+    // Each function entry now carries both its own anchor and a map
+    // of its parameters → per-parameter anchor. Three-segment
+    // references like `Handler:Fn:Param` walk down this nesting.
+    // Two-segment `Handler:Fn` reads the .anchor field.
+    for (const f of (h.functions || [])) {
+      const params = new Map();
+      for (const p of (f.parameters || [])) {
+        params.set(p.name, anchorFnParam(h.name, f.name, p.name));
+      }
+      fns.set(f.name, { anchor: anchorFn(h.name, f.name), parameters: params });
+    }
+    idx.perHandler.set(h.name, { functions: fns });
+  }
+  for (const i of Model.interfaces) {
+    if (i.isDefault) continue;  // Timer/Logical aren't part of the spec
+    idx.interfaces.set(i.name, anchorIface(i.name));
+    const msgs = new Map();
+    // Messages live on the system-wide Model.messages array with an
+    // `interface` field — there's no nested `i.messages`. Filter by
+    // interface name and skip defaults the same way the docx export
+    // does. This makes backtick references like `Card:Charge` resolve
+    // correctly while leaving system-default messages out of the spec.
+    // Each message entry mirrors the handler-function shape: own
+    // anchor + parameters map.
+    for (const m of Model.messages) {
+      if (m.isDefault) continue;
+      if (m.interface !== i.name) continue;
+      const params = new Map();
+      for (const p of (m.parameters || [])) {
+        params.set(p.name, anchorMsgParam(i.name, m.name, p.name));
+      }
+      msgs.set(m.name, { anchor: anchorMsg(i.name, m.name), parameters: params });
+    }
+    idx.perInterface.set(i.name, { messages: msgs });
+  }
+  return idx;
+}
+
+// Resolve a backtick-delimited reference. Returns {anchor, label} or
+// null if the token doesn't resolve to anything.
+//
+// Forms recognised, by segment count (split on `:`):
+//
+// 1 segment — bare token "Foo":
+//   * Search component context (variable, constant, state, CP, local fn)
+//   * Then system-level entities (component / handler / interface name)
+//   * Then alphabetical scans across other scopes
+//
+// 2 segments "Owner:Member":
+//   * Component:State | CP | Variable | Constant | LocalFunction
+//   * Interface:Message
+//   * Handler:Function
+//   * Inside transition Action context only: Message:Parameter where
+//     the Message is the action's row message (no system-wide search,
+//     to avoid colliding with the existing Owner:Member kinds).
+//
+// 3 segments "Owner:Member:SubMember":
+//   * Interface:Message:Parameter
+//   * Handler:Function:Parameter
+//   * Anything else → unresolved.
+//
+// 4+ segments: unresolved.
+function resolveSpecReference(idx, token, context) {
+  const trimmed = token.trim();
+  if (!trimmed) return null;
+  // Strip a trailing parens suffix from each segment before lookup so
+  // call-syntax conventions in prose ("Call `doThis()`",
+  // "`Timer:getCurrentTime()` returns…") resolve as if the parens
+  // weren't there. The label keeps the original token, so the link
+  // reads as the user wrote it. Anything from the first `(` onward
+  // is treated as ornament — covers `doThis()`, `doThis(arg)`,
+  // `doThis( )` uniformly.
+  const stripParens = (s) => {
+    const i = s.indexOf("(");
+    return i >= 0 ? s.slice(0, i).trim() : s;
+  };
+  const segs = trimmed.split(":").map(s => stripParens(s.trim()));
+  if (segs.some(s => s.length === 0)) return null;  // empty segment = malformed
+
+  if (segs.length >= 4) return null;
+
+  if (segs.length === 3) {
+    const [owner, member, sub] = segs;
+    // Try Iface:Msg:Param
+    const iface = idx.perInterface.get(owner);
+    if (iface) {
+      const m = iface.messages.get(member);
+      if (m && m.parameters) {
+        const a = m.parameters.get(sub);
+        if (a) return { anchor: a, label: trimmed };
+      }
+    }
+    // Try Handler:Fn:Param
+    const handler = idx.perHandler.get(owner);
+    if (handler) {
+      const f = handler.functions.get(member);
+      if (f && f.parameters) {
+        const a = f.parameters.get(sub);
+        if (a) return { anchor: a, label: trimmed };
+      }
+    }
+    return null;
+  }
+
+  if (segs.length === 2) {
+    const [owner, member] = segs;
+    // Try Interface:Message — index entry now is an object {anchor, parameters}
+    const iface = idx.perInterface.get(owner);
+    if (iface) {
+      const m = iface.messages.get(member);
+      if (m) return { anchor: m.anchor, label: trimmed };
+    }
+    // Try Handler:Function
+    const handler = idx.perHandler.get(owner);
+    if (handler) {
+      const f = handler.functions.get(member);
+      if (f) return { anchor: f.anchor, label: trimmed };
+    }
+    // Try Component:Member
+    const comp = idx.perComponent.get(owner);
+    if (comp) {
+      const a = comp.vars.get(member)
+             || comp.consts.get(member)
+             || comp.states.get(member)
+             || comp.cps.get(member)
+             || comp.lfns.get(member);
+      if (a) return { anchor: a, label: trimmed };
+    }
+    // Action-context two-segment: Message:Parameter where the Message
+    // is established by the surrounding action row. The renderer
+    // passes context.rowMessage = {interface, name} when emitting an
+    // Action cell; that pair tells us which message's parameter list
+    // to search. No system-wide search — strictly action-local.
+    if (context && context.kind === "component" && context.rowMessage) {
+      if (owner === context.rowMessage.name) {
+        const ifaceSub = idx.perInterface.get(context.rowMessage.interface);
+        if (ifaceSub) {
+          const msgEntry = ifaceSub.messages.get(context.rowMessage.name);
+          if (msgEntry && msgEntry.parameters) {
+            const a = msgEntry.parameters.get(member);
+            if (a) return { anchor: a, label: trimmed };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  // segs.length === 1: bare token. Search context first, then system-
+  // level fallback. Lookup uses segs[0] (parens stripped); label
+  // keeps trimmed (the user's original token, parens intact, so prose
+  // like "Call `recomputeTotal()`" reads naturally in the link text).
+  const bareKey = segs[0];
+  if (context && context.kind === "component") {
+    const sub = idx.perComponent.get(context.componentName);
+    if (sub) {
+      const a = sub.vars.get(bareKey)
+             || sub.consts.get(bareKey)
+             || sub.states.get(bareKey)
+             || sub.cps.get(bareKey)
+             || sub.lfns.get(bareKey);
+      if (a) return { anchor: a, label: trimmed };
+    }
+  }
+  if (context && context.kind === "interface") {
+    const sub = idx.perInterface.get(context.interfaceName);
+    if (sub) {
+      const m = sub.messages.get(bareKey);
+      if (m) return { anchor: m.anchor, label: trimmed };
+    }
+  }
+  if (context && context.kind === "handler") {
+    const sub = idx.perHandler.get(context.handlerName);
+    if (sub) {
+      const f = sub.functions.get(bareKey);
+      if (f) return { anchor: f.anchor, label: trimmed };
+    }
+  }
+  // System-level fallback: top-level entities by name.
+  const sysAnchor = idx.components.get(bareKey)
+                 || idx.handlers.get(bareKey)
+                 || idx.interfaces.get(bareKey);
+  if (sysAnchor) return { anchor: sysAnchor, label: trimmed };
+  // Cross-component scan — alphabetical first hit.
+  const sortedComps = [...idx.perComponent.keys()].sort();
+  for (const cName of sortedComps) {
+    const sub = idx.perComponent.get(cName);
+    const a = sub.vars.get(bareKey)
+           || sub.consts.get(bareKey)
+           || sub.states.get(bareKey)
+           || sub.cps.get(bareKey)
+           || sub.lfns.get(bareKey);
+    if (a) return { anchor: a, label: trimmed };
+  }
+  // Cross-interface and cross-handler scans for member tokens too.
+  const sortedIfaces = [...idx.perInterface.keys()].sort();
+  for (const iName of sortedIfaces) {
+    const m = idx.perInterface.get(iName).messages.get(bareKey);
+    if (m) return { anchor: m.anchor, label: trimmed };
+  }
+  const sortedHandlers = [...idx.perHandler.keys()].sort();
+  for (const hName of sortedHandlers) {
+    const f = idx.perHandler.get(hName).functions.get(bareKey);
+    if (f) return { anchor: f.anchor, label: trimmed };
+  }
+  return null;
+}
+
+// Render a free-text string with backtick references resolved to
+// links. Backslash-escaped backticks (\`) are literal backticks; this
+// gives users an out for prose that legitimately contains backticks.
+// Empty backticks (``) render as literal `` since nothing's between
+// them.
+function renderProse(text, context, idx) {
+  const str = (text == null) ? "" : String(text);
+  if (str.length === 0) return "";
+  // Tokenise: literal segments + backtick segments. We walk char-by-
+  // char to handle backslash-escapes cleanly without regex gymnastics.
+  let out = "";
+  let i = 0;
+  while (i < str.length) {
+    const ch = str[i];
+    if (ch === "\\" && str[i+1] === "`") {
+      // Escaped backtick — emit literal `, skip both chars.
+      out += "`";
+      i += 2;
+      continue;
+    }
+    if (ch === "`") {
+      // Find the closing backtick. Search forward, respecting
+      // backslash-escape on the inside too.
+      let j = i + 1;
+      let inner = "";
+      while (j < str.length) {
+        if (str[j] === "\\" && str[j+1] === "`") { inner += "`"; j += 2; continue; }
+        if (str[j] === "`") break;
+        inner += str[j];
+        j++;
+      }
+      if (j >= str.length) {
+        // Unterminated — treat the opening backtick as literal.
+        out += escapeHTML(str.slice(i));
+        break;
+      }
+      // We have inner = the token between backticks. Resolve.
+      const resolved = resolveSpecReference(idx, inner, context);
+      if (resolved) {
+        out += `<a class="ref" href="#${escapeHTML(resolved.anchor)}">${escapeHTML(resolved.label)}</a>`;
+      } else {
+        // Unresolved — render styled but no link.
+        out += `<code class="ref-unresolved" title="Unresolved reference">${escapeHTML(inner)}</code>`;
+      }
+      i = j + 1;
+      continue;
+    }
+    // Literal character. Accumulate into a run, escape, emit.
+    let run = "";
+    while (i < str.length && str[i] !== "`" && !(str[i] === "\\" && str[i+1] === "`")) {
+      run += str[i];
+      i++;
+    }
+    out += escapeHTML(run);
+  }
+  return out;
+}
+
+// Render a multi-line string preserving line breaks. Each line goes
+// through renderProse, then we join with <br> — keeps the prose
+// rendering simple per-line (backticks don't span lines anyway).
+function renderProseMultiline(text, context, idx) {
+  const str = (text == null) ? "" : String(text);
+  if (str.length === 0) return "";
+  return str.split(/\r?\n/).map(line => renderProse(line, context, idx)).join("<br>");
+}
+
+// Helper: render a description string, falling back to italic
+// "No description provided." when empty. Used in table cells.
+function renderDesc(text, context, idx) {
+  const s = (text == null) ? "" : String(text);
+  if (s.length === 0) return `<em class="muted">No description provided.</em>`;
+  return renderProse(s, context, idx);
+}
+
+// Diagram fetcher — reuses the existing fetchDiagramImage which
+// returns ArrayBuffers. We convert the PNG buffer to a base64 data
+// URL for inline embedding. Returns { dataURL, width, height } or
+// null on fetch failure (so the HTML can substitute a placeholder).
+async function fetchDiagramAsBase64(plantUMLSource) {
+  try {
+    const img = await fetchDiagramImage(plantUMLSource);
+    // ArrayBuffer → base64. Use Uint8Array.reduce for compactness; the
+    // images are small enough (a few hundred KB) that this is fine.
+    const bytes = new Uint8Array(img.png);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    const b64 = btoa(bin);
+    return {
+      dataURL: `data:image/png;base64,${b64}`,
+      width: img.width,
+      height: img.height
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+// Build the sidebar TOC HTML. Tree structure: System → Interfaces →
+// Components (each expandable to its sections) → Handlers. Mirrors
+// the body order: interfaces before components because messages are
+// the vocabulary the components are described against. Active-section
+// highlighting is wired in the embedded script at the end.
+function buildSidebarTOC() {
+  let html = `<nav class="toc"><div class="toc-title">${escapeHTML(Model.systemDisplayName || Model.systemName || "System")}</div>`;
+  html += `<ul class="toc-root">`;
+  // System-level entries
+  html += `<li><a href="#system">System overview</a></li>`;
+  if ((Model.systemSpecification || "").length > 0) {
+    html += `<li><a href="#system-spec">System specification</a></li>`;
+  }
+  if (Model.components.length > 0) {
+    html += `<li><a href="#system-diagram">System architecture</a></li>`;
+  }
+  // Interfaces group — system-default interfaces (Timer, Logical) are
+  // not part of the spec, so they don't appear in the TOC either.
+  const userInterfaces = Model.interfaces.filter(i => !i.isDefault);
+  if (userInterfaces.length > 0) {
+    html += `<li class="toc-group"><span class="toc-group-label">Interfaces</span><ul>`;
+    for (const i of userInterfaces) {
+      html += `<li><a href="#${escapeHTML(anchorIface(i.name))}">${escapeHTML(i.name)}</a></li>`;
+    }
+    html += `</ul></li>`;
+  }
+  // Components group
+  if (Model.components.length > 0) {
+    html += `<li class="toc-group"><span class="toc-group-label">Components</span><ul>`;
+    for (const c of Model.components) {
+      html += `<li class="toc-comp"><a href="#${escapeHTML(anchorComp(c.name))}">${escapeHTML(componentDisplayLabel(c).replace(/\\n/g, " "))}</a>`;
+      html += `<ul class="toc-sub">`;
+      html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-context">Context</a></li>`;
+      html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-constants">Constants</a></li>`;
+      html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-statevars">State variables</a></li>`;
+      html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-states">States</a></li>`;
+      html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-cps">Choice-points</a></li>`;
+      html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-statediagram">State diagram</a></li>`;
+      html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-transitions">State transition table</a></li>`;
+      html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-localfns">Local functions</a></li>`;
+      html += `</ul></li>`;
+    }
+    html += `</ul></li>`;
+  }
+  // Handlers group
+  if (Model.handlers.length > 0) {
+    html += `<li class="toc-group"><span class="toc-group-label">Handlers</span><ul>`;
+    for (const h of Model.handlers) {
+      html += `<li><a href="#${escapeHTML(anchorHandler(h.name))}">${escapeHTML(handlerDisplayLabel(h).replace(/\\n/g, " "))}</a></li>`;
+    }
+    html += `</ul></li>`;
+  }
+  html += `</ul></nav>`;
+  return html;
+}
+
+// The CSS for the rendered HTML. Self-contained, embedded inline.
+// Modeled on the editor's design language but trimmed down for
+// reading rather than editing — wider line height, larger headings,
+// generous margins. Sidebar is sticky-positioned on the left, content
+// scrolls in the main area.
+function buildSpecCSS() {
+  return `
+:root {
+  --bg: #ffffff;
+  --surface: #fafbfc;
+  --surface-2: #f3f4f6;
+  --text: #1f2937;
+  --text-muted: #6b7280;
+  --text-faint: #9ca3af;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --accent: #2563eb;
+  --accent-soft: #dbeafe;
+  --code-bg: #f3f4f6;
+  --code-border: #e5e7eb;
+  --warn: #b45309;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  display: flex;
+  min-height: 100vh;
+}
+.toc {
+  flex: 0 0 260px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 18px;
+  height: 100vh;
+  overflow-y: auto;
+  position: sticky;
+  top: 0;
+  font-size: 13px;
+}
+.toc-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.toc ul { list-style: none; margin: 0; padding: 0; }
+.toc .toc-root > li { margin: 4px 0; }
+.toc .toc-group { margin-top: 14px; }
+.toc .toc-group-label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+.toc .toc-group > ul { padding-left: 4px; }
+.toc .toc-sub { padding-left: 14px; margin-top: 2px; }
+.toc .toc-sub li { margin: 2px 0; }
+.toc .toc-sub a { font-size: 12px; color: var(--text-muted); }
+.toc a {
+  text-decoration: none;
+  color: var(--text);
+  display: block;
+  padding: 3px 6px;
+  border-radius: 4px;
+  transition: background 0.1s, color 0.1s;
+}
+.toc a:hover { background: var(--accent-soft); color: var(--accent); }
+.toc a.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+main {
+  flex: 1;
+  padding: 32px 48px 80px;
+  max-width: 920px;
+  min-width: 0;
+}
+h1 { font-size: 28px; font-weight: 700; margin: 0 0 8px; color: var(--text); }
+h2 { font-size: 20px; font-weight: 600; margin: 36px 0 12px; padding-top: 8px; border-top: 1px solid var(--border); color: var(--text); }
+h3 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; color: var(--text); }
+p { margin: 8px 0 12px; }
+em.muted { color: var(--text-muted); }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 18px;
+  font-size: 13px;
+}
+table th, table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+}
+table th {
+  background: var(--surface-2);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+table td.cell-multiline { white-space: pre-wrap; }
+a.ref {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--accent);
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  background: transparent;
+  padding: 0 1px;
+}
+a.ref:hover { background: var(--accent-soft); border-radius: 2px; }
+code.ref-unresolved {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  color: var(--warn);
+  background: transparent;
+  border-bottom: 1px dotted var(--warn);
+  padding: 0 1px;
+}
+.diagram { margin: 16px 0; text-align: center; }
+.diagram img { max-width: 100%; border: 1px solid var(--border); border-radius: 4px; background: white; }
+.diagram-missing {
+  padding: 24px;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+}
+.entity-anchor { scroll-margin-top: 16px; }
+/* Subtle highlight when navigated to via a fragment link — only
+   visible when the user has actually clicked a reference, fades
+   automatically after a few seconds via the JS-driven .ref-target
+   class (see embedded script). */
+.ref-target { background: var(--accent-soft) !important; transition: background 1.5s ease-out; }
+.no-content { color: var(--text-muted); font-style: italic; }
+@media print {
+  .toc { display: none; }
+  main { max-width: 100%; padding: 12px; }
+  h1, h2 { page-break-after: avoid; }
+  h2 { page-break-before: auto; }
+  table { page-break-inside: avoid; }
+  a.ref { color: var(--text); border-bottom: none; }
+}
+`;
+}
+
+// Inline JS for the rendered HTML: TOC active-section highlighting.
+// Uses IntersectionObserver to mark the TOC entry corresponding to
+// the heading currently in view.
+function buildSpecScript() {
+  return `
+(function() {
+  // === TOC active-section highlighting ===
+  // IntersectionObserver tracks which heading is currently in the
+  // upper portion of the viewport; the matching TOC link gets the
+  // 'active' class. rootMargin is asymmetric so a heading is
+  // considered "in view" only once it's near the top of the visible
+  // area, not as soon as it peeks in at the bottom.
+  const headings = document.querySelectorAll('h1[id], h2[id]');
+  const tocLinks = new Map();
+  document.querySelectorAll('.toc a').forEach(a => {
+    const href = a.getAttribute('href');
+    if (href && href.startsWith('#')) tocLinks.set(href.slice(1), a);
+  });
+  const observer = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) {
+        const id = e.target.id;
+        const link = tocLinks.get(id);
+        if (link) {
+          document.querySelectorAll('.toc a.active').forEach(l => l.classList.remove('active'));
+          link.classList.add('active');
+        }
+      }
+    }
+  }, { rootMargin: '-10% 0px -75% 0px' });
+  headings.forEach(h => observer.observe(h));
+
+  // === Smooth scrolling for in-document anchor clicks ===
+  // Browsers default to instant jump; smooth-scroll is gentler when
+  // the spec is long. Falls through to the default for any link the
+  // browser can't find a target for.
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href^="#"]');
+    if (!a) return;
+    const id = a.getAttribute('href').slice(1);
+    if (!id) return;
+    const target = document.getElementById(id);
+    if (!target) return;
+    e.preventDefault();
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Subtle highlight on the landing element. The .ref-target class
+    // applies an accent-soft background; we add it then strip it
+    // after a beat, letting the CSS transition fade it out smoothly.
+    // Multiple rapid clicks reset the highlight each time.
+    document.querySelectorAll('.ref-target').forEach(el => el.classList.remove('ref-target'));
+    target.classList.add('ref-target');
+    setTimeout(() => target.classList.remove('ref-target'), 1600);
+    // Keep the URL clean — push the fragment so back/forward works
+    // and so the user can bookmark or copy the URL of a specific
+    // section. Skip if running inside an iframe with srcdoc (the
+    // base URL is "about:srcdoc" and history mutations trigger
+    // SecurityError in some browsers).
+    try { history.replaceState(null, '', '#' + id); } catch (e) {}
+  });
+
+  // === Esc key forwarding ===
+  // When the iframe has focus (after the user clicks anywhere inside),
+  // keydown events go to the iframe's document, not the parent. Esc
+  // would otherwise be invisible to the parent's modal-close handler.
+  // Forward the event up to the parent so the modal closes as expected.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (window.parent && window.parent !== window) {
+      // Parent listens for the synthetic event and triggers Close.
+      window.parent.postMessage({ type: 'spec-modal-escape' }, '*');
+    }
+  });
+})();
+`;
+}
+
+// Build the entire spec body (everything inside <main>). Walks the
+// model in spec order: system overview, system spec, system diagram,
+// per-component chapter, handlers chapter, interfaces chapter.
+async function buildSpecBody(idx, progress) {
+  const parts = [];
+  const sysName = Model.systemDisplayName || Model.systemName || "System";
+
+  // === System overview ===
+  parts.push(`<section id="system" class="entity-anchor">`);
+  parts.push(`<h1>${escapeHTML(sysName)}</h1>`);
+  parts.push(`<p>This document specifies the <strong>${escapeHTML(sysName)}</strong> system. It covers the system architecture, the components and their state machines, the interfaces between them, the handlers wrapping external resources, and the messages and functions used throughout. Cross-references are clickable; hover the underlined identifiers to navigate to their definitions.</p>`);
+  parts.push(`</section>`);
+
+  // === System specification ===
+  if ((Model.systemSpecification || "").length > 0) {
+    parts.push(`<section id="system-spec" class="entity-anchor">`);
+    parts.push(`<h2>System specification</h2>`);
+    parts.push(`<p>${renderProseMultiline(Model.systemSpecification, { kind: "system" }, idx)}</p>`);
+    parts.push(`</section>`);
+  }
+
+  // === System diagram ===
+  if (Model.components.length > 0) {
+    parts.push(`<section id="system-diagram" class="entity-anchor">`);
+    parts.push(`<h2>System architecture</h2>`);
+    if (progress) progress.update("Rendering system diagram…");
+    // The function name is misleadingly historical — it produces the
+    // SYSTEM-level architectural diagram (components + handlers +
+    // interfaces + connections), which is what we want here. The
+    // confusingly-named generatePlantUML produces the state machine
+    // of the currently-active component, which is wrong for this
+    // section.
+    const sysSrc = generateComponentDiagramPlantUML({ withSelection: false, includeSalt: false });
+    const img = await fetchDiagramAsBase64(sysSrc);
+    if (img) {
+      parts.push(`<div class="diagram"><img src="${img.dataURL}" alt="System diagram"></div>`);
+    } else {
+      parts.push(`<div class="diagram-missing">System diagram could not be rendered (PlantUML server unavailable).</div>`);
+    }
+
+    // Component summary table — same overview the docx produces. Two
+    // columns: display label (with `\n` flattened to a space, since
+    // the diagram-wrap marker doesn't belong in a prose table), and
+    // description with backtick references resolved. Each row carries
+    // an anchor target that matches `comp-{name}` so a backtick
+    // reference like `OrderManager` lands on the table row from
+    // anywhere in the spec. The detailed component chapter further
+    // down keeps its own anchor on the H1.
+    const sysCtx = { kind: "system" };
+    parts.push(`<p>The descriptions of the identified components are given in the table below.</p>`);
+    parts.push(`<table><thead><tr><th>Component</th><th>Description</th></tr></thead><tbody>`);
+    for (const c of Model.components) {
+      const label = componentDisplayLabel(c).replace(/\\n/g, " ");
+      // Display label in the cell, but wrapped in an anchor that
+      // jumps to the component's chapter further down the document.
+      // Mirrors the interfaces summary table's behaviour. The link
+      // target is the component's stable identifier; the reader sees
+      // the display label.
+      parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorComp(c.name))}">${escapeHTML(label)}</a></td><td>${renderDesc(c.description, sysCtx, idx)}</td></tr>`);
+    }
+    parts.push(`</tbody></table>`);
+
+    // Handler summary table — fallback to italic note when none.
+    if (Model.handlers.length === 0) {
+      parts.push(`<p class="no-content">No handlers are defined for this system.</p>`);
+    } else {
+      parts.push(`<p>The descriptions of the identified handlers are given in the table below.</p>`);
+      parts.push(`<table><thead><tr><th>Handler</th><th>Description</th></tr></thead><tbody>`);
+      for (const h of Model.handlers) {
+        const label = handlerDisplayLabel(h).replace(/\\n/g, " ");
+        parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorHandler(h.name))}">${escapeHTML(label)}</a></td><td>${renderDesc(h.description, sysCtx, idx)}</td></tr>`);
+      }
+      parts.push(`</tbody></table>`);
+    }
+
+    parts.push(`</section>`);
+  }
+
+  // === Interfaces ===
+  // Placed before the per-component chapters (matching the docx
+  // export order). System-default interfaces (Timer, Logical) are
+  // skipped — they're internal vocabulary not part of the spec.
+  // Messages live on the system-wide Model.messages array, not on the
+  // interface object itself; we filter by interface name.
+  const userInterfaces = Model.interfaces.filter(i => !i.isDefault);
+  if (userInterfaces.length > 0) {
+    parts.push(`<section><h1>Interfaces</h1>`);
+    parts.push(`<p>Interfaces define the message vocabulary that connects components and handlers.</p>`);
+    // Interface summary table — alphabetical order, two columns.
+    // Mirrors the overview the docx export emits before the per-
+    // interface message tables. Sorted by name; the per-interface
+    // sections below loop over Model.interfaces in declaration order
+    // (matching how the user authored them), so the summary table
+    // gives a quick reference index.
+    const sortedIfaces = [...userInterfaces].sort((a, b) => a.name.localeCompare(b.name));
+    const sysCtx = { kind: "system" };
+    parts.push(`<p>The following table lists the defined interfaces.</p>`);
+    parts.push(`<table><thead><tr><th>Name</th><th>Description</th></tr></thead><tbody>`);
+    for (const i of sortedIfaces) {
+      // Each row links to its detailed section via the same anchor
+      // the H2 chapter heading carries — a bare `Card` reference and
+      // a click on the summary-table row both land in the same place.
+      parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorIface(i.name))}">${escapeHTML(i.name)}</a></td><td>${renderDesc(i.description, sysCtx, idx)}</td></tr>`);
+    }
+    parts.push(`</tbody></table>`);
+    parts.push(`<p>The messages for the interfaces are specified in the following sections.</p>`);
+
+    for (const i of userInterfaces) {
+      const ifaceCtx = { kind: "interface", interfaceName: i.name };
+      parts.push(`<section id="${escapeHTML(anchorIface(i.name))}" class="entity-anchor">`);
+      parts.push(`<h2>${escapeHTML(i.name)}</h2>`);
+      if ((i.description || "").length > 0) {
+        parts.push(`<p>${renderProseMultiline(i.description, ifaceCtx, idx)}</p>`);
+      }
+      // Messages of this interface = system-wide messages whose
+      // `interface` field matches and which aren't system defaults.
+      // Sorted alphabetically — same as the docx export.
+      const msgs = Model.messages
+        .filter(m => !m.isDefault && m.interface === i.name)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      if (msgs.length === 0) {
+        parts.push(`<p class="no-content">This interface has no messages.</p>`);
+      } else {
+        parts.push(`<table><thead><tr><th>Message</th><th>Message description</th><th>Parameter</th><th>Type</th><th>Parameter description</th></tr></thead><tbody>`);
+        for (const m of msgs) {
+          const msgId = anchorMsg(i.name, m.name);
+          const params = Array.isArray(m.parameters) ? [...m.parameters].sort((a,b)=>a.name.localeCompare(b.name)) : [];
+          if (params.length === 0) {
+            parts.push(`<tr id="${escapeHTML(msgId)}" class="entity-anchor"><td>${escapeHTML(m.name)}</td><td>${renderDesc(m.description, ifaceCtx, idx)}</td><td>—</td><td>—</td><td>—</td></tr>`);
+          } else {
+            for (let k = 0; k < params.length; k++) {
+              const p = params[k];
+              const paramId = anchorMsgParam(i.name, m.name, p.name);
+              // Per-parameter anchor lives on the parameter-name <td>
+              // so the row's <tr> id can remain the message anchor.
+              // Both id targets resolve via scrollIntoView; the
+              // per-parameter cell highlights subtly via :target CSS
+              // when navigated to directly.
+              if (k === 0) {
+                parts.push(`<tr id="${escapeHTML(msgId)}" class="entity-anchor"><td rowspan="${params.length}">${escapeHTML(m.name)}</td><td rowspan="${params.length}">${renderDesc(m.description, ifaceCtx, idx)}</td><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${escapeHTML(p.type || "—")}</td><td>${renderDesc(p.description, ifaceCtx, idx)}</td></tr>`);
+              } else {
+                parts.push(`<tr><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${escapeHTML(p.type || "—")}</td><td>${renderDesc(p.description, ifaceCtx, idx)}</td></tr>`);
+              }
+            }
+          }
+        }
+        parts.push(`</tbody></table>`);
+      }
+      parts.push(`</section>`);
+    }
+    parts.push(`</section>`);
+  }
+
+  // === Per-component chapters ===
+  for (let ci = 0; ci < Model.components.length; ci++) {
+    const c = Model.components[ci];
+    const compLabel = componentDisplayLabel(c).replace(/\\n/g, " ");
+    const compCtx = { kind: "component", componentName: c.name };
+    parts.push(`<section id="${escapeHTML(anchorComp(c.name))}" class="entity-anchor">`);
+    parts.push(`<h1>${escapeHTML(compLabel)}</h1>`);
+    if ((c.description || "").length > 0) {
+      parts.push(`<p>${renderProseMultiline(c.description, compCtx, idx)}</p>`);
+    }
+
+    // Context diagram — the system architectural diagram filtered to
+    // this component's neighbourhood (interfaces it speaks, handlers
+    // on those interfaces, handlers it calls directly). Uses the same
+    // generateComponentDiagramPlantUML + buildFocusFilter pair that
+    // the docx export uses so both formats produce the identical
+    // contextual subset.
+    parts.push(`<section id="${escapeHTML(anchorComp(c.name))}-context" class="entity-anchor">`);
+    parts.push(`<h2>Context</h2>`);
+    if (progress) progress.update(`Rendering ${compLabel} context…`);
+    const ctxSrc = generateComponentDiagramPlantUML({
+      withSelection: false, includeSalt: false,
+      focus: buildFocusFilter(c.name)
+    });
+    const ctxImg = await fetchDiagramAsBase64(ctxSrc);
+    if (ctxImg) {
+      parts.push(`<div class="diagram"><img src="${ctxImg.dataURL}" alt="Context diagram"></div>`);
+    } else {
+      parts.push(`<div class="diagram-missing">Context diagram could not be rendered.</div>`);
+    }
+    parts.push(`</section>`);
+
+    // Constants (before State variables, matching docx export order)
+    parts.push(`<section id="${escapeHTML(anchorComp(c.name))}-constants" class="entity-anchor">`);
+    parts.push(`<h2>Constants</h2>`);
+    const consts = Array.isArray(c.constants) ? [...c.constants].sort((a,b)=>a.name.localeCompare(b.name)) : [];
+    if (consts.length === 0) {
+      parts.push(`<p class="no-content">This component has no constants.</p>`);
+    } else {
+      parts.push(`<table><thead><tr><th>Name</th><th>Value</th><th>Description</th></tr></thead><tbody>`);
+      for (const k of consts) {
+        const id = anchorConst(c.name, k.name);
+        parts.push(`<tr id="${escapeHTML(id)}" class="entity-anchor"><td>${escapeHTML(k.name)}</td><td>${escapeHTML(k.value || "—")}</td><td>${renderDesc(k.description, compCtx, idx)}</td></tr>`);
+      }
+      parts.push(`</tbody></table>`);
+    }
+    parts.push(`</section>`);
+
+    // State variables
+    parts.push(`<section id="${escapeHTML(anchorComp(c.name))}-statevars" class="entity-anchor">`);
+    parts.push(`<h2>State variables</h2>`);
+    const vars = Array.isArray(c.stateVariables) ? [...c.stateVariables].sort((a,b)=>a.name.localeCompare(b.name)) : [];
+    if (vars.length === 0) {
+      parts.push(`<p class="no-content">This component has no state variables.</p>`);
+    } else {
+      parts.push(`<table><thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead><tbody>`);
+      for (const v of vars) {
+        const id = anchorVar(c.name, v.name);
+        parts.push(`<tr id="${escapeHTML(id)}" class="entity-anchor"><td>${escapeHTML(v.name)}</td><td>${escapeHTML(v.type || "—")}</td><td>${renderDesc(v.description, compCtx, idx)}</td></tr>`);
+      }
+      parts.push(`</tbody></table>`);
+    }
+    parts.push(`</section>`);
+
+    // States
+    parts.push(`<section id="${escapeHTML(anchorComp(c.name))}-states" class="entity-anchor">`);
+    parts.push(`<h2>States</h2>`);
+    const states = Array.isArray(c.states) ? [...c.states].sort((a,b)=>a.name.localeCompare(b.name)) : [];
+    if (states.length === 0) {
+      parts.push(`<p class="no-content">This component has no states.</p>`);
+    } else {
+      parts.push(`<table><thead><tr><th>State</th><th>Description</th></tr></thead><tbody>`);
+      for (const s of states) {
+        const id = anchorState(c.name, s.name);
+        const label = (s.displayName || s.name).replace(/\\n/g, " ");
+        parts.push(`<tr id="${escapeHTML(id)}" class="entity-anchor"><td>${escapeHTML(label)}</td><td>${renderDesc(s.description, compCtx, idx)}</td></tr>`);
+      }
+      parts.push(`</tbody></table>`);
+    }
+    parts.push(`</section>`);
+
+    // Choice-points
+    parts.push(`<section id="${escapeHTML(anchorComp(c.name))}-cps" class="entity-anchor">`);
+    parts.push(`<h2>Choice-points</h2>`);
+    const cps = Array.isArray(c.choicePoints) ? [...c.choicePoints].sort((a,b)=>a.name.localeCompare(b.name)) : [];
+    if (cps.length === 0) {
+      parts.push(`<p class="no-content">This component has no choice-points.</p>`);
+    } else {
+      parts.push(`<table><thead><tr><th>Question</th><th>Description</th></tr></thead><tbody>`);
+      for (const cp of cps) {
+        const id = anchorCP(c.name, cp.name);
+        const q = (cp.question || cp.name).replace(/\\n/g, " ");
+        parts.push(`<tr id="${escapeHTML(id)}" class="entity-anchor"><td>${escapeHTML(q)}</td><td>${renderDesc(cp.description, compCtx, idx)}</td></tr>`);
+      }
+      parts.push(`</tbody></table>`);
+    }
+    parts.push(`</section>`);
+
+    // State diagram — the state machine of THIS component. Uses
+    // generatePlantUML which reads from Model.activeComponentIndex,
+    // so we swap it temporarily and restore in a finally block (same
+    // pattern the docx export uses). The `focusComponent` option
+    // doesn't exist on generatePlantUML — that was a stale mistake.
+    parts.push(`<section id="${escapeHTML(anchorComp(c.name))}-statediagram" class="entity-anchor">`);
+    parts.push(`<h2>State diagram</h2>`);
+    if (progress) progress.update(`Rendering ${compLabel} state diagram…`);
+    const savedActive = Model.activeComponentIndex;
+    let sdSrc;
+    try {
+      Model.activeComponentIndex = ci;
+      sdSrc = generatePlantUML({ withSelection: false, includeSalt: false });
+    } finally {
+      Model.activeComponentIndex = savedActive;
+    }
+    const sdImg = await fetchDiagramAsBase64(sdSrc);
+    if (sdImg) {
+      parts.push(`<div class="diagram"><img src="${sdImg.dataURL}" alt="State diagram"></div>`);
+    } else {
+      parts.push(`<div class="diagram-missing">State diagram could not be rendered.</div>`);
+    }
+    parts.push(`</section>`);
+
+    // State transition table
+    parts.push(`<section id="${escapeHTML(anchorComp(c.name))}-transitions" class="entity-anchor">`);
+    parts.push(`<h2>State transition table</h2>`);
+    const transitions = Array.isArray(c.transitions) ? c.transitions : [];
+    if (transitions.length === 0) {
+      parts.push(`<p class="no-content">This component has no transitions.</p>`);
+    } else {
+      // Same sort as docx: each transition's messages by (iface, name);
+      // transitions by (source label, first iface, first msg).
+      const prepared = transitions.map(t => {
+        const src = nodeLabelInComponent(c, t.source).replace(/\\n/g, " ");
+        const tgt = nodeLabelInComponent(c, t.target).replace(/\\n/g, " ");
+        const rawMsgs = Array.isArray(t.messages) ? [...t.messages] : [];
+        rawMsgs.sort((a,b) => {
+          if (a.interface !== b.interface) return a.interface.localeCompare(b.interface);
+          return a.name.localeCompare(b.name);
+        });
+        return {
+          src, tgt, msgs: rawMsgs,
+          firstIface: rawMsgs.length > 0 ? rawMsgs[0].interface : "",
+          firstMsg:   rawMsgs.length > 0 ? rawMsgs[0].name : ""
+        };
+      });
+      prepared.sort((a,b) => {
+        if (a.src !== b.src) return a.src.localeCompare(b.src);
+        if (a.firstIface !== b.firstIface) return a.firstIface.localeCompare(b.firstIface);
+        return a.firstMsg.localeCompare(b.firstMsg);
+      });
+      parts.push(`<table><thead><tr><th>Source</th><th>Target</th><th>Interface</th><th>Message</th><th>Action</th></tr></thead><tbody>`);
+      for (const p of prepared) {
+        if (p.msgs.length === 0) {
+          parts.push(`<tr><td>${escapeHTML(p.src)}</td><td>${escapeHTML(p.tgt)}</td><td>—</td><td>—</td><td>—</td></tr>`);
+        } else {
+          for (let k = 0; k < p.msgs.length; k++) {
+            const mm = p.msgs[k];
+            // Per-row context: extends compCtx with rowMessage, so
+            // a backtick reference like `Connection:ConnectReq:serverId`
+            // can drop the interface qualifier inside this row's
+            // action and just write `ConnectReq:serverId` — the
+            // resolver checks rowMessage to find the implicit
+            // interface for two-segment Message:Parameter references.
+            const rowCtx = { kind: "component", componentName: c.name, rowMessage: { interface: mm.interface, name: mm.name } };
+            const action = (mm.action && mm.action.length > 0)
+              ? renderProseMultiline(mm.action, rowCtx, idx)
+              : `<em class="muted">—</em>`;
+            if (k === 0) {
+              parts.push(`<tr><td rowspan="${p.msgs.length}">${escapeHTML(p.src)}</td><td rowspan="${p.msgs.length}">${escapeHTML(p.tgt)}</td><td>${escapeHTML(mm.interface)}</td><td>${escapeHTML(mm.name)}</td><td class="cell-multiline">${action}</td></tr>`);
+            } else {
+              parts.push(`<tr><td>${escapeHTML(mm.interface)}</td><td>${escapeHTML(mm.name)}</td><td class="cell-multiline">${action}</td></tr>`);
+            }
+          }
+        }
+      }
+      parts.push(`</tbody></table>`);
+    }
+    parts.push(`</section>`);
+
+    // Local functions
+    parts.push(`<section id="${escapeHTML(anchorComp(c.name))}-localfns" class="entity-anchor">`);
+    parts.push(`<h2>Local functions</h2>`);
+    const lfns = Array.isArray(c.localFunctions) ? [...c.localFunctions].sort((a,b)=>a.name.localeCompare(b.name)) : [];
+    if (lfns.length === 0) {
+      parts.push(`<p class="no-content">This component has no local functions.</p>`);
+    } else {
+      parts.push(`<table><thead><tr><th>Name</th><th>Description</th><th>Steps</th></tr></thead><tbody>`);
+      for (const lf of lfns) {
+        const id = anchorLfn(c.name, lf.name);
+        parts.push(`<tr id="${escapeHTML(id)}" class="entity-anchor"><td>${escapeHTML(lf.name)}</td><td>${renderDesc(lf.description, compCtx, idx)}</td><td class="cell-multiline">${(lf.steps && lf.steps.length>0) ? renderProseMultiline(lf.steps, compCtx, idx) : `<em class="muted">—</em>`}</td></tr>`);
+      }
+      parts.push(`</tbody></table>`);
+    }
+    parts.push(`</section>`);
+
+    parts.push(`</section>`); // close component
+  }
+
+  // === Handlers ===
+  if (Model.handlers.length > 0) {
+    parts.push(`<section><h1>Handlers</h1>`);
+    parts.push(`<p>Handlers wrap external resources (timers, network endpoints, hardware peripherals) so the components can interact with them through interfaces and function calls.</p>`);
+    for (const h of Model.handlers) {
+      const handlerLabel = handlerDisplayLabel(h).replace(/\\n/g, " ");
+      const handlerCtx = { kind: "handler", handlerName: h.name };
+      parts.push(`<section id="${escapeHTML(anchorHandler(h.name))}" class="entity-anchor">`);
+      parts.push(`<h2>${escapeHTML(handlerLabel)}</h2>`);
+      if ((h.description || "").length > 0) {
+        parts.push(`<p>${renderProseMultiline(h.description, handlerCtx, idx)}</p>`);
+      }
+      const fns = Array.isArray(h.functions) ? [...h.functions].sort((a,b)=>a.name.localeCompare(b.name)) : [];
+      if (fns.length === 0) {
+        parts.push(`<p class="no-content">This handler has no functions.</p>`);
+      } else {
+        parts.push(`<table><thead><tr><th>Function</th><th>Function description</th><th>Parameter</th><th>Type</th><th>Parameter description</th></tr></thead><tbody>`);
+        for (const f of fns) {
+          const fnId = anchorFn(h.name, f.name);
+          const params = Array.isArray(f.parameters) ? [...f.parameters].sort((a,b)=>a.name.localeCompare(b.name)) : [];
+          if (params.length === 0) {
+            parts.push(`<tr id="${escapeHTML(fnId)}" class="entity-anchor"><td>${escapeHTML(f.name)}</td><td>${renderDesc(f.description, handlerCtx, idx)}</td><td>—</td><td>—</td><td>—</td></tr>`);
+          } else {
+            for (let k = 0; k < params.length; k++) {
+              const p = params[k];
+              const paramId = anchorFnParam(h.name, f.name, p.name);
+              if (k === 0) {
+                parts.push(`<tr id="${escapeHTML(fnId)}" class="entity-anchor"><td rowspan="${params.length}">${escapeHTML(f.name)}</td><td rowspan="${params.length}">${renderDesc(f.description, handlerCtx, idx)}</td><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${escapeHTML(p.type || "—")}</td><td>${renderDesc(p.description, handlerCtx, idx)}</td></tr>`);
+              } else {
+                parts.push(`<tr><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${escapeHTML(p.type || "—")}</td><td>${renderDesc(p.description, handlerCtx, idx)}</td></tr>`);
+              }
+            }
+          }
+        }
+        parts.push(`</tbody></table>`);
+      }
+      parts.push(`</section>`);
+    }
+    parts.push(`</section>`);
+  }
+
+  return parts.join("\n");
+}
+
+// Build the full self-contained HTML document. Returns a string.
+async function buildSpecificationHTML(progress) {
+  const idx = buildSpecAnchorIndex();
+  const sysName = Model.systemDisplayName || Model.systemName || "System";
+  const body = await buildSpecBody(idx, progress);
+  const sidebar = buildSidebarTOC();
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${escapeHTML(sysName)} — Specification</title>
+<base target="_self">
+<style>${buildSpecCSS()}</style>
+</head>
+<body>
+${sidebar}
+<main>${body}</main>
+<script>${buildSpecScript()}<\/script>
+</body>
+</html>`;
+}
+
+// Replace the existing exportSpecification flow. Builds the HTML
+// once, opens a modal with an iframe preview, and offers Download
+// HTML / Download docx / Close buttons.
+async function openSpecificationModal() {
+  const progress = showExportProgress("Building specification…");
+  let html;
+  try {
+    html = await buildSpecificationHTML(progress);
+  } catch (err) {
+    progress.dismiss();
+    showAlert("Specification failed", "Could not generate the specification.\n\n" + err.message);
+    return;
+  }
+  progress.dismiss();
+
+  // Build the modal. We use a custom .modal-spec class because the
+  // viewer needs to be much bigger than the typical Stadiæ dialog
+  // (~80% of viewport, with the iframe taking most of the space).
+  modalContainer.innerHTML = `
+    <div class="title">Specification preview</div>
+    <div class="body spec-modal-body">
+      <iframe id="spec-iframe" class="spec-iframe" title="Specification preview"></iframe>
+    </div>
+    <div class="actions">
+      <button id="spec-dl-html">Download HTML</button>
+      <button id="spec-dl-docx">Download .docx</button>
+      <button id="spec-close" class="cancel">Close</button>
+    </div>`;
+  modalContainer.className = "modal modal-spec";
+  modalOverlay.classList.add("show");
+
+  const iframe = document.getElementById("spec-iframe");
+  // Use srcdoc so the iframe contents are governed entirely by the
+  // string we pass — no fetch, no caching, no path resolution.
+  iframe.srcdoc = html;
+
+  const defaultBase = nameToFilename(Model.systemDisplayName || Model.systemName) || "system";
+
+  document.getElementById("spec-dl-html").onclick = () => {
+    showPrompt("Download HTML", "File name:", defaultBase + "-spec.html", null, (filename) => {
+      if (!filename.endsWith(".html") && !filename.endsWith(".htm")) filename += ".html";
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  };
+
+  document.getElementById("spec-dl-docx").onclick = () => {
+    showPrompt("Download .docx", "File name:", defaultBase + "-spec.docx", null, async (filename) => {
+      if (!filename.endsWith(".docx")) filename += ".docx";
+      const dprog = showExportProgress("Loading document library…");
+      try {
+        const docx = await loadDocxLibrary();
+        dprog.update("Rendering diagrams…");
+        const doc = await buildSpecificationDocx(docx, dprog);
+        dprog.update("Packaging document…");
+        const blob = await docx.Packer.toBlob(doc);
+        dprog.dismiss();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        // Re-show the spec modal — the docx export reused the same
+        // modal container for its progress overlay, so we need to
+        // restore the spec viewer afterwards.
+        openSpecificationModal();
+      } catch (err) {
+        dprog.dismiss();
+        showAlert("Export failed", "Could not generate the .docx.\n\n" + err.message);
+      }
+    });
+  };
+
+  document.getElementById("spec-close").onclick = hideModal;
+
+  // Esc-from-iframe bridge. The iframe forwards Escape via
+  // postMessage; we listen here and click Close. Listener is
+  // registered fresh each time the modal opens — older listeners
+  // are still bound to closed modals but harmlessly find no Close
+  // button to click on a stale iframe DOM.
+  const escListener = (event) => {
+    if (event.data && event.data.type === "spec-modal-escape") {
+      const closeBtn = document.getElementById("spec-close");
+      if (closeBtn) closeBtn.click();
+      window.removeEventListener("message", escListener);
+    }
+  };
+  window.addEventListener("message", escListener);
+}
+
+// The heart of the docx export. Walks the Model, fetches diagram
+// images as needed, assembles the document. Returns a docx.Document.
 async function buildSpecificationDocx(d, progress) {
   const children = [];
   const ND = "No description provided.";
@@ -8889,6 +10305,31 @@ async function buildSpecificationDocx(d, progress) {
       children.push(mkDiagramParagraph(d, img));
     } catch (err) {
       children.push(mkItalicPara(d, "Could not render context diagram: " + err.message));
+    }
+
+    // Constants. Per-component documentation-only — named values
+    // referenced by name in action text. Three columns (Name | Value |
+    // Description), reusing the COL_3 width profile from State
+    // variables since the visual weight is the same: short name,
+    // short value, longer description. Placed before State variables
+    // so the reader sees the static reference values before the
+    // mutable per-instance fields.
+    children.push(mkHeading(d, "Constants", 2));
+    const consts = Array.isArray(c.constants) ? c.constants : [];
+    if (consts.length === 0) {
+      children.push(mkPara(d, "This component has no constants."));
+    } else {
+      children.push(mkPara(d, `The constants of the ${label} are given in the table below.`));
+      const sortedConsts = [...consts].sort((a, b) => a.name.localeCompare(b.name));
+      children.push(mkTable(d,
+        [ "Name", "Value", "Description" ],
+        sortedConsts.map(k => new d.TableRow({ children: [
+          mkCell(d, k.name,              { width: COL_3[0] }),
+          mkCell(d, k.value || "-",      { width: COL_3[1] }),
+          mkCell(d, desc(k.description), { width: COL_3[2] })
+        ]})),
+        COL_3
+      ));
     }
 
     // State variables. Per-component documentation-only field. Three
@@ -9451,6 +10892,15 @@ function loadModel(data) {
           description: (typeof lf.description === "string") ? lf.description : "",
           steps: (typeof lf.steps === "string") ? lf.steps : ""
         })),
+        // Constants: post-initial-v3 addition. Absent field loads as
+        // an empty array, records normalized to carry both optional
+        // fields even when the on-disk representation dropped empty
+        // values.
+        constants: (c.constants || []).map(k => ({
+          name: k.name,
+          value: (typeof k.value === "string") ? k.value : "",
+          description: (typeof k.description === "string") ? k.description : ""
+        })),
         transitions: c.transitions || []
       };
     });
@@ -9645,7 +11095,7 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
       case "saveas": saveAs(); break;
       case "export-puml": exportPUML(); break;
       case "export-png": exportPNG(); break;
-      case "export-spec": exportSpecification(); break;
+      case "export-spec": openSpecificationModal(); break;
       case "plantuml-server": showPlantUMLServerDialog(); break;
       case "exit": showAlert("Exit", "In a desktop app this would close the application. Close the browser tab to exit."); break;
       case "change-name":
@@ -9699,6 +11149,7 @@ document.getElementById("btn-paste").onclick = actionPaste;
 document.getElementById("btn-add-state").onclick = actionAddState;
 document.getElementById("btn-add-cp").onclick = actionAddCP;
 document.getElementById("btn-add-var").onclick = addStateVariable;
+document.getElementById("btn-add-const").onclick = addConstant;
 document.getElementById("btn-add-lfn").onclick = addLocalFunction;
 document.getElementById("btn-add-trans").onclick = actionAddTransition;
 document.getElementById("btn-redirect").onclick = actionRedirectTransitions;
@@ -9991,6 +11442,104 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
     document.body.classList.remove("resizing-v");
   });
   handle.addEventListener("dblclick", () => { panel.style.height = "90px"; });
+})();
+
+// Vertical resize handle inside the Local functions column, between
+// the Local functions list (top) and the Steps panel (bottom). Same
+// math as the params handlers — drag mutates the Steps panel's
+// pixel height; the list-box above absorbs the remaining space via
+// its own flex: 1 1 auto. Double-click resets to the panel's CSS
+// default of 140px.
+(function() {
+  const handle = document.getElementById("resize-handle-steps");
+  if (!handle) return;
+  const panel = document.getElementById("steps-panel");
+  let dragging = false;
+  let startY = 0, startH = 0;
+
+  handle.addEventListener("mousedown", e => {
+    dragging = true;
+    startY = e.clientY;
+    startH = panel.getBoundingClientRect().height;
+    handle.classList.add("dragging");
+    document.body.classList.add("resizing-v");
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    // The panel's parent is .lfns-column, sized by the lists-grid
+    // row. Leave ~80px for the Local functions list above so the
+    // user can still see what they have selected while resizing.
+    const column = panel.parentElement;
+    const available = column.getBoundingClientRect().height;
+    const min = 60;
+    const max = Math.max(min, available - 80);
+    let h = startH - (e.clientY - startY);
+    h = Math.max(min, Math.min(max, h));
+    // The panel uses `flex: 0 0 140px` in CSS, so flex-basis is the
+    // main-axis size in this flex column — setting `style.height`
+    // alone has no effect because flex-basis takes precedence. Set
+    // the full `flex` shorthand to override it inline.
+    panel.style.flex = "0 0 " + h + "px";
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("dragging");
+    document.body.classList.remove("resizing-v");
+  });
+  // Double-click: clear the inline override → fall back to the CSS
+  // default of `flex: 0 0 140px`.
+  handle.addEventListener("dblclick", () => { panel.style.flex = ""; });
+})();
+
+// Vertical resize handle inside the State variables / Constants
+// column. Default split is 60/40 by flex-basis (`flex: 3` / `flex: 2`);
+// dragging pins the State variables list-box to a pixel height, the
+// Constants list-box keeps its `flex` ratio and absorbs the rest.
+// Double-click clears the override and restores the flex default.
+(function() {
+  const handle = document.getElementById("resize-handle-consts");
+  if (!handle) return;
+  const column = handle.parentElement; // .vars-column
+  const topBox = column.querySelector(".list-box:first-of-type");
+  let dragging = false;
+  let startY = 0, startH = 0;
+
+  handle.addEventListener("mousedown", e => {
+    dragging = true;
+    startY = e.clientY;
+    startH = topBox.getBoundingClientRect().height;
+    handle.classList.add("dragging");
+    document.body.classList.add("resizing-v");
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const available = column.getBoundingClientRect().height;
+    // Leave ~70px for the bottom list-box (header + a row or two)
+    // so the user can still see what they have selected while
+    // dragging the top list large.
+    const min = 70;
+    const max = Math.max(min, available - 70);
+    let h = startH + (e.clientY - startY);
+    h = Math.max(min, Math.min(max, h));
+    // Override the flex default by setting an explicit pixel height.
+    // The inline `flex` shorthand keeps grow=0 / shrink=0 so the
+    // basis is honoured even when neighbours pull on the column.
+    topBox.style.flex = "0 0 " + h + "px";
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("dragging");
+    document.body.classList.remove("resizing-v");
+  });
+  // Double-click: clear the inline flex override → fall back to the
+  // CSS default of 60/40 (`flex: 3 1 0` from the vars-column rule).
+  handle.addEventListener("dblclick", () => {
+    topBox.style.flex = "";
+  });
 })();
 
 // Vertical resize handle between the canvas and the system
