@@ -1195,6 +1195,85 @@
     from { opacity: 0; transform: translateY(6px) scale(0.98); }
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
+  /* Type definitions modal — wider than a form dialog so the Name and
+     Description columns of the list have space, but not as huge as
+     the spec-preview modal. The body uses a plain block layout (the
+     standard .modal .body grid is for label/input pairs which this
+     dialog doesn't have at the top level). */
+  .modal-type-defs {
+    width: 720px;
+    max-width: 90vw;
+  }
+  .modal-type-defs .body.type-defs-body {
+    display: block;
+    grid-template-columns: none;
+    padding: 8px 20px 20px;
+    max-height: 60vh;
+    overflow: auto;
+  }
+  .type-defs-list-wrap { min-height: 80px; }
+  .type-defs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .type-defs-table th, .type-defs-table td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .type-defs-table th {
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    position: sticky;
+    top: 0;
+  }
+  .type-defs-table tbody tr { cursor: pointer; }
+  .type-defs-table tbody tr:hover { background: var(--surface-2); }
+  .type-defs-table tbody tr.selected { background: var(--accent-soft); }
+  .type-defs-table td.type-defs-desc {
+    color: var(--text-muted);
+    max-width: 480px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .type-defs-empty {
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 16px;
+    margin: 0;
+    text-align: center;
+  }
+  /* Type edit sub-dialog — uses standard form grid, but the
+     Specification textarea wants a bit more height than other
+     inputs and the dialog itself wants to be wider. */
+  .modal-type-edit {
+    width: 600px;
+    max-width: 90vw;
+  }
+  .modal-type-edit .body textarea {
+    grid-column: 2;
+    width: 100%;
+    min-height: 140px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 8px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    resize: vertical;
+    box-sizing: border-box;
+  }
+  .modal-type-edit .body textarea:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-color: var(--accent);
+  }
   .modal .title {
     background: var(--surface);
     padding: 16px 20px 12px 20px;
@@ -1622,6 +1701,8 @@
       <div class="item" data-action="sys-change-name">Change name...</div>
       <div class="item" data-action="sys-change-cfont">Change component/handler font size...</div>
       <div class="item" data-action="sys-change-ifont">Change interface font size...</div>
+      <div class="separator"></div>
+      <div class="item" data-action="sys-type-defs">Type definitions...</div>
     </div>
   </div>
   <div class="menu" data-menu="help">Help
@@ -1975,6 +2056,18 @@ const Model = {
   // at the Handler (calls are made to the Handler's functions, so the
   // dependency flows Component → Handler).
   handlerCalls: [],
+  // System-wide type definitions. Reference material describing the
+  // domain types used in parameter and state-variable type fields.
+  // Documentation-only — never emitted to PlantUML, never enforced
+  // anywhere in the model. The HTML and docx specs render these as
+  // a dedicated chapter at the end of the document, and parameter /
+  // state-variable type cells auto-link to the matching type when
+  // their string exactly matches a defined type name. Each entry:
+  //   { name:          String,   // identifier-safe, unique system-wide
+  //     description:   String,   // one-line summary
+  //     specification: String }  // free multi-line prose (encoding,
+  //                              // range, validity, examples, etc.)
+  types: [],
   // Which view is showing on the canvas: the system-level component
   // diagram ("system") or the state machine of the active component
   // ("component"). The leftmost pinned tab sets "system"; clicking any
@@ -2310,6 +2403,7 @@ function snapshot() {
     handlers: Model.handlers,
     handlerConnections: Model.handlerConnections,
     handlerCalls: Model.handlerCalls,
+    types: Model.types,
     systemName: Model.systemName,
     systemDisplayName: Model.systemDisplayName,
     systemComponentFontSize: Model.systemComponentFontSize,
@@ -2327,6 +2421,7 @@ function restore(str) {
   Model.handlers = Array.isArray(d.handlers) ? d.handlers : [];
   Model.handlerConnections = Array.isArray(d.handlerConnections) ? d.handlerConnections : [];
   Model.handlerCalls = Array.isArray(d.handlerCalls) ? d.handlerCalls : [];
+  Model.types = Array.isArray(d.types) ? d.types : [];
   // System-level fields — defaults applied when a snapshot predates them
   // (applies when undoing through a legacy file load).
   Model.systemName = (typeof d.systemName === "string") ? d.systemName : "System";
@@ -3001,6 +3096,19 @@ function isUniqueConstantName(name, excludeName=null) {
   const consts = Array.isArray(Component.constants) ? Component.constants : [];
   return !consts.some(k => k.name === name && k.name !== excludeName);
 }
+// Types are system-wide; uniqueness is enforced across the entire
+// Model.types array. Names also can't collide with the other
+// system-wide identifiers (component, handler, interface) since
+// backtick references resolve all four kinds in the same first-segment
+// namespace — accepting a duplicate would make `Foo` ambiguous.
+function isUniqueTypeName(name, excludeName=null) {
+  const types = Array.isArray(Model.types) ? Model.types : [];
+  if (types.some(t => t.name === name && t.name !== excludeName)) return false;
+  if (Model.components.some(c => c.name === name)) return false;
+  if (Model.handlers.some(h => h.name === name)) return false;
+  if (Model.interfaces.some(i => i.name === name && !i.isDefault)) return false;
+  return true;
+}
 function isUniqueInterfaceName(name, excludeName=null) {
   return !Model.interfaces.some(i => i.name === name && i.name !== excludeName);
 }
@@ -3042,6 +3150,316 @@ function slugifyComponentName(name) {
   if (!s) s = "C";
   return s;
 }
+// Walk every free-text field in the model and apply `transform` to
+// each one. The transform receives `(text, context)` and returns the
+// new text. The context describes where the field lives:
+//   {kind:"system"}                                  System Specification
+//   {kind:"component", componentName:"X"}            anything inside component X
+//   {kind:"handler", handlerName:"H"}                anything inside handler H
+//   {kind:"interface", interfaceName:"I"}            anything inside interface I
+//   {kind:"message", interfaceName:"I", name:"M"}    anything inside message M of interface I
+//
+// Used by rename handlers to rewrite backtick references when an
+// entity is renamed. Bare-reference rewrites need this context to
+// scope correctly — bare `Idle` inside OrderManager's prose should
+// rewrite when OrderManager.Idle is renamed, but bare `Idle` inside
+// InventoryTracker's prose should not.
+//
+// Fields visited:
+//   - Model.systemSpecification                       {system}
+//   - For each component: description, every state's description,
+//     every choice-point's description, every state variable's
+//     description, every constant's value and description, every
+//     local function's description and steps, every transition's
+//     every message's action.                         {component}
+//   - For each handler: description, every function's description,
+//     every parameter's description.                  {handler}
+//   - For each interface: description.                {interface}
+//   - For each message: description, every parameter's description.
+//                                                     {message}
+//
+// CP `question` and constant `value` ARE considered free text — they
+// can contain reader-facing prose. The state name, CP name, parameter
+// name, etc. are NOT visited (they're identifiers, not prose).
+function walkAllProse(transform) {
+  const apply = (s, ctx) => (typeof s === "string" && s.length > 0) ? transform(s, ctx) : s;
+
+  Model.systemSpecification = apply(Model.systemSpecification, { kind: "system" });
+
+  for (const c of Model.components) {
+    const ctx = { kind: "component", componentName: c.name };
+    c.description = apply(c.description, ctx);
+    for (const s of (c.states || [])) {
+      s.description = apply(s.description, ctx);
+    }
+    for (const cp of (c.choicePoints || [])) {
+      cp.question    = apply(cp.question, ctx);
+      cp.description = apply(cp.description, ctx);
+    }
+    for (const v of (c.stateVariables || [])) {
+      v.description = apply(v.description, ctx);
+    }
+    for (const k of (c.constants || [])) {
+      k.value       = apply(k.value, ctx);
+      k.description = apply(k.description, ctx);
+    }
+    for (const lf of (c.localFunctions || [])) {
+      lf.description = apply(lf.description, ctx);
+      lf.steps       = apply(lf.steps, ctx);
+    }
+    for (const t of (c.transitions || [])) {
+      for (const mm of (t.messages || [])) {
+        mm.action = apply(mm.action, ctx);
+      }
+    }
+  }
+  for (const h of Model.handlers) {
+    const ctx = { kind: "handler", handlerName: h.name };
+    h.description = apply(h.description, ctx);
+    for (const f of (h.functions || [])) {
+      f.description = apply(f.description, ctx);
+      for (const p of (f.parameters || [])) {
+        p.description = apply(p.description, ctx);
+      }
+    }
+  }
+  for (const i of Model.interfaces) {
+    i.description = apply(i.description, { kind: "interface", interfaceName: i.name });
+  }
+  for (const m of Model.messages) {
+    const ctx = { kind: "message", interfaceName: m.interface, name: m.name };
+    m.description = apply(m.description, ctx);
+    for (const p of (m.parameters || [])) {
+      p.description = apply(p.description, ctx);
+    }
+  }
+  // Type definitions: both the description and the specification are
+  // free-text fields that may contain backtick references (a type can
+  // reference other types). Walked so renames cascade through them
+  // like every other prose field.
+  for (const t of (Model.types || [])) {
+    const ctx = { kind: "type", name: t.name };
+    t.description   = apply(t.description, ctx);
+    t.specification = apply(t.specification, ctx);
+  }
+}
+
+// Rewrite a free-text string by walking its backtick-delimited
+// references and replacing each one according to a predicate. The
+// predicate receives `(inner, fieldContext)`:
+//   - inner is the text between backticks
+//   - fieldContext is forwarded from the walker (kind + owner info)
+//
+// Returns either:
+//   - a string: replace the backticked content with this new content
+//     (kept inside backticks). E.g. "Foo:bar" → "Renamed:bar".
+//   - null:     leave this reference unchanged.
+//
+// Backslash-escaped backticks (\\`) are passed through untouched.
+// Unterminated backtick spans are passed through verbatim.
+function rewriteProse(text, predicate, fieldContext) {
+  if (typeof text !== "string" || text.length === 0) return text;
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "\\" && text[i+1] === "`") {
+      out += text[i] + text[i+1];
+      i += 2;
+      continue;
+    }
+    if (ch === "`") {
+      let j = i + 1;
+      let inner = "";
+      while (j < text.length) {
+        if (text[j] === "\\" && text[j+1] === "`") { inner += text[j] + text[j+1]; j += 2; continue; }
+        if (text[j] === "`") break;
+        inner += text[j];
+        j++;
+      }
+      if (j >= text.length) {
+        out += text.slice(i);
+        break;
+      }
+      const replacement = predicate(inner, fieldContext);
+      if (replacement === null || replacement === undefined) {
+        out += "`" + inner + "`";
+      } else {
+        out += "`" + replacement + "`";
+      }
+      i = j + 1;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
+// Convenience wrapper: walk every free-text field in the model and
+// rewrite backtick references using `predicate`. The predicate is
+// called as predicate(token, fieldContext) for each backtick token.
+function rewriteAllReferences(predicate) {
+  walkAllProse((text, ctx) => rewriteProse(text, predicate, ctx));
+}
+
+// Build a predicate that rewrites backtick references after a rename.
+// Token shape (after splitting on `:`): segments are matched against
+// the (oldName, ownerKind, ownerName) constraint specific to each
+// rename. Returns null when the token doesn't match the rule (=> no
+// rewrite); returns the new token text otherwise. Function-call
+// ornament (parens) is preserved on the matched segment so that
+// `recomputeTotal()` becomes `newName()` rather than just `newName`.
+//
+// Each helper below builds a predicate for a specific rename kind.
+// They never mutate prose outside backtick-resolved tokens — and they
+// only touch tokens that the resolver would have matched against the
+// renamed entity, so an unrelated `OtherComponent:System` is left
+// alone even when interface `System` is renamed.
+//
+// Implementation note: this rewriter is a *string* operation, not a
+// resolver-aware one. Pre-rename, before mutating the model, the
+// caller provides the old name; the rewriter keys off literal segment
+// matches plus owner-kind discrimination (which we encode as the
+// predicate's logic). Bare-name matches are handled carefully — only
+// the specific scope where the renamed entity lives is rewritten,
+// not unrelated identical names elsewhere. This is safe for the
+// rename use case because we run the rewriter BEFORE applying the
+// model mutation, so we know exactly what each token resolved to in
+// the pre-rename state.
+
+// Helper: split a backtick-token into segments while preserving the
+// trailing parens on each segment (so a rewrite of segment "doThis"
+// to "doIt" leaves "doThis(arg)" → "doIt(arg)"). Returns array of
+// {bare, ornament}. Empty-segment input returns empty array.
+function splitTokenSegments(token) {
+  const raw = token.split(":");
+  return raw.map(s => {
+    const m = s.match(/^(\s*)([^\s(]+)(.*)$/);
+    if (!m) return { lead: "", bare: "", ornament: s };
+    return { lead: m[1], bare: m[2], ornament: m[3] };
+  });
+}
+
+// Helper: rejoin segments into a backtick-token after possibly
+// rewriting some of their `bare` fields.
+function joinTokenSegments(segs) {
+  return segs.map(s => s.lead + s.bare + s.ornament).join(":");
+}
+
+// Predicate factory: rename of a top-level entity (component,
+// handler, or interface). Matches and rewrites tokens whose first
+// segment is exactly the old name. Field context is irrelevant for
+// owner renames — these names are global.
+function makeOwnerRenamePredicate(oldName, newName) {
+  return (token, _ctx) => {
+    const segs = splitTokenSegments(token);
+    if (segs.length === 0) return null;
+    if (segs[0].bare !== oldName) return null;
+    segs[0].bare = newName;
+    return joinTokenSegments(segs);
+  };
+}
+
+// Predicate factory: rename of a member within a component-typed
+// owner (state, choice-point, variable, constant, local function).
+// Rewrites:
+//   - qualified `Owner:OldName`     → `Owner:NewName`
+//   - bare `OldName` ONLY when the field belongs to `Owner` (its
+//     componentName matches). This handles the common case where a
+//     transition action inside OrderManager says `Idle` and the
+//     renamed state is OrderManager's Idle.
+// Bare references in OTHER components' fields are not rewritten —
+// those would be cross-component references and are too ambiguous to
+// auto-rewrite based on string matching.
+function makeComponentMemberRenamePredicate(ownerName, oldName, newName) {
+  return (token, ctx) => {
+    const segs = splitTokenSegments(token);
+    if (segs.length === 1) {
+      // Bare reference — only rewrite when this field is in the
+      // owning component's scope.
+      if (!ctx || ctx.kind !== "component" || ctx.componentName !== ownerName) return null;
+      if (segs[0].bare !== oldName) return null;
+      segs[0].bare = newName;
+      return joinTokenSegments(segs);
+    }
+    if (segs.length >= 2) {
+      // Qualified reference — match by owner regardless of field.
+      if (segs[0].bare !== ownerName) return null;
+      if (segs[1].bare !== oldName) return null;
+      segs[1].bare = newName;
+      return joinTokenSegments(segs);
+    }
+    return null;
+  };
+}
+
+// Predicate factory: rename of a message within an interface.
+// Rewrites:
+//   - qualified `Iface:OldName`        → `Iface:NewName`
+//   - three-segment `Iface:OldName:Param` → `Iface:NewName:Param`
+//   - action-context `OldName:Param` rewrites are NOT done — those
+//     bare-message references appear inside transition actions, but
+//     we don't know per-action which message the row uses (the model
+//     stores only the prose, not the row's binding to this rewriter).
+//     Users must update such shorthand references manually if used.
+//   - bare `OldName` is NOT rewritten — message names live inside an
+//     interface namespace and a bare match could collide with an
+//     unrelated component or variable named the same.
+function makeMessageRenamePredicate(ownerInterface, oldName, newName) {
+  return (token, _ctx) => {
+    const segs = splitTokenSegments(token);
+    if (segs.length < 2) return null;
+    if (segs[0].bare !== ownerInterface) return null;
+    if (segs[1].bare !== oldName) return null;
+    segs[1].bare = newName;
+    return joinTokenSegments(segs);
+  };
+}
+
+// Predicate factory: rename of a function within a handler.
+// Rewrites the qualified and three-segment forms, and bare `OldName`
+// when the field belongs to the owning handler.
+function makeFunctionRenamePredicate(ownerHandler, oldName, newName) {
+  return (token, ctx) => {
+    const segs = splitTokenSegments(token);
+    if (segs.length === 1) {
+      if (!ctx || ctx.kind !== "handler" || ctx.handlerName !== ownerHandler) return null;
+      if (segs[0].bare !== oldName) return null;
+      segs[0].bare = newName;
+      return joinTokenSegments(segs);
+    }
+    if (segs.length >= 2) {
+      if (segs[0].bare !== ownerHandler) return null;
+      if (segs[1].bare !== oldName) return null;
+      segs[1].bare = newName;
+      return joinTokenSegments(segs);
+    }
+    return null;
+  };
+}
+
+// Predicate factory: rename of a parameter within a message or
+// function. Rewrites only the three-segment form `Owner:Member:Old`.
+// Two-segment action-context refs like `Member:Old` are not rewritten
+// for the reasons noted in makeMessageRenamePredicate.
+function makeParameterRenamePredicate(ownerName, memberName, oldName, newName) {
+  return (token, _ctx) => {
+    const segs = splitTokenSegments(token);
+    if (segs.length !== 3) return null;
+    if (segs[0].bare !== ownerName) return null;
+    if (segs[1].bare !== memberName) return null;
+    if (segs[2].bare !== oldName) return null;
+    segs[2].bare = newName;
+    return joinTokenSegments(segs);
+  };
+}
+
+// Apply a rename across ALL prose using the given predicate.
+function applyRenameRewrite(predicate) {
+  rewriteAllReferences(predicate);
+}
+
 function isValidIdentifier(name) {
   return /^[A-Za-z][A-Za-z0-9_]*$/.test(name);
 }
@@ -4296,6 +4714,16 @@ function openParameterDialog(owner, existing, kind, ownerContext) {
       : Selection.messageParameters;
     if (existing) {
       const oldName = existing.name;
+      // Rewrite three-segment backtick references that point at this
+      // parameter: `Iface:Msg:OldName` for message params,
+      // `Handler:Fn:OldName` for function params. The owner name and
+      // member name come from boundKey's two halves.
+      if (oldName !== name) {
+        const colon = boundKey.indexOf(":");
+        const ownerName = boundKey.slice(0, colon);
+        const memberName = boundKey.slice(colon + 1);
+        applyRenameRewrite(makeParameterRenamePredicate(ownerName, memberName, oldName, name));
+      }
       existing.name = name;
       existing.type = type;
       existing.description = description;
@@ -4424,6 +4852,12 @@ function openFunctionDialog(handler, existing) {
     pushHistory();
     if (existing) {
       const oldName = existing.name;
+      // Rewrite backtick references: bare `OldName` (only in fields
+      // belonging to this handler), `Handler:OldName`, and
+      // `Handler:OldName:Param`.
+      if (oldName !== name) {
+        applyRenameRewrite(makeFunctionRenamePredicate(handler.name, oldName, name));
+      }
       existing.name = name;
       existing.description = desc;
       // Re-key selection on rename.
@@ -4588,6 +5022,19 @@ function openComponentDialog(existing) {
     pushHistory();
     if (existing) {
       const oldName = existing.name;
+      // Rewrite backtick references in all prose before mutating
+      // the model. Component names are global, so `Old`, `Old:Foo`,
+      // and `Old:Foo:Bar` all rewrite. Bare `Old` could also
+      // collide with a same-named state in another component, but
+      // the OwnerRenamePredicate only matches the FIRST segment,
+      // and bare references in other components' prose mean those
+      // components' own entities — not this component. The risk
+      // is a bare reference in a third-party context (system spec,
+      // interface description) where the user meant the component
+      // explicitly. Those rewrite correctly.
+      if (oldName !== name) {
+        applyRenameRewrite(makeOwnerRenamePredicate(oldName, name));
+      }
       existing.name = name;
       existing.displayName = dn;
       if (oldName !== name) {
@@ -5088,6 +5535,9 @@ function openHandlerDialog(existing) {
     pushHistory();
     if (existing) {
       const oldName = existing.name;
+      if (oldName !== name) {
+        applyRenameRewrite(makeOwnerRenamePredicate(oldName, name));
+      }
       existing.name = name;
       existing.displayName = dn;
       if (oldName !== name) {
@@ -6004,6 +6454,7 @@ function showManual() {
     {id: "constants", title: "Constants"},
     {id: "localfns", title: "Local functions"},
     {id: "interfaces-msgs", title: "Interfaces & Messages"},
+    {id: "typedefs", title: "Type definitions"},
     {id: "transitions", title: "Transitions"},
     {id: "history", title: "History State"},
     {id: "any", title: "ANY State"},
@@ -6290,6 +6741,21 @@ function manualContent() {
       <p>The <code>Timer</code> and <code>Logical</code> interfaces and their default messages (<code>Timeout</code>, <code>Yes</code>, <code>No</code>) are built in and cannot be renamed, removed, or given descriptions.</p>
     </section>
 
+    <section id="m-typedefs">
+      <h2>Type definitions</h2>
+      <p>A <strong>type definition</strong> is a system-wide named description of a domain type \u2014 the meaning of a string parameter, the encoding of an integer field, the value range of an enum. Open the dialog from <em>System &rarr; Type definitions...</em>. Type definitions are documentation-only: they never enter the generated PlantUML, never enforce anything in the model, and are entirely optional. Their job is to give the reader of the specification one place to look up what each type actually means.</p>
+      <p>Each type has three fields:</p>
+      <ul>
+        <li><em>Name</em> \u2014 single-word identifier (letters, digits, underscore). Unique system-wide \u2014 must not collide with any component, handler, interface, or other type name.</li>
+        <li><em>Description</em> \u2014 single-line summary. Shown in the dialog list, in the spec table, and in the hover tooltip when a parameter type cell links here.</li>
+        <li><em>Specification</em> \u2014 free multi-line text. The full body \u2014 encoding, range, validity rules, examples, ABNF, JSON Schema, whatever the type actually <em>is</em>. Backtick references work here; a type's specification can reference another type, a message, or any other named entity in the model.</li>
+      </ul>
+      <p>The dialog shows the existing types in a sortable list with their names and descriptions. Click a row to select it; click <strong>Add</strong>, <strong>Edit</strong>, or <strong>Delete</strong> to manage entries. Editing opens a sub-dialog with the three fields. Deleting prompts for confirmation \u2014 references to a deleted type don't auto-rewrite, they just become unresolved (warning style), so you can find and fix them by hand if needed.</p>
+      <p><strong>Auto-linking in the spec.</strong> When a parameter or state-variable's type field exactly matches a defined type name, the spec renders it as a hyperlink to the type's row in the Type definitions chapter \u2014 no backticks needed. The type cell shows a description tooltip on hover, the same way explicit backtick references do. Compound type strings (<code>Map&lt;String, int&gt;</code>, <code>int?</code>) are not auto-linked, since they aren't exact-string matches; if you want links to sub-types in those, use the backtick syntax in the surrounding description.</p>
+      <p><strong>Renames cascade through everything.</strong> Rename a type and Stadi&aelig; rewrites every backtick reference to it in the model's prose, plus every parameter and state-variable type field that exact-string-matches the old name. The links keep working without you editing each row by hand.</p>
+      <p>The Type definitions chapter is rendered at the end of both the HTML and docx specifications, so the reader has finished the components and handlers before encountering the reference material.</p>
+    </section>
+
     <section id="m-transitions">
       <h2>Transitions</h2>
       <p>A transition always needs a source, a target, and — unless it is the initial START transition — at least one message. To add one:</p>
@@ -6447,6 +6913,7 @@ function manualContent() {
         <li><strong>Qualified names</strong> use <code>:</code> as separator. Two-segment forms address members directly: <code>\`Component:State\`</code>, <code>\`Component:Variable\`</code>, <code>\`Component:Constant\`</code>, <code>\`Component:LocalFunction\`</code>, <code>\`Interface:Message\`</code>, <code>\`Handler:Function\`</code>. Three-segment forms address parameters: <code>\`Interface:Message:Parameter\`</code> and <code>\`Handler:Function:Parameter\`</code> link to the exact parameter row in the spec's Interfaces or Handlers chapter.</li>
         <li><strong>Inside transition Action text</strong>, the interface qualifier on a message:parameter reference is implicit \u2014 the row's own message establishes it. Inside an Action whose row mentions <em>Connection / ConnectReq</em>, you can write <code>\`ConnectReq:serverId\`</code> to link to the <code>serverId</code> parameter without repeating the interface name. The full <code>\`Connection:ConnectReq:serverId\`</code> form works too and reads identically; the short form just spares the typing when the surrounding row already names the message.</li>
         <li><strong>Function-call syntax</strong> is allowed and treated as decorative. <code>\`recomputeTotal()\`</code>, <code>\`Timer:getCurrentTime()\`</code>, and <code>\`recomputeTotal(amount)\`</code> all resolve to the function or local-function whose name is to the left of the parens. The parens stay in the rendered text \u2014 the link reads as you wrote it \u2014 but the resolver ignores them when looking up the target. Anything from the first <code>(</code> onward is stripped before resolution.</li>
+        <li><strong>Renames cascade automatically.</strong> When you rename an entity \u2014 a component, handler, interface, message, function, state, choice-point, state variable, constant, local function, or parameter \u2014 every backtick-delimited reference to it in the model's prose is rewritten in place. So if you write <em>"Send the <code>\`Connection:ConnectReq\`</code> message"</em> and later rename interface <code>Connection</code> to <code>Conn</code>, the action text becomes <em>"Send the <code>\`Conn:ConnectReq\`</code> message"</em> automatically. Bare references (those without a colon qualifier) only rewrite when they're inside the prose of the renamed entity's owning scope \u2014 a bare <code>\`Idle\`</code> in OrderManager's actions rewrites when OrderManager's <code>Idle</code> state is renamed; a bare <code>\`Idle\`</code> in another component's actions stays put because the resolver can't determine which Idle was meant just from the string. Deletions don't auto-rewrite \u2014 references to deleted entities render as unresolved (warning style) so you can find and fix them by hand. The rename rewrite is part of the same Undo step as the rename itself, so a single Ctrl+Z restores both the original name and the original prose.</li>
         <li><strong>Unresolved references</strong> render as muted monospace with a dotted underline in a warning colour. The reader sees that <em>this was meant to be a reference, but the target doesn't exist</em> — it's a useful soft validator for typos and renames.</li>
         <li><strong>Literal backticks</strong> in prose can be written by preceding them with a backslash; the escape sequence renders as a single backtick in the output, not as a reference.</li>
       </ul>
@@ -6599,6 +7066,11 @@ function openStateDialog(existing=null) {
     const desc = descI.value;
     if (existing) {
       const oldName = existing.name;
+      // Rewrite backtick references: bare `OldName` (only in this
+      // component's prose), `Component:OldName` everywhere.
+      if (oldName !== name) {
+        applyRenameRewrite(makeComponentMemberRenamePredicate(Component.name, oldName, name));
+      }
       existing.name = name; existing.displayName = dn; existing.description = desc;
       if (oldName !== name) {
         // update transitions referencing old name
@@ -6669,6 +7141,9 @@ function openCPDialog(existing=null) {
     const desc = descI.value;
     if (existing) {
       const oldName = existing.name;
+      if (oldName !== name) {
+        applyRenameRewrite(makeComponentMemberRenamePredicate(Component.name, oldName, name));
+      }
       existing.name = name; existing.question = q; existing.description = desc;
       if (oldName !== name) {
         // transitions refer to CPs with the "CP_" prefix baked in
@@ -6743,6 +7218,9 @@ function openStateVariableDialog(existing=null) {
     const desc = descI.value;
     if (existing) {
       const oldName = existing.name;
+      if (oldName !== name) {
+        applyRenameRewrite(makeComponentMemberRenamePredicate(Component.name, oldName, name));
+      }
       existing.name = name;
       existing.type = type;
       existing.description = desc;
@@ -6829,6 +7307,9 @@ function openLocalFunctionDialog(existing=null) {
     const desc = descI.value;
     if (existing) {
       const oldName = existing.name;
+      if (oldName !== name) {
+        applyRenameRewrite(makeComponentMemberRenamePredicate(Component.name, oldName, name));
+      }
       existing.name = name;
       existing.description = desc;
       // Steps is edited via the Steps panel, not the dialog — left
@@ -6920,6 +7401,9 @@ function openConstantDialog(existing=null) {
     const desc = descI.value;
     if (existing) {
       const oldName = existing.name;
+      if (oldName !== name) {
+        applyRenameRewrite(makeComponentMemberRenamePredicate(Component.name, oldName, name));
+      }
       existing.name = name;
       existing.value = value;
       existing.description = desc;
@@ -6963,6 +7447,186 @@ function deleteSelectedConstant() {
   refresh();
 }
 
+// Type definitions modal — opens from System → Type definitions….
+// Shows a list of system-wide types with Add / Edit / Delete buttons.
+// Internal selection is tracked locally (one type at a time can be
+// edited); the dialog is self-contained and doesn't affect the main
+// Selection set. On Add or Edit, a sub-dialog opens with three fields:
+// Name (single-line), Description (single-line), Specification
+// (multi-line textarea). Closing returns to the list view.
+let _typeDialogSelection = null;  // selected name within the dialog
+
+function openTypeDefinitionsModal() {
+  // Reset local selection on each open. The dialog is reusable; we
+  // don't want a stale selection from a previous session pre-selecting
+  // a type that may have been deleted in the meantime.
+  _typeDialogSelection = null;
+  renderTypeDefinitionsModal();
+}
+
+function renderTypeDefinitionsModal() {
+  const types = [...(Model.types || [])].sort((a, b) => a.name.localeCompare(b.name));
+  const selName = _typeDialogSelection;
+  const hasSel = selName && types.some(t => t.name === selName);
+
+  modalContainer.innerHTML = `
+    <div class="title">Type definitions</div>
+    <div class="body type-defs-body">
+      <div class="type-defs-list-wrap">
+        <table class="type-defs-table">
+          <thead><tr><th>Name</th><th>Description</th></tr></thead>
+          <tbody id="type-defs-tbody"></tbody>
+        </table>
+        ${types.length === 0 ? `<p class="type-defs-empty">No type definitions yet. Click <strong>Add</strong> to create one.</p>` : ""}
+      </div>
+    </div>
+    <div class="actions">
+      <button id="td-add">Add</button>
+      <button id="td-edit"${hasSel ? "" : " disabled"}>Edit</button>
+      <button id="td-delete"${hasSel ? "" : " disabled"}>Delete</button>
+      <button id="td-close" class="cancel">Close</button>
+    </div>`;
+  modalContainer.className = "modal modal-type-defs";
+  modalOverlay.classList.add("show");
+
+  const tbody = document.getElementById("type-defs-tbody");
+  for (const t of types) {
+    const tr = document.createElement("tr");
+    tr.dataset.name = t.name;
+    if (t.name === selName) tr.classList.add("selected");
+    const nameTd = document.createElement("td");
+    nameTd.textContent = t.name;
+    const descTd = document.createElement("td");
+    descTd.textContent = t.description || "";
+    descTd.className = "type-defs-desc";
+    tr.appendChild(nameTd);
+    tr.appendChild(descTd);
+    tr.addEventListener("click", () => {
+      _typeDialogSelection = t.name;
+      renderTypeDefinitionsModal();
+    });
+    tr.addEventListener("dblclick", () => {
+      _typeDialogSelection = t.name;
+      openTypeDefinitionEditDialog(t);
+    });
+    tbody.appendChild(tr);
+  }
+
+  document.getElementById("td-add").onclick = () => openTypeDefinitionEditDialog(null);
+  document.getElementById("td-edit").onclick = () => {
+    const t = types.find(x => x.name === selName);
+    if (t) openTypeDefinitionEditDialog(t);
+  };
+  document.getElementById("td-delete").onclick = () => {
+    const t = types.find(x => x.name === selName);
+    if (!t) return;
+    showConfirm(
+      "Delete type definition?",
+      `This will remove the type definition "${t.name}". References to this type elsewhere in the model will not be modified — they'll just stop linking. Continue?`,
+      () => {
+        pushHistory();
+        Model.types = (Model.types || []).filter(x => x.name !== t.name);
+        _typeDialogSelection = null;
+        renderTypeDefinitionsModal();
+      },
+      () => {}
+    );
+  };
+  document.getElementById("td-close").onclick = hideModal;
+}
+
+function openTypeDefinitionEditDialog(existing) {
+  const title = existing ? "Type properties" : "Add type definition";
+  modalContainer.innerHTML = `
+    <div class="title">${title}</div>
+    <div class="body">
+      <label>Name:</label>
+      <input type="text" id="type-name" value="${escapeHTML(existing?.name||'')}">
+      <label>Description:</label>
+      <input type="text" id="type-desc" value="${escapeHTML(existing?.description||'')}">
+      <label>Specification:</label>
+      <textarea id="type-spec" rows="8">${escapeHTML(existing?.specification||'')}</textarea>
+    </div>
+    <div class="actions">
+      <button id="ok">OK</button>
+      <button id="cancel" class="cancel">Cancel</button>
+    </div>`;
+  modalContainer.className = "modal modal-type-edit";
+  modalOverlay.classList.add("show");
+
+  const nameI = document.getElementById("type-name");
+  const descI = document.getElementById("type-desc");
+  const specI = document.getElementById("type-spec");
+  const ok = document.getElementById("ok");
+  const update = () => { ok.disabled = !nameI.value.trim(); };
+  nameI.addEventListener("input", update);
+  update();
+  nameI.focus();
+
+  ok.onclick = () => {
+    const name = nameI.value.trim();
+    if (!isValidIdentifier(name)) {
+      showAlert("Error", "Type name must be a single word (letters, digits, underscore).");
+      return;
+    }
+    if (!isUniqueTypeName(name, existing?.name)) {
+      showAlert("Error", "This name is already used by another type, component, handler, or interface.");
+      return;
+    }
+    pushHistory();
+    const description   = descI.value;
+    const specification = specI.value;
+    if (existing) {
+      const oldName = existing.name;
+      // Rewrite backtick references on rename: types are global
+      // identifiers, same shape as components/handlers/interfaces.
+      // Also walk all parameter and state-variable type fields and
+      // exact-match-replace, since the spec auto-links those by
+      // string equality.
+      if (oldName !== name) {
+        applyRenameRewrite(makeOwnerRenamePredicate(oldName, name));
+        retypeOnRename(oldName, name);
+      }
+      existing.name = name;
+      existing.description = description;
+      existing.specification = specification;
+      _typeDialogSelection = name;
+    } else {
+      if (!Array.isArray(Model.types)) Model.types = [];
+      Model.types.push({ name, description, specification });
+      _typeDialogSelection = name;
+    }
+    renderTypeDefinitionsModal();
+  };
+  document.getElementById("cancel").onclick = () => {
+    renderTypeDefinitionsModal();
+  };
+}
+
+// When a type is renamed, walk every parameter type and state-variable
+// type field and replace exact-string matches against the old name.
+// Lets the auto-link in the spec keep working without forcing the
+// user to edit each parameter manually.
+function retypeOnRename(oldName, newName) {
+  for (const c of Model.components) {
+    for (const v of (c.stateVariables || [])) {
+      if (v.type === oldName) v.type = newName;
+    }
+  }
+  for (const h of Model.handlers) {
+    for (const f of (h.functions || [])) {
+      for (const p of (f.parameters || [])) {
+        if (p.type === oldName) p.type = newName;
+      }
+    }
+  }
+  for (const m of Model.messages) {
+    for (const p of (m.parameters || [])) {
+      if (p.type === oldName) p.type = newName;
+    }
+  }
+}
+
 function openInterfaceDialog(existing=null) {
   const title = existing ? "Interface properties" : "Add interface";
   modalContainer.innerHTML = `
@@ -6997,6 +7661,14 @@ function openInterfaceDialog(existing=null) {
     const desc = descI.value;
     if (existing) {
       const old = existing.name;
+      // Rewrite backtick references in all prose. Interface names
+      // are global identifiers, so `Old`, `Old:Foo`, and
+      // `Old:Foo:Bar` all rewrite. Done before mutating the model
+      // so the walker's field-context lookups match how references
+      // were originally authored.
+      if (old !== name) {
+        applyRenameRewrite(makeOwnerRenamePredicate(old, name));
+      }
       existing.name = name;
       existing.description = desc;
       // update messages
@@ -7076,6 +7748,11 @@ function openMessageDialog(existing=null) {
     const desc = descI.value;
     if (existing) {
       const oldName = existing.name;
+      // Rewrite backtick references: `Iface:OldName` → `Iface:NewName`
+      // and three-segment forms with parameters.
+      if (oldName !== name) {
+        applyRenameRewrite(makeMessageRenamePredicate(iface, oldName, name));
+      }
       existing.name = name;
       existing.description = desc;
       // update transitions across ALL components
@@ -8254,6 +8931,7 @@ function resetModel(componentName) {
   Model.handlers = [];
   Model.handlerConnections = [];
   Model.handlerCalls = [];
+  Model.types = [];
   Model.systemName = "System";
   Model.systemDisplayName = "";
   Model.systemComponentFontSize = 12;
@@ -8423,6 +9101,16 @@ function buildSerializedModel() {
   if (Model.systemComponentFontSize && Model.systemComponentFontSize !== 12) out.systemComponentFontSize = Model.systemComponentFontSize;
   if (Model.systemInterfaceFontSize && Model.systemInterfaceFontSize !== 11) out.systemInterfaceFontSize = Model.systemInterfaceFontSize;
   if (Model.systemSpecification && Model.systemSpecification.length > 0) out.systemSpecification = Model.systemSpecification;
+  if (Array.isArray(Model.types) && Model.types.length > 0) {
+    out.types = Model.types.map(t => {
+      // Per-record minification: drop empty optional fields so
+      // freshly-defined types take minimal disk space.
+      const o = { name: t.name };
+      if (t.description && t.description.length > 0) o.description = t.description;
+      if (t.specification && t.specification.length > 0) o.specification = t.specification;
+      return o;
+    });
+  }
   return out;
 }
 
@@ -8967,6 +9655,7 @@ function anchorMsgParam(iface, msg, param) { return `iface-${iface}-msg-${msg}-p
 function anchorHandler(name)            { return `handler-${name}`; }
 function anchorFn(handler, name)        { return `handler-${handler}-fn-${name}`; }
 function anchorFnParam(handler, fn, param) { return `handler-${handler}-fn-${fn}-param-${param}`; }
+function anchorType(name)                { return `type-${name}`; }
 
 // Build an index of all named entities → anchor ID. Used for both
 // reference resolution and for emitting the anchor targets in the
@@ -8974,15 +9663,39 @@ function anchorFnParam(handler, fn, param) { return `handler-${handler}-fn-${fn}
 // is O(1) and lookups don't re-scan the model.
 function buildSpecAnchorIndex() {
   const idx = {
-    components: new Map(),       // name -> anchor
-    handlers: new Map(),         // name -> anchor
-    interfaces: new Map(),       // name -> anchor
-    perComponent: new Map(),     // compName -> { states, cps, vars, consts, lfns: Map(name -> anchor) }
-    perInterface: new Map(),     // ifaceName -> { messages: Map(name -> anchor) }
-    perHandler: new Map()        // handlerName -> { functions: Map(name -> anchor) }
+    // Top-level entities. Each Map value: {anchor, description}.
+    // Description is the entity's own description field (single-line
+    // string), used for hover tooltips. Empty string when not set —
+    // the rendering layer suppresses tooltips for empty strings.
+    components: new Map(),
+    handlers: new Map(),
+    interfaces: new Map(),
+    // System-wide type definitions. Same {anchor, description} shape;
+    // resolved by bare-name reference and by exact-string match in
+    // parameter / state-variable type cells. No nested members.
+    types: new Map(),
+    // Per-owner sub-maps. Same {anchor, description} shape for leaf
+    // entries; for parameter-bearing entries (messages, functions)
+    // the value adds a `parameters` Map of {anchor, description}.
+    perComponent: new Map(),
+    perInterface: new Map(),
+    perHandler: new Map()
   };
+  // Tooltip hygiene: flatten newlines and the diagram-wrap `\n`
+  // marker, collapse whitespace, cap length so a runaway System
+  // Specification paragraph doesn't fill the screen. The cap is
+  // generous — 360 chars is roughly four lines at the tooltip's
+  // ~360px width — and the truncation marker tells the reader there
+  // is more to read by clicking through.
+  const tipFor = (s) => {
+    if (s == null) return "";
+    let t = String(s).replace(/\\n/g, " ").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+    if (t.length > 360) t = t.slice(0, 357) + "…";
+    return t;
+  };
+
   for (const c of Model.components) {
-    idx.components.set(c.name, anchorComp(c.name));
+    idx.components.set(c.name, { anchor: anchorComp(c.name), description: tipFor(c.description) });
     const sub = {
       states: new Map(),
       cps: new Map(),
@@ -8990,50 +9703,46 @@ function buildSpecAnchorIndex() {
       consts: new Map(),
       lfns: new Map()
     };
-    for (const s of (c.states || []))         sub.states.set(s.name,  anchorState(c.name, s.name));
-    for (const cp of (c.choicePoints || []))  sub.cps.set(cp.name,    anchorCP(c.name, cp.name));
-    for (const v of (c.stateVariables || [])) sub.vars.set(v.name,    anchorVar(c.name, v.name));
-    for (const k of (c.constants || []))      sub.consts.set(k.name,  anchorConst(c.name, k.name));
-    for (const lf of (c.localFunctions || []))sub.lfns.set(lf.name,   anchorLfn(c.name, lf.name));
+    for (const s of (c.states || []))         sub.states.set(s.name,  { anchor: anchorState(c.name, s.name),  description: tipFor(s.description) });
+    for (const cp of (c.choicePoints || []))  sub.cps.set(cp.name,    { anchor: anchorCP(c.name, cp.name),    description: tipFor(cp.description) });
+    for (const v of (c.stateVariables || [])) sub.vars.set(v.name,    { anchor: anchorVar(c.name, v.name),    description: tipFor(v.description) });
+    for (const k of (c.constants || []))      sub.consts.set(k.name,  { anchor: anchorConst(c.name, k.name),  description: tipFor(k.description) });
+    for (const lf of (c.localFunctions || []))sub.lfns.set(lf.name,   { anchor: anchorLfn(c.name, lf.name),   description: tipFor(lf.description) });
     idx.perComponent.set(c.name, sub);
   }
   for (const h of Model.handlers) {
-    idx.handlers.set(h.name, anchorHandler(h.name));
+    idx.handlers.set(h.name, { anchor: anchorHandler(h.name), description: tipFor(h.description) });
     const fns = new Map();
-    // Each function entry now carries both its own anchor and a map
-    // of its parameters → per-parameter anchor. Three-segment
-    // references like `Handler:Fn:Param` walk down this nesting.
-    // Two-segment `Handler:Fn` reads the .anchor field.
     for (const f of (h.functions || [])) {
       const params = new Map();
       for (const p of (f.parameters || [])) {
-        params.set(p.name, anchorFnParam(h.name, f.name, p.name));
+        params.set(p.name, { anchor: anchorFnParam(h.name, f.name, p.name), description: tipFor(p.description) });
       }
-      fns.set(f.name, { anchor: anchorFn(h.name, f.name), parameters: params });
+      fns.set(f.name, { anchor: anchorFn(h.name, f.name), description: tipFor(f.description), parameters: params });
     }
     idx.perHandler.set(h.name, { functions: fns });
   }
   for (const i of Model.interfaces) {
-    if (i.isDefault) continue;  // Timer/Logical aren't part of the spec
-    idx.interfaces.set(i.name, anchorIface(i.name));
+    if (i.isDefault) continue;
+    idx.interfaces.set(i.name, { anchor: anchorIface(i.name), description: tipFor(i.description) });
     const msgs = new Map();
-    // Messages live on the system-wide Model.messages array with an
-    // `interface` field — there's no nested `i.messages`. Filter by
-    // interface name and skip defaults the same way the docx export
-    // does. This makes backtick references like `Card:Charge` resolve
-    // correctly while leaving system-default messages out of the spec.
-    // Each message entry mirrors the handler-function shape: own
-    // anchor + parameters map.
     for (const m of Model.messages) {
       if (m.isDefault) continue;
       if (m.interface !== i.name) continue;
       const params = new Map();
       for (const p of (m.parameters || [])) {
-        params.set(p.name, anchorMsgParam(i.name, m.name, p.name));
+        params.set(p.name, { anchor: anchorMsgParam(i.name, m.name, p.name), description: tipFor(p.description) });
       }
-      msgs.set(m.name, { anchor: anchorMsg(i.name, m.name), parameters: params });
+      msgs.set(m.name, { anchor: anchorMsg(i.name, m.name), description: tipFor(m.description), parameters: params });
     }
     idx.perInterface.set(i.name, { messages: msgs });
+  }
+  // Type definitions — system-wide, no nested members. Tooltip text
+  // pulls from description (the single-line summary) rather than the
+  // full multi-line specification, since tooltips are meant to give
+  // a glance, not a treatise. Readers wanting detail click through.
+  for (const t of (Model.types || [])) {
+    idx.types.set(t.name, { anchor: anchorType(t.name), description: tipFor(t.description) });
   }
   return idx;
 }
@@ -9079,6 +9788,11 @@ function resolveSpecReference(idx, token, context) {
   const segs = trimmed.split(":").map(s => stripParens(s.trim()));
   if (segs.some(s => s.length === 0)) return null;  // empty segment = malformed
 
+  // Helper: turn an index entry (object with .anchor, optional
+  // .description) into the resolver's return value. Always passes
+  // through the full original token as the link's display text.
+  const ret = (entry) => entry ? { anchor: entry.anchor, label: trimmed, description: entry.description || "" } : null;
+
   if (segs.length >= 4) return null;
 
   if (segs.length === 3) {
@@ -9088,8 +9802,8 @@ function resolveSpecReference(idx, token, context) {
     if (iface) {
       const m = iface.messages.get(member);
       if (m && m.parameters) {
-        const a = m.parameters.get(sub);
-        if (a) return { anchor: a, label: trimmed };
+        const p = m.parameters.get(sub);
+        if (p) return ret(p);
       }
     }
     // Try Handler:Fn:Param
@@ -9097,8 +9811,8 @@ function resolveSpecReference(idx, token, context) {
     if (handler) {
       const f = handler.functions.get(member);
       if (f && f.parameters) {
-        const a = f.parameters.get(sub);
-        if (a) return { anchor: a, label: trimmed };
+        const p = f.parameters.get(sub);
+        if (p) return ret(p);
       }
     }
     return null;
@@ -9106,41 +9820,37 @@ function resolveSpecReference(idx, token, context) {
 
   if (segs.length === 2) {
     const [owner, member] = segs;
-    // Try Interface:Message — index entry now is an object {anchor, parameters}
+    // Try Interface:Message
     const iface = idx.perInterface.get(owner);
     if (iface) {
       const m = iface.messages.get(member);
-      if (m) return { anchor: m.anchor, label: trimmed };
+      if (m) return ret(m);
     }
     // Try Handler:Function
     const handler = idx.perHandler.get(owner);
     if (handler) {
       const f = handler.functions.get(member);
-      if (f) return { anchor: f.anchor, label: trimmed };
+      if (f) return ret(f);
     }
     // Try Component:Member
     const comp = idx.perComponent.get(owner);
     if (comp) {
-      const a = comp.vars.get(member)
+      const e = comp.vars.get(member)
              || comp.consts.get(member)
              || comp.states.get(member)
              || comp.cps.get(member)
              || comp.lfns.get(member);
-      if (a) return { anchor: a, label: trimmed };
+      if (e) return ret(e);
     }
-    // Action-context two-segment: Message:Parameter where the Message
-    // is established by the surrounding action row. The renderer
-    // passes context.rowMessage = {interface, name} when emitting an
-    // Action cell; that pair tells us which message's parameter list
-    // to search. No system-wide search — strictly action-local.
+    // Action-context Message:Parameter — strictly local to the row.
     if (context && context.kind === "component" && context.rowMessage) {
       if (owner === context.rowMessage.name) {
         const ifaceSub = idx.perInterface.get(context.rowMessage.interface);
         if (ifaceSub) {
           const msgEntry = ifaceSub.messages.get(context.rowMessage.name);
           if (msgEntry && msgEntry.parameters) {
-            const a = msgEntry.parameters.get(member);
-            if (a) return { anchor: a, label: trimmed };
+            const p = msgEntry.parameters.get(member);
+            if (p) return ret(p);
           }
         }
       }
@@ -9148,62 +9858,61 @@ function resolveSpecReference(idx, token, context) {
     return null;
   }
 
-  // segs.length === 1: bare token. Search context first, then system-
-  // level fallback. Lookup uses segs[0] (parens stripped); label
-  // keeps trimmed (the user's original token, parens intact, so prose
-  // like "Call `recomputeTotal()`" reads naturally in the link text).
+  // segs.length === 1: bare token. Lookup with parens stripped; label
+  // keeps the user's original token.
   const bareKey = segs[0];
   if (context && context.kind === "component") {
     const sub = idx.perComponent.get(context.componentName);
     if (sub) {
-      const a = sub.vars.get(bareKey)
+      const e = sub.vars.get(bareKey)
              || sub.consts.get(bareKey)
              || sub.states.get(bareKey)
              || sub.cps.get(bareKey)
              || sub.lfns.get(bareKey);
-      if (a) return { anchor: a, label: trimmed };
+      if (e) return ret(e);
     }
   }
   if (context && context.kind === "interface") {
     const sub = idx.perInterface.get(context.interfaceName);
     if (sub) {
       const m = sub.messages.get(bareKey);
-      if (m) return { anchor: m.anchor, label: trimmed };
+      if (m) return ret(m);
     }
   }
   if (context && context.kind === "handler") {
     const sub = idx.perHandler.get(context.handlerName);
     if (sub) {
       const f = sub.functions.get(bareKey);
-      if (f) return { anchor: f.anchor, label: trimmed };
+      if (f) return ret(f);
     }
   }
-  // System-level fallback: top-level entities by name.
-  const sysAnchor = idx.components.get(bareKey)
-                 || idx.handlers.get(bareKey)
-                 || idx.interfaces.get(bareKey);
-  if (sysAnchor) return { anchor: sysAnchor, label: trimmed };
-  // Cross-component scan — alphabetical first hit.
+  // System-level fallback.
+  const sys = idx.components.get(bareKey)
+           || idx.handlers.get(bareKey)
+           || idx.interfaces.get(bareKey)
+           || idx.types.get(bareKey);
+  if (sys) return ret(sys);
+  // Cross-component scan.
   const sortedComps = [...idx.perComponent.keys()].sort();
   for (const cName of sortedComps) {
     const sub = idx.perComponent.get(cName);
-    const a = sub.vars.get(bareKey)
+    const e = sub.vars.get(bareKey)
            || sub.consts.get(bareKey)
            || sub.states.get(bareKey)
            || sub.cps.get(bareKey)
            || sub.lfns.get(bareKey);
-    if (a) return { anchor: a, label: trimmed };
+    if (e) return ret(e);
   }
-  // Cross-interface and cross-handler scans for member tokens too.
+  // Cross-interface and cross-handler scans.
   const sortedIfaces = [...idx.perInterface.keys()].sort();
   for (const iName of sortedIfaces) {
     const m = idx.perInterface.get(iName).messages.get(bareKey);
-    if (m) return { anchor: m.anchor, label: trimmed };
+    if (m) return ret(m);
   }
   const sortedHandlers = [...idx.perHandler.keys()].sort();
   for (const hName of sortedHandlers) {
     const f = idx.perHandler.get(hName).functions.get(bareKey);
-    if (f) return { anchor: f.anchor, label: trimmed };
+    if (f) return ret(f);
   }
   return null;
 }
@@ -9247,7 +9956,14 @@ function renderProse(text, context, idx) {
       // We have inner = the token between backticks. Resolve.
       const resolved = resolveSpecReference(idx, inner, context);
       if (resolved) {
-        out += `<a class="ref" href="#${escapeHTML(resolved.anchor)}">${escapeHTML(resolved.label)}</a>`;
+        // data-tooltip carries the entity's description for the
+        // hover popup. Suppressed when the description is empty —
+        // we don't want empty popups appearing on hover. The popup
+        // listener reads the attribute; absence means no popup.
+        const tipAttr = (resolved.description && resolved.description.length > 0)
+          ? ` data-tooltip="${escapeHTML(resolved.description)}"`
+          : "";
+        out += `<a class="ref" href="#${escapeHTML(resolved.anchor)}"${tipAttr}>${escapeHTML(resolved.label)}</a>`;
       } else {
         // Unresolved — render styled but no link.
         out += `<code class="ref-unresolved" title="Unresolved reference">${escapeHTML(inner)}</code>`;
@@ -9281,6 +9997,22 @@ function renderDesc(text, context, idx) {
   const s = (text == null) ? "" : String(text);
   if (s.length === 0) return `<em class="muted">No description provided.</em>`;
   return renderProse(s, context, idx);
+}
+
+// Render a parameter or state-variable type cell. When the string
+// exactly matches a defined type name, wrap in a hyperlink to the
+// Type definitions chapter, with a description tooltip when the type
+// has one. Compound types ("Map<String, int>"), nullable markers
+// ("int?"), and empty values stay plain text. The em-dash fallback
+// matches what's used for missing parameter types elsewhere.
+function renderTypeCell(typeStr, idx) {
+  if (typeStr == null || typeStr.length === 0) return "—";
+  const entry = idx.types.get(typeStr);
+  if (!entry) return escapeHTML(typeStr);
+  const tipAttr = (entry.description && entry.description.length > 0)
+    ? ` data-tooltip="${escapeHTML(entry.description)}"`
+    : "";
+  return `<a class="ref" href="#${escapeHTML(entry.anchor)}"${tipAttr}>${escapeHTML(typeStr)}</a>`;
 }
 
 // Diagram fetcher — reuses the existing fetchDiagramImage which
@@ -9355,6 +10087,17 @@ function buildSidebarTOC() {
     html += `<li class="toc-group"><span class="toc-group-label">Handlers</span><ul>`;
     for (const h of Model.handlers) {
       html += `<li><a href="#${escapeHTML(anchorHandler(h.name))}">${escapeHTML(handlerDisplayLabel(h).replace(/\\n/g, " "))}</a></li>`;
+    }
+    html += `</ul></li>`;
+  }
+  // Type definitions group — reference material at the bottom, in
+  // alphabetical order. Listed individually so the reader can click
+  // through to a specific type without scrolling the whole chapter.
+  const types = (Model.types || []);
+  if (types.length > 0) {
+    html += `<li class="toc-group"><span class="toc-group-label">Type definitions</span><ul>`;
+    for (const t of [...types].sort((a, b) => a.name.localeCompare(b.name))) {
+      html += `<li><a href="#${escapeHTML(anchorType(t.name))}">${escapeHTML(t.name)}</a></li>`;
     }
     html += `</ul></li>`;
   }
@@ -9484,6 +10227,33 @@ a.ref {
   padding: 0 1px;
 }
 a.ref:hover { background: var(--accent-soft); border-radius: 2px; }
+
+/* Hover tooltip for cross-references. Single absolutely-positioned
+   element managed by the iframe's JS; CSS just provides the visual
+   chrome. Hidden by default; the JS toggles .visible to show it
+   after a brief delay. Capped width prevents long descriptions from
+   stretching across the screen; pre-line preserves prose breaks if
+   any survived the tipFor() flatten. */
+.ref-tooltip {
+  position: absolute;
+  z-index: 1000;
+  max-width: 360px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.08);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+  white-space: pre-line;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+}
+.ref-tooltip.visible { opacity: 1; }
+@media print { .ref-tooltip { display: none !important; } }
+
 code.ref-unresolved {
   font-family: "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.92em;
@@ -9580,6 +10350,79 @@ function buildSpecScript() {
     // SecurityError in some browsers).
     try { history.replaceState(null, '', '#' + id); } catch (e) {}
   });
+
+  // === Hover tooltips for cross-references ===
+  // A single tooltip element appended to body; we move it on hover.
+  // Show after a brief delay (250ms) to avoid flicker when the user
+  // is just scanning. Hide immediately on mouseleave or scroll.
+  // Position below the link by default, flipping above if the page
+  // would otherwise be scrolled (i.e., we're near the bottom edge).
+  const tip = document.createElement('div');
+  tip.className = 'ref-tooltip';
+  tip.setAttribute('role', 'tooltip');
+  document.body.appendChild(tip);
+  let showTimer = null;
+  let activeLink = null;
+
+  const positionTip = (link) => {
+    // Measure with the tooltip already populated so width/height are
+    // final. Default position: 6px below the link's bottom edge,
+    // left-aligned with the link's left edge but clamped to keep
+    // within the viewport.
+    const r = link.getBoundingClientRect();
+    const margin = 8;
+    const tipR = tip.getBoundingClientRect();
+    let left = r.left + window.scrollX;
+    let top  = r.bottom + window.scrollY + 6;
+    // Flip upward if the tooltip would extend below the viewport.
+    if (r.bottom + tipR.height + margin > window.innerHeight) {
+      top = r.top + window.scrollY - tipR.height - 6;
+    }
+    // Clamp horizontally.
+    const maxLeft = window.scrollX + window.innerWidth - tipR.width - margin;
+    if (left > maxLeft) left = maxLeft;
+    if (left < window.scrollX + margin) left = window.scrollX + margin;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  };
+
+  const showTipFor = (link) => {
+    const text = link.getAttribute('data-tooltip');
+    if (!text) return;
+    activeLink = link;
+    tip.textContent = text;
+    // Position once before showing so the measurement is correct,
+    // then again after the .visible class is applied (fonts may
+    // settle differently — the second pass is cheap insurance).
+    positionTip(link);
+    tip.classList.add('visible');
+    positionTip(link);
+  };
+  const hideTip = () => {
+    activeLink = null;
+    tip.classList.remove('visible');
+    if (showTimer) { clearTimeout(showTimer); showTimer = null; }
+  };
+
+  document.addEventListener('mouseover', (e) => {
+    const link = e.target.closest('a.ref[data-tooltip]');
+    if (!link) return;
+    if (link === activeLink) return;
+    if (showTimer) clearTimeout(showTimer);
+    showTimer = setTimeout(() => showTipFor(link), 250);
+  });
+  document.addEventListener('mouseout', (e) => {
+    const link = e.target.closest('a.ref[data-tooltip]');
+    if (!link) return;
+    // Only hide if the new target isn't the same link or its child.
+    const to = e.relatedTarget;
+    if (to && link.contains(to)) return;
+    hideTip();
+  });
+  // Hide on any scroll or window resize so the tooltip never floats
+  // disconnected from its anchor point.
+  window.addEventListener('scroll', hideTip, true);
+  window.addEventListener('resize', hideTip);
 
   // === Esc key forwarding ===
   // When the iframe has focus (after the user clicks anywhere inside),
@@ -9736,9 +10579,9 @@ async function buildSpecBody(idx, progress) {
               // per-parameter cell highlights subtly via :target CSS
               // when navigated to directly.
               if (k === 0) {
-                parts.push(`<tr id="${escapeHTML(msgId)}" class="entity-anchor"><td rowspan="${params.length}">${escapeHTML(m.name)}</td><td rowspan="${params.length}">${renderDesc(m.description, ifaceCtx, idx)}</td><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${escapeHTML(p.type || "—")}</td><td>${renderDesc(p.description, ifaceCtx, idx)}</td></tr>`);
+                parts.push(`<tr id="${escapeHTML(msgId)}" class="entity-anchor"><td rowspan="${params.length}">${escapeHTML(m.name)}</td><td rowspan="${params.length}">${renderDesc(m.description, ifaceCtx, idx)}</td><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${renderTypeCell(p.type, idx)}</td><td>${renderDesc(p.description, ifaceCtx, idx)}</td></tr>`);
               } else {
-                parts.push(`<tr><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${escapeHTML(p.type || "—")}</td><td>${renderDesc(p.description, ifaceCtx, idx)}</td></tr>`);
+                parts.push(`<tr><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${renderTypeCell(p.type, idx)}</td><td>${renderDesc(p.description, ifaceCtx, idx)}</td></tr>`);
               }
             }
           }
@@ -9808,7 +10651,7 @@ async function buildSpecBody(idx, progress) {
       parts.push(`<table><thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead><tbody>`);
       for (const v of vars) {
         const id = anchorVar(c.name, v.name);
-        parts.push(`<tr id="${escapeHTML(id)}" class="entity-anchor"><td>${escapeHTML(v.name)}</td><td>${escapeHTML(v.type || "—")}</td><td>${renderDesc(v.description, compCtx, idx)}</td></tr>`);
+        parts.push(`<tr id="${escapeHTML(id)}" class="entity-anchor"><td>${escapeHTML(v.name)}</td><td>${renderTypeCell(v.type, idx)}</td><td>${renderDesc(v.description, compCtx, idx)}</td></tr>`);
       }
       parts.push(`</tbody></table>`);
     }
@@ -9917,10 +10760,26 @@ async function buildSpecBody(idx, progress) {
             const action = (mm.action && mm.action.length > 0)
               ? renderProseMultiline(mm.action, rowCtx, idx)
               : `<em class="muted">—</em>`;
+            // Cells for Interface and Message link to their definition
+            // in the Interfaces chapter, with the same hover-tooltip
+            // affordance the inline backtick references have. Fall
+            // back to plain text when the entity isn't indexed (e.g.
+            // a system-default interface or a message authored before
+            // its interface was renamed) so the table doesn't
+            // mysteriously omit cells.
+            const ifaceEntry = idx.interfaces.get(mm.interface);
+            const ifaceCell = ifaceEntry
+              ? `<a class="ref" href="#${escapeHTML(ifaceEntry.anchor)}"${ifaceEntry.description ? ` data-tooltip="${escapeHTML(ifaceEntry.description)}"` : ""}>${escapeHTML(mm.interface)}</a>`
+              : escapeHTML(mm.interface);
+            const ifaceSub = idx.perInterface.get(mm.interface);
+            const msgEntry = ifaceSub ? ifaceSub.messages.get(mm.name) : null;
+            const msgCell = msgEntry
+              ? `<a class="ref" href="#${escapeHTML(msgEntry.anchor)}"${msgEntry.description ? ` data-tooltip="${escapeHTML(msgEntry.description)}"` : ""}>${escapeHTML(mm.name)}</a>`
+              : escapeHTML(mm.name);
             if (k === 0) {
-              parts.push(`<tr><td rowspan="${p.msgs.length}">${escapeHTML(p.src)}</td><td rowspan="${p.msgs.length}">${escapeHTML(p.tgt)}</td><td>${escapeHTML(mm.interface)}</td><td>${escapeHTML(mm.name)}</td><td class="cell-multiline">${action}</td></tr>`);
+              parts.push(`<tr><td rowspan="${p.msgs.length}">${escapeHTML(p.src)}</td><td rowspan="${p.msgs.length}">${escapeHTML(p.tgt)}</td><td>${ifaceCell}</td><td>${msgCell}</td><td class="cell-multiline">${action}</td></tr>`);
             } else {
-              parts.push(`<tr><td>${escapeHTML(mm.interface)}</td><td>${escapeHTML(mm.name)}</td><td class="cell-multiline">${action}</td></tr>`);
+              parts.push(`<tr><td>${ifaceCell}</td><td>${msgCell}</td><td class="cell-multiline">${action}</td></tr>`);
             }
           }
         }
@@ -9975,9 +10834,9 @@ async function buildSpecBody(idx, progress) {
               const p = params[k];
               const paramId = anchorFnParam(h.name, f.name, p.name);
               if (k === 0) {
-                parts.push(`<tr id="${escapeHTML(fnId)}" class="entity-anchor"><td rowspan="${params.length}">${escapeHTML(f.name)}</td><td rowspan="${params.length}">${renderDesc(f.description, handlerCtx, idx)}</td><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${escapeHTML(p.type || "—")}</td><td>${renderDesc(p.description, handlerCtx, idx)}</td></tr>`);
+                parts.push(`<tr id="${escapeHTML(fnId)}" class="entity-anchor"><td rowspan="${params.length}">${escapeHTML(f.name)}</td><td rowspan="${params.length}">${renderDesc(f.description, handlerCtx, idx)}</td><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${renderTypeCell(p.type, idx)}</td><td>${renderDesc(p.description, handlerCtx, idx)}</td></tr>`);
               } else {
-                parts.push(`<tr><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${escapeHTML(p.type || "—")}</td><td>${renderDesc(p.description, handlerCtx, idx)}</td></tr>`);
+                parts.push(`<tr><td id="${escapeHTML(paramId)}" class="entity-anchor">${escapeHTML(p.name)}</td><td>${renderTypeCell(p.type, idx)}</td><td>${renderDesc(p.description, handlerCtx, idx)}</td></tr>`);
               }
             }
           }
@@ -9986,6 +10845,33 @@ async function buildSpecBody(idx, progress) {
       }
       parts.push(`</section>`);
     }
+    parts.push(`</section>`);
+  }
+
+  // === Type definitions ===
+  // Reference material at the end of the document. Three columns —
+  // Name / Description / Specification. Each row's Name cell carries
+  // the per-type anchor (`type-MyType`); parameter and state-variable
+  // type cells elsewhere link to it via exact-string match. The
+  // specification cell uses cell-multiline so newlines render as
+  // proper line breaks. Sorted alphabetically by name.
+  const types = (Model.types || []);
+  if (types.length > 0) {
+    const sortedTypes = [...types].sort((a, b) => a.name.localeCompare(b.name));
+    parts.push(`<section><h1>Type definitions</h1>`);
+    parts.push(`<p>The types referenced by parameter and state-variable declarations are defined below. Type names in tables elsewhere in this document link back to these entries.</p>`);
+    parts.push(`<table><thead><tr><th>Name</th><th>Description</th><th>Specification</th></tr></thead><tbody>`);
+    for (const t of sortedTypes) {
+      const id = anchorType(t.name);
+      const typeCtx = { kind: "type", name: t.name };
+      // Specification can reference other types via backticks — same
+      // resolver pipeline as everywhere else. Multi-line preserved.
+      const spec = (t.specification && t.specification.length > 0)
+        ? renderProseMultiline(t.specification, typeCtx, idx)
+        : `<em class="muted">—</em>`;
+      parts.push(`<tr id="${escapeHTML(id)}" class="entity-anchor"><td>${escapeHTML(t.name)}</td><td>${renderDesc(t.description, typeCtx, idx)}</td><td class="cell-multiline">${spec}</td></tr>`);
+    }
+    parts.push(`</tbody></table>`);
     parts.push(`</section>`);
   }
 
@@ -10601,6 +11487,31 @@ async function buildSpecificationDocx(d, progress) {
     }
   }
 
+  // Type definitions chapter — last in the document. Mirrors the
+  // HTML chapter: three columns (Name | Description | Specification).
+  // The specification column gets the widest allocation since it can
+  // hold multi-paragraph prose (encoding, range, validity, examples).
+  // Reuses COL_3S which has the widest third column among existing
+  // three-column profiles.
+  const types = (Model.types || []);
+  if (types.length > 0) {
+    children.push(mkHeading(d, "Type definitions", 1));
+    children.push(mkPara(d, "The types referenced by parameter and state-variable declarations are defined below."));
+    const sortedTypes = [...types].sort((a, b) => a.name.localeCompare(b.name));
+    children.push(mkTable(d,
+      [ "Name", "Description", "Specification" ],
+      sortedTypes.map(t => new d.TableRow({ children: [
+        mkCell(d, t.name, { width: COL_3S[0] }),
+        mkCell(d, desc(t.description), { width: COL_3S[1] }),
+        // The Specification cell preserves newlines so multi-paragraph
+        // type bodies (an enum's value list, a struct's field
+        // breakdown) read as the user wrote them.
+        mkCell(d, desc(t.specification), { width: COL_3S[2], preserveNewlines: true })
+      ]})),
+      COL_3S
+    ));
+  }
+
   return new d.Document({
     creator: "Stadiæ",
     title: sysTitle,
@@ -11052,6 +11963,11 @@ function loadModel(data) {
                                    data.systemInterfaceFontSize >= 6 && data.systemInterfaceFontSize <= 40)
                                   ? data.systemInterfaceFontSize : 11;
   Model.systemSpecification = (typeof data.systemSpecification === "string") ? data.systemSpecification : "";
+  Model.types = Array.isArray(data.types) ? data.types.map(t => ({
+    name: (typeof t.name === "string") ? t.name : "",
+    description:   (typeof t.description === "string") ? t.description : "",
+    specification: (typeof t.specification === "string") ? t.specification : ""
+  })).filter(t => t.name.length > 0) : [];
 
   Model.activeView = "component";
 }
@@ -11128,6 +12044,9 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
         showPrompt("Interface label font size", "Size (pt):", String(Model.systemInterfaceFontSize),
           v => (/^\d+$/.test(v) && +v>=6 && +v<=40) ? null : "Enter a number between 6 and 40",
           v => { pushHistory(); Model.systemInterfaceFontSize = parseInt(v,10); refresh(); });
+        break;
+      case "sys-type-defs":
+        openTypeDefinitionsModal();
         break;
       case "manual":
         showManual();

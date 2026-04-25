@@ -161,6 +161,17 @@ Model = {
   // persisted in JSON, never written to PlantUML. Edited via the
   // System Specification panel below the canvas.
   systemSpecification: String,
+  // System-wide type definitions. Reference material describing the
+  // domain types used in parameter and state-variable type fields.
+  // Documentation-only; never enforced or emitted. Each entry has a
+  // single-word identifier-safe name (unique across types,
+  // components, handlers, and non-default interfaces), an optional
+  // description, and a free multi-line specification. The HTML and
+  // docx specs render these as a Type definitions chapter at the
+  // end of the document; parameter and state-variable type cells
+  // auto-link to the matching type when the cell's string exactly
+  // equals a defined type name.
+  types: [ {name, description, specification} ],
   // Which view the canvas is rendering: "component" shows the active
   // component's state machine, "system" shows the component diagram.
   activeView: "component"|"system",
@@ -1039,12 +1050,13 @@ The cost is a runtime dependency on a .docx-building library. The export uses Do
 - `comp-{name}-state-{stateName}`, `comp-{name}-cp-{cpName}`, `comp-{name}-var-{varName}`, `comp-{name}-const-{constName}`, `comp-{name}-lfn-{lfnName}` — per-row anchors inside the per-component tables
 - `iface-{name}`, `iface-{name}-msg-{msgName}`, `iface-{name}-msg-{msgName}-param-{paramName}` — interface chapter, message rows, and per-parameter sub-rows
 - `handler-{name}`, `handler-{name}-fn-{fnName}`, `handler-{name}-fn-{fnName}-param-{paramName}` — handler chapter, function rows, and per-parameter sub-rows
+- `type-{name}` — type definition row in the Type definitions chapter
 
 Identifiers are already constrained to a-z A-Z 0-9 _ by `isValidIdentifier` (validated on every Add dialog), so they slug as URL fragments without escaping. Display names (which may contain spaces or punctuation for state and CP labels) are not used in anchors — only the underlying `name` field, which is the model's stable identifier.
 
 Per-parameter anchors live on the parameter-name `<td>` cell rather than the row's `<tr>` because the row's `<tr>` already carries the parent message/function anchor — and an element can only have one `id`. The cell-level id works fine with `scrollIntoView` and gets a brief accent highlight when navigated to (`.ref-target` class added by the iframe's click handler, removed by `setTimeout` after the fade transition completes).
 
-**Index and resolution.** `buildSpecAnchorIndex()` builds nested Maps over all components, handlers, interfaces, and their members — done once at the start of generation. Each interface entry's `messages` Map and each handler entry's `functions` Map stores `{anchor, parameters: Map(name → anchor)}` rather than a bare anchor string, so a single lookup can yield either the parent's anchor (two-segment use) or a parameter's anchor (three-segment use). `resolveSpecReference(idx, token, context)` consumes that index plus the current rendering context and returns either an `{ anchor, label }` for a successful lookup or `null` for an unresolved reference.
+**Index and resolution.** `buildSpecAnchorIndex()` builds nested Maps over all components, handlers, interfaces, types, and their members — done once at the start of generation. Each interface entry's `messages` Map and each handler entry's `functions` Map stores `{anchor, parameters: Map(name → anchor)}` rather than a bare anchor string, so a single lookup can yield either the parent's anchor (two-segment use) or a parameter's anchor (three-segment use). The top-level `types` Map stores `{anchor, description}` keyed by name; types are referenced both via bare backtick lookups (`` `MyType` ``) and via exact-string matches in parameter / state-variable type cells. `resolveSpecReference(idx, token, context)` consumes that index plus the current rendering context and returns either an `{ anchor, label, description }` for a successful lookup or `null` for an unresolved reference. The bare-token fallback chain is: current context's members → top-level system entities (component, handler, interface, **type**) → cross-component scan → cross-interface and cross-handler scans.
 
 The resolver dispatches by segment count (split on `:`). Empty segments (`A::B`, leading/trailing `:`) and 4+ segments are rejected as malformed.
 
@@ -1082,6 +1094,18 @@ The resolver dispatches by segment count (split on `:`). Empty segments (`A::B`,
 
 **Print stylesheet.** A `@media print` block hides `.toc`, expands `<main>` to full width, removes the dotted-underline reference styling (printed links don't need the visual affordance), and applies `page-break-after: avoid` to H1/H2 so chapter headings don't strand at the bottom of a page.
 
+**Type definitions and auto-linking.** Type definitions are system-wide reference entries (see `Model.types` in §3) rendered as their own chapter at the end of both the HTML and docx specs. They participate in the reference resolver as top-level entities — `` `MyType` `` is a bare reference that resolves to the type's anchor.
+
+Beyond explicit backtick references, parameter and state-variable type *cells* in the spec auto-link when the cell's string exactly matches a defined type name. The helper `renderTypeCell(typeStr, idx)` consults `idx.types`: an exact match emits `<a class="ref" href="#type-{name}" data-tooltip="...">` (with the type's description as the tooltip when present), a non-match emits the escaped string verbatim. The match is exact-string only — compound type strings like `Map<String, int>` and nullable markers like `int?` stay plain text. Users wanting links into compound types can use the backtick syntax in surrounding descriptions.
+
+`renderTypeCell` is called from five spec rendering sites: message parameter rows (first row + sub-rows of multi-parameter messages), state-variable rows, and function parameter rows (first row + sub-rows). It replaces what was previously `escapeHTML(p.type || "—")`, with the same em-dash fallback for empty strings.
+
+**Type rename cascade.** When a type is renamed via the Type Definitions dialog, two passes run:
+1. `applyRenameRewrite(makeOwnerRenamePredicate(old, new))` — rewrites backtick references in all prose, same as component / handler / interface renames.
+2. `retypeOnRename(old, new)` — walks every parameter and state-variable type field and replaces exact-string matches. Lets the auto-link in spec tables keep working without forcing the user to edit each parameter row by hand.
+
+Both passes are part of the same `pushHistory()` snapshot, so a single undo restores both the type's name and every cascaded reference.
+
 **Modal architecture.** `openSpecificationModal()` is the menu-bound entry point. It:
 
 1. Calls `buildSpecificationHTML(progress)` while showing a progress overlay (`Building specification…` → `Rendering system diagram…` → `Rendering {component} context…` → `Rendering {component} state diagram…`).
@@ -1091,6 +1115,44 @@ The resolver dispatches by segment count (split on `:`). Empty segments (`A::B`,
 5. Listens for `message` events from the iframe — the inline iframe script forwards Esc keypresses via `postMessage({ type: 'spec-modal-escape' })` so Esc closes the modal even when focus has moved into the iframe (where the parent's keydown handler can't reach it).
 
 **Why an iframe.** The spec HTML is a complete document with its own CSS and `<script>`. Rendering it inline in the parent page would require either (a) injecting the styles into the parent (collisions with editor styles) or (b) using a Shadow DOM root. An iframe gives complete style and script isolation for free, plus it doubles as the "what does the downloaded file look like" preview — what you see in the modal is byte-for-byte what gets written to disk.
+
+### Reference rewrite on rename
+
+Backtick references in the model's prose are stored as text — `` `Connection:ConnectReq` `` is just those characters in an action's body — but the user expects them to track renames. Rename interface `Connection` to `Conn` and the action should read `` `Conn:ConnectReq` ``, not become an unresolved reference.
+
+To deliver this, every rename dialog hooks a string-rewrite pass that runs *before* mutating the entity name. The pass walks every free-text field in the model and applies a per-rename predicate to each backtick-resolved token. Predicates return either a replacement string (rewrites the backtick contents) or null (leaves it alone).
+
+**Walker.** `walkAllProse(transform)` visits every free-text field in the model, calling `transform(text, fieldContext)` and assigning the result back. The fields visited:
+
+- `Model.systemSpecification` (context `{kind:"system"}`)
+- For each component: `description`, every state's `description`, every choice-point's `question` and `description`, every state variable's `description`, every constant's `value` and `description`, every local function's `description` and `steps`, every transition's every message's `action` (context `{kind:"component", componentName}`)
+- For each handler: `description`, every function's `description`, every parameter's `description` (context `{kind:"handler", handlerName}`)
+- For each interface: `description` (context `{kind:"interface", interfaceName}`)
+- For each system message: `description`, every parameter's `description` (context `{kind:"message", interfaceName, name}`)
+
+Identifier fields — state names, CP names, parameter names — are not visited. They're not prose; they're identifiers. Renames mutate them via the dialog's own logic and then the rewriter cascades the *references* in prose.
+
+**Per-field rewriter.** `rewriteProse(text, predicate, fieldContext)` walks the input character-by-character, recognising backtick spans the same way `renderProse` does (with backslash-escape support and unterminated-span passthrough). For each enclosed token, it calls `predicate(token, fieldContext)`. The predicate decides whether to rewrite based on segment matching plus, when relevant, the field context.
+
+**Token segmentation.** `splitTokenSegments(token)` splits on `:` and decomposes each segment into `{lead, bare, ornament}` so the parens-call ornament (and any leading whitespace) is preserved through a rewrite. `recomputeTotal()` becomes `newName()` — the segment's `bare` is rewritten while `ornament: "()"` is carried over. `joinTokenSegments(segs)` rebuilds the token string.
+
+**Predicate factories.** Each rename kind has a factory that returns a predicate matching the right token shapes:
+
+- `makeOwnerRenamePredicate(old, new)` — for component, handler, interface renames. Matches any token whose first segment equals the old name; rewrites it. Field context is irrelevant — these are global identifiers. Catches bare `Old`, qualified `Old:Member`, and three-segment `Old:Member:Param`.
+
+- `makeComponentMemberRenamePredicate(owner, old, new)` — for state, choice-point, variable, constant, local-function renames within a component. Matches qualified `Owner:Old` (regardless of field), and bare `Old` *only* when the field belongs to the owning component (`fieldContext.componentName === owner`). The bare-scope rule prevents rewriting unrelated bare matches in other components' prose.
+
+- `makeMessageRenamePredicate(iface, old, new)` — for message renames. Matches qualified `Iface:Old` and three-segment `Iface:Old:Param`. Does NOT touch bare `Old` (message names live in their interface namespace and a bare match could collide).
+
+- `makeFunctionRenamePredicate(handler, old, new)` — for handler-function renames. Same shape as the component-member predicate: qualified `Handler:Old` everywhere, bare `Old` only inside the owning handler's prose.
+
+- `makeParameterRenamePredicate(owner, member, old, new)` — for parameter renames. Matches three-segment `Owner:Member:Old` only. Two-segment action-context shorthand (`Member:Old` inside a row's action where the row's message is `Member`) is not auto-rewritten; the rewriter is a string operation that doesn't know which transition row each piece of action text belongs to. Users renaming parameters and using the action-context shorthand may need to update those references manually.
+
+**Wiring.** Each rename dialog OK handler — `openComponentDialog`, `openHandlerDialog`, `openInterfaceDialog`, `openMessageDialog`, `openFunctionDialog`, `openStateDialog`, `openCPDialog`, `openStateVariableDialog`, `openConstantDialog`, `openLocalFunctionDialog`, `openParameterDialog` — calls `applyRenameRewrite(makeXxxRenamePredicate(...))` immediately after `pushHistory()` and before mutating the entity's name. The rewrite reads the *old* name and writes the *new* name in literal text; it doesn't depend on the entity record itself, so the order of "rewrite then mutate" vs "mutate then rewrite" doesn't matter for correctness — but doing it before mutation keeps the field-context lookups consistent (e.g., a message's interface field is still `Old` when we walk message descriptions, matching how `Old:Foo` references parse).
+
+**Undo behaviour.** The rewrite runs *after* `pushHistory()`, so it's part of the same history snapshot as the rename. A single Ctrl+Z restores both the original name *and* the original prose verbatim.
+
+**Deletions don't cascade.** When an entity is deleted, references to it become unresolved — the renderer styles them as warning-coloured monospace with a dotted underline. The user fixes them manually. This is intentional: silently rewriting `` `Connection:ConnectReq` `` to plain `Connection:ConnectReq` (no backticks) on delete would lose intent (the user wanted a reference here), and the unresolved styling provides a useful visual cue that something's broken.
 
 ### Flow
 

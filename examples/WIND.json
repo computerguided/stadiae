@@ -44,7 +44,8 @@
       "parameters": [
         {
           "name": "serverId",
-          "type": "uint"
+          "type": "uint",
+          "description": "ID of the server what wants to connect."
         }
       ]
     },
@@ -55,7 +56,8 @@
       "parameters": [
         {
           "name": "id",
-          "type": "uint"
+          "type": "uint",
+          "description": "ID of the device."
         }
       ]
     },
@@ -81,7 +83,8 @@
       "parameters": [
         {
           "name": "peripheralId",
-          "type": "uint"
+          "type": "uint",
+          "description": "ID of the peripheral that became operational."
         }
       ]
     },
@@ -92,18 +95,23 @@
     },
     {
       "interface": "Content",
-      "name": "NewContentInd",
+      "name": "ContentInd",
       "description": "A new image to display with touch map and audio queues.",
       "parameters": [
         {
           "name": "image",
-          "type": "byte[][]",
+          "type": "byteMatrix",
           "description": "The PNG image to display."
         },
         {
           "name": "touchMap",
-          "type": "uint[][]",
+          "type": "uintMatrix",
           "description": "Mapping the pixels in the image to touch area IDs."
+        },
+        {
+          "name": "soundMap",
+          "type": "uintArray",
+          "description": "Maps a touch ID to a sound ID."
         }
       ]
     },
@@ -130,9 +138,31 @@
       "description": "Indication that a touch event occurred on the display.",
       "parameters": [
         {
-          "name": "coordinates",
-          "type": "{uint,uint}",
-          "description": "Touch coordinates."
+          "name": "x",
+          "type": "uint",
+          "description": "The x-coordinate of the touched pixel."
+        },
+        {
+          "name": "y",
+          "type": "uint",
+          "description": "The y-coordinate of the touched pixel."
+        }
+      ]
+    },
+    {
+      "interface": "Content",
+      "name": "SoundInd",
+      "description": "An update of a sound.",
+      "parameters": [
+        {
+          "name": "id",
+          "type": "uint",
+          "description": "The ID of the location where to place the sound."
+        },
+        {
+          "name": "soundData",
+          "type": "byteArray",
+          "description": "The audio samples."
         }
       ]
     }
@@ -198,7 +228,7 @@
             {
               "interface": "Connection",
               "name": "ReadyInd",
-              "action": "Call the sendAdvertisePacket() of the Wireless Transceiver.\nStart the time with the ADVERTISEMENT interval.\n\n"
+              "action": "Call `doAdvertise()`.\n\n"
             }
           ],
           "connector": "Down",
@@ -211,7 +241,7 @@
             {
               "interface": "Connection",
               "name": "ConnectReq",
-              "action": "Stop the timer.\nStore the ConnectReq:serverId in the serverId state variable."
+              "action": "Stop the timer.\nStore the `ConnectReq:serverId` in the `serverId` state variable."
             }
           ],
           "connector": "Left",
@@ -224,7 +254,7 @@
             {
               "interface": "Logical",
               "name": "No",
-              "action": "Call the rejectServer() function of the Wireless Transceiver.\nCall the sendAdvertisePacket() of the Wireless Transceiver.\nStart the time with the ADVERTISEMENT interval."
+              "action": "Call the `WirelessTransceiver:rejectServer()`.\nCall the `WirelessTransceiver:sendAdvertisementPacket()`.\nStart the time with the `ADVERTISEMENT` interval."
             }
           ],
           "connector": "Right",
@@ -249,7 +279,7 @@
             {
               "interface": "Connection",
               "name": "DisconnectedInd",
-              "action": "Call the sendAdvertisePacket() of the Wireless Transceiver.\nStart the time with the ADVERTISEMENT interval."
+              "action": "Call `doAdvertise()`."
             }
           ],
           "connector": "Up",
@@ -262,7 +292,7 @@
             {
               "interface": "Timer",
               "name": "Timeout",
-              "action": "Call the sendAdvertisePacket() of the Wireless Transceiver.\nStart the time with the ADVERTISEMENT interval."
+              "action": "Call `doAdvertise()`."
             }
           ],
           "connector": "Right",
@@ -275,7 +305,7 @@
             {
               "interface": "Logical",
               "name": "Yes",
-              "action": "Call the connectServer() function of the Wireless Transceiver with the received serverId.\nStart the timer with the CONNECTION_TIMEOUT interval."
+              "action": "Call `WirelessTransceiver:connectServer`(`serverId`).\nStart the timer with the `CONNECTION_TIMEOUT` interval."
             }
           ],
           "connector": "Down",
@@ -288,7 +318,7 @@
             {
               "interface": "Timer",
               "name": "Timeout",
-              "action": "Call the sendAdvertisePacket() of the Wireless Transceiver.\nStart the timer with the ADVERTISEMENT interval."
+              "action": "Call `doAdvertise()`."
             }
           ],
           "connector": "Up",
@@ -301,7 +331,7 @@
             {
               "interface": "System",
               "name": "ErrorInd",
-              "action": "Call the disable() function of the Wireless Transceiver."
+              "action": "Call the `WirelessTransceiver:disable()`."
             }
           ],
           "connector": "Right",
@@ -314,7 +344,7 @@
             {
               "interface": "Connection",
               "name": "ConnectedInd",
-              "action": "NOP"
+              "action": ""
             }
           ],
           "connector": "Right",
@@ -322,7 +352,7 @@
         }
       ],
       "displayName": "Server\\nConnector",
-      "description": "Controls and establishes the connection with the server. It waits for the system to become ready and then starts advertising it presence on the network to be discoverable by a server.",
+      "description": "Controls and establishes the connection with the server. It waits for the system to become ready and then starts advertising its presence on the network to be discoverable by a server.",
       "stateVariables": [
         {
           "name": "serverId",
@@ -331,8 +361,27 @@
         },
         {
           "name": "whitelist",
-          "type": "uint[]",
+          "type": "uintArray",
           "description": "Whitelist of servers."
+        }
+      ],
+      "localFunctions": [
+        {
+          "name": "doAdvertise",
+          "description": "Send advertisement packet and start timer.",
+          "steps": "Call the `WirelessTransceiver:sendAdvertisementPacket()`.\nStart the timer with the `ADVERTISEMENT` interval."
+        }
+      ],
+      "constants": [
+        {
+          "name": "ADVERTISEMENT",
+          "value": "1000",
+          "description": "Advertisement interval in ms."
+        },
+        {
+          "name": "CONNECTION_TIMEOUT",
+          "value": "500",
+          "description": "Timeout waiting for server to connect in ms."
         }
       ]
     },
@@ -359,7 +408,7 @@
         {
           "name": "AllReady",
           "question": "All Peripherals\\nOperational?",
-          "description": "Are all known peripherals operational?"
+          "description": "Are all expected `NUM_PERIPHERALS` peripherals operational?"
         }
       ],
       "transitions": [
@@ -377,7 +426,7 @@
             {
               "interface": "Peripherals",
               "name": "ReadyInd",
-              "action": "Add the readyInd:peripheralId in the peripherals list."
+              "action": "Add the `ReadyInd:peripheralId` in the peripherals list."
             }
           ],
           "connector": "Down",
@@ -402,7 +451,7 @@
             {
               "interface": "Logical",
               "name": "Yes",
-              "action": "Send the System:ReadyInd message."
+              "action": "Send the `System:ReadyInd` message."
             }
           ],
           "connector": "Right",
@@ -415,7 +464,7 @@
             {
               "interface": "Peripherals",
               "name": "FailureInd",
-              "action": "Send the Ssytem:ErrorInd message."
+              "action": "Send the `System:ErrorInd` message."
             }
           ],
           "connector": "Right",
@@ -439,8 +488,15 @@
       "stateVariables": [
         {
           "name": "peripherals",
-          "type": "uint[]",
+          "type": "uintArray",
           "description": "List of operational peripherals."
+        }
+      ],
+      "constants": [
+        {
+          "name": "NUM_PERIPHERALS",
+          "value": "3",
+          "description": "Number of expected peripherals."
         }
       ]
     },
@@ -450,7 +506,8 @@
       "stateFontSize": 12,
       "states": [
         {
-          "name": "Uninitialised"
+          "name": "Uninitialised",
+          "description": "Waiting for the system to become ready."
         },
         {
           "name": "InitialisingAudio",
@@ -487,10 +544,10 @@
             {
               "interface": "System",
               "name": "ReadyInd",
-              "action": "Call the initialize() function of the Audio Handler."
+              "action": "Call `AudioHandler:initialize()`."
             }
           ],
-          "connector": "Right",
+          "connector": "Left",
           "length": 1
         },
         {
@@ -500,7 +557,7 @@
             {
               "interface": "Audio",
               "name": "ReadyInd",
-              "action": "Store the ReadyInd:numSounds in the numSounds state variable.\nCall the initialize() function of the Touch Display."
+              "action": "`numSounds` = `ReadyInd:numSounds`.\nCall the `TouchDisplay:initialize()`."
             }
           ],
           "connector": "Down",
@@ -513,23 +570,10 @@
             {
               "interface": "Display",
               "name": "ReadyInd",
-              "action": "Call "
+              "action": ""
             }
           ],
-          "connector": "Left",
-          "length": 1
-        },
-        {
-          "source": "Operational",
-          "target": "Uninitialised",
-          "messages": [
-            {
-              "interface": "System",
-              "name": "ErrorInd",
-              "action": "Call the disable() function of the Touch Display."
-            }
-          ],
-          "connector": "Up",
+          "connector": "Right",
           "length": 1
         },
         {
@@ -538,8 +582,8 @@
           "messages": [
             {
               "interface": "Content",
-              "name": "NewContentInd",
-              "action": "Copy the NewContentInd:image and NewContentInd:touchMap in the image and touchMap state variables respectively.\nCall the display() function of the Touch Display with the image as the parameter."
+              "name": "ContentInd",
+              "action": "`image` = `ContentInd:image`\nCall `TouchDisplay:display`(`image`).\n`touchMap` = `ContentInd:touchMap`\n`soundMap` = `ContentInd:soundMap`"
             }
           ],
           "connector": "Down",
@@ -552,7 +596,38 @@
             {
               "interface": "Display",
               "name": "TouchedInd",
-              "action": "Call the unresponsive() function of the Touch Display.\nCall the sendTouchEvent() function of the Wireless Tranceiver.\n"
+              "action": "`touchedAreaId` = `touchMap`[`TouchedInd:x`][`TouchedInd:y`]\n`soundId` = `soundMap`[`touchedAreaId`]\nCall `AudioHandler:playSound`(`soundId`).\nCall  `TouchDisplay:unresponsive()`.\nCall `WirelessTransceiver:sendTouchEvent()`.\n"
+            },
+            {
+              "interface": "Content",
+              "name": "SoundInd",
+              "action": "Call `TouchDisplay:unresponsive()`\n`soundId` = `SoundInd:id`\n`sampleData` = `SoundInd:soundData`"
+            }
+          ],
+          "connector": "Right",
+          "length": 1
+        },
+        {
+          "source": "*",
+          "target": "Uninitialised",
+          "messages": [
+            {
+              "interface": "System",
+              "name": "ErrorInd",
+              "action": "Call `TouchDisplay:unresponsive()`.\nCall the `TouchDisplay:displayError()`."
+            }
+          ],
+          "connector": "Left",
+          "length": 1
+        },
+        {
+          "source": "Operational",
+          "target": "Operational",
+          "messages": [
+            {
+              "interface": "Content",
+              "name": "SoundInd",
+              "action": "`soundId` = `SoundInd:id`\n`sampleData` = `SoundInd:soundData`\nCall `updateSound()`."
             }
           ],
           "connector": "Right",
@@ -560,7 +635,7 @@
         }
       ],
       "displayName": "UI\\nController",
-      "description": "Controls the user interaction by interfacing with the touch display and the ",
+      "description": "Controls the user interaction by interfacing with the `TouchDisplay` and the `AudioHandler`.",
       "stateVariables": [
         {
           "name": "numSounds",
@@ -569,13 +644,40 @@
         },
         {
           "name": "touchMap",
-          "type": "uint[][]",
+          "type": "uintMatrix",
           "description": "Mapping the pixels in the image to touch area IDs."
         },
         {
           "name": "image",
-          "type": "byte[]",
+          "type": "byteArray",
           "description": "The PNG image currently displayed or to be displayed."
+        },
+        {
+          "name": "soundMap",
+          "type": "uintArray",
+          "description": "Maps a touch ID with a sound ID."
+        },
+        {
+          "name": "soundId",
+          "type": "uint",
+          "description": "Sound to play or that is playing."
+        },
+        {
+          "name": "touchedAreaId",
+          "type": "uint",
+          "description": "ID of the touched area."
+        },
+        {
+          "name": "sampleData",
+          "type": "byteArray",
+          "description": "Sample data of a sound."
+        }
+      ],
+      "localFunctions": [
+        {
+          "name": "updateSound",
+          "description": "Update a sound on the audio peripheral.",
+          "steps": "Call updateSound() of the Audio Handler with soundId and sampleData as parameters."
         }
       ]
     }
@@ -596,7 +698,7 @@
     {
       "component": "SystemStatusController",
       "interface": "System",
-      "connector": "Left",
+      "connector": "Up",
       "length": 1
     },
     {
@@ -620,7 +722,7 @@
     {
       "component": "UiController",
       "interface": "Display",
-      "connector": "Right",
+      "connector": "Left",
       "length": 1
     },
     {
@@ -630,16 +732,16 @@
       "length": 1
     }
   ],
-  "activeComponentIndex": 2,
+  "activeComponentIndex": 1,
   "handlers": [
     {
       "name": "WirelessTransceiver",
       "displayName": "Wireless\\nTransceiver",
-      "description": "Takes care of receiving and transmitting data packets on the radio front-end by interfacing with the radio hardware peripheral.",
+      "description": "This handler takes care of receiving and transmitting data packets on the radio front-end by interfacing with the radio hardware peripheral. By looking at the message-type of incoming messages, indications are forwarded either to the `Connection` or `Content` interface.",
       "functions": [
         {
-          "name": "sendAdvertisePacket",
-          "description": "Send a single advertise packet to become discoverable."
+          "name": "sendAdvertisementPacket",
+          "description": "Send a single advertisement packet to become discoverable."
         },
         {
           "name": "initialise",
@@ -658,11 +760,12 @@
         },
         {
           "name": "rejectServer",
-          "description": "Block furhter requests from the indicated server.",
+          "description": "Block further requests from the indicated server.",
           "parameters": [
             {
               "name": "serverId",
-              "type": "uint"
+              "type": "uint",
+              "description": "The ID of the server that is to be rejected from now on."
             }
           ]
         },
@@ -697,6 +800,7 @@
     {
       "name": "TouchDisplay",
       "displayName": "Touch\\nDisplay",
+      "description": "Handles the interface to the touch display to show images and capture touch events.",
       "functions": [
         {
           "name": "unresponsive",
@@ -712,20 +816,52 @@
           "parameters": [
             {
               "name": "image",
-              "type": "byte[][]",
+              "type": "byteArray",
               "description": "The PNG image to be displayed."
             }
           ]
+        },
+        {
+          "name": "displayError",
+          "description": "Display the default error message."
         }
       ]
     },
     {
       "name": "AudioHandler",
       "displayName": "Audio\\nHandler",
+      "description": "Enables the ability to play audio cues to the user upon touch events. It stores audio samples internally, which can be updated via the interface.",
       "functions": [
         {
           "name": "initialize",
           "description": "Initialize the audio device."
+        },
+        {
+          "name": "playSound",
+          "description": "Play the specified sound.",
+          "parameters": [
+            {
+              "name": "soundId",
+              "type": "uint",
+              "description": "The ID of the sound to play."
+            }
+          ]
+        },
+        {
+          "name": "updateSound",
+          "description": "Update a stored sound.",
+          "parameters": [
+            {
+              "name": "soundId",
+              "type": "uint",
+              "description": "Index of the sound."
+            },
+            {
+              "name": "sample",
+              "type": "byteArray",
+              "description": "Sample data"
+            }
+          ]
         }
       ]
     }
@@ -740,7 +876,7 @@
     {
       "handler": "PeripheralHandler",
       "interface": "Peripherals",
-      "connector": "Up",
+      "connector": "Left",
       "length": 1
     },
     {
@@ -795,5 +931,32 @@
     }
   ],
   "systemDisplayName": "Wireles Interactive Networked Display (WIND)",
-  "systemSpecification": "The system is a Wireless Interactive Networked Display (WIND) which controlled by a central server (not in scope). It operates by creating a connection to the server and then handling requests to display content formatted as a PNG image. Some content must be interactive which is enabled by the display being touch sensitive and the server sending an indexed coordinates map of touch-squares on the display. The system must be extremely low cost, so interaction is limited by the system mapping touch coordinates to the proper id and sending that id back to the server.\n\nThe system further has a speaker for supplying audio queues, which comprises a set of indexed predefined sounds. Each square on the touch-map can have a audio queue associated with it, specified by the index of the sound."
+  "systemSpecification": "The system is a Wireless Interactive Networked Display (WIND) which is controlled by a central server (not in scope). It operates by creating a connection to the server and then handling requests to display content formatted as a PNG image. Some content must be interactive which is enabled by the display being touch sensitive and the server sending an indexed coordinates map of touch-squares on the display. The system must be extremely low cost, so interaction is limited by the system mapping touch coordinates to the proper id and sending that id back to the server.\n\nThe system further has a speaker for supplying audio queues, which comprises a set of indexed predefined sounds. Each square on the touch-map can have an audio cue associated with it, specified by the index of the sound. The server can update the stored audio samples.",
+  "types": [
+    {
+      "name": "byteArray",
+      "description": "A one dimensional array of bytes",
+      "specification": "uint8[]"
+    },
+    {
+      "name": "uint",
+      "description": "Unsigned integer",
+      "specification": "32-bit numerical value representing an integer value."
+    },
+    {
+      "name": "uintArray",
+      "description": "One dimensional array of uint",
+      "specification": "uint[]"
+    },
+    {
+      "name": "byteMatrix",
+      "description": "2-dimensional array of bytes.",
+      "specification": "byte[][]"
+    },
+    {
+      "name": "uintMatrix",
+      "description": "2-dimensional array of uint",
+      "specification": "uint[][]"
+    }
+  ]
 }
