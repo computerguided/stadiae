@@ -701,7 +701,7 @@
         {
           "name": "updateSound",
           "description": "Update a sound on the audio peripheral.",
-          "steps": "Call updateSound() of the Audio Handler with soundId and sampleData as parameters."
+          "steps": "Call `AudioHandler:updateSound()`with `soundId` and `sampleData` as parameters."
         }
       ]
     }
@@ -756,7 +756,7 @@
       "length": 1
     }
   ],
-  "activeComponentIndex": 1,
+  "activeComponentIndex": 2,
   "handlers": [
     {
       "name": "WirelessTransceiver",
