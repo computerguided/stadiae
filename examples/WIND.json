@@ -1,9 +1,9 @@
 {
-  "format": "stadiae-v3",
+  "format": "stadiae-v4",
   "interfaces": [
     {
-      "name": "System",
-      "description": "System status messages."
+      "name": "Device",
+      "description": "Device status messages."
     },
     {
       "name": "Connection",
@@ -28,14 +28,14 @@
   ],
   "messages": [
     {
-      "interface": "System",
+      "interface": "Device",
       "name": "ReadyInd",
-      "description": "All peripherals are ready and the system can be initialised."
+      "description": "All peripherals are ready and the device can be initialised."
     },
     {
-      "interface": "System",
+      "interface": "Device",
       "name": "ErrorInd",
-      "description": "An error occurred and the system is no longer operational."
+      "description": "An error occurred and the device is no longer operational."
     },
     {
       "interface": "Connection",
@@ -130,7 +130,19 @@
     {
       "interface": "Display",
       "name": "ReadyInd",
-      "description": "Indication that the touch display is initialized."
+      "description": "Indication that the touch display is initialized.",
+      "parameters": [
+        {
+          "name": "width",
+          "type": "uint",
+          "description": "The width of the display in pixels."
+        },
+        {
+          "name": "height",
+          "type": "uint",
+          "description": "The height of the display in pixels."
+        }
+      ]
     },
     {
       "interface": "Display",
@@ -183,7 +195,7 @@
         },
         {
           "name": "Uninitialised",
-          "description": "Waiting for the system to become ready."
+          "description": "Waiting for the device to become ready."
         },
         {
           "name": "Connected",
@@ -214,7 +226,7 @@
           "target": "Initialising",
           "messages": [
             {
-              "interface": "System",
+              "interface": "Device",
               "name": "ReadyInd"
             }
           ],
@@ -329,7 +341,7 @@
           "target": "Uninitialised",
           "messages": [
             {
-              "interface": "System",
+              "interface": "Device",
               "name": "ErrorInd",
               "action": "Call the `WirelessTransceiver:disable()`."
             }
@@ -364,7 +376,7 @@
         }
       ],
       "displayName": "Server\\nConnector",
-      "description": "Controls and establishes the connection with the server. It waits for the system to become ready and then starts advertising its presence on the network to be discoverable by a server.",
+      "description": "Controls and establishes the connection with the server. It waits for the device to become ready and then starts advertising its presence on the network to be discoverable by a server.",
       "stateVariables": [
         {
           "name": "serverId",
@@ -398,7 +410,7 @@
       ]
     },
     {
-      "name": "SystemStatusController",
+      "name": "DeviceStatusController",
       "arrowFontSize": 9,
       "stateFontSize": 12,
       "states": [
@@ -413,7 +425,7 @@
         },
         {
           "name": "Error",
-          "description": "Initialisation of the system failed or peripherals became unavailable."
+          "description": "Initialisation of the device failed or peripherals became unavailable."
         }
       ],
       "choicePoints": [
@@ -463,7 +475,7 @@
             {
               "interface": "Logical",
               "name": "Yes",
-              "action": "Send the `System:ReadyInd` message."
+              "action": "Send the `Device:ReadyInd` message."
             }
           ],
           "connector": "Right",
@@ -476,7 +488,7 @@
             {
               "interface": "Peripherals",
               "name": "FailureInd",
-              "action": "Send the `System:ErrorInd` message."
+              "action": "Send the `Device:ErrorInd` message."
             }
           ],
           "connector": "Right",
@@ -507,8 +519,8 @@
           "length": 1
         }
       ],
-      "displayName": "System Status\\nController",
-      "description": "Takes care of initializing the components in the system by waiting for all the peripherals to be operational.",
+      "displayName": "Device Status\\nController",
+      "description": "Takes care of initializing the components in the device by waiting for all the peripherals to be operational.",
       "stateVariables": [
         {
           "name": "peripherals",
@@ -531,7 +543,7 @@
       "states": [
         {
           "name": "Uninitialised",
-          "description": "Waiting for the system to become ready."
+          "description": "Waiting for the device to become ready."
         },
         {
           "name": "InitialisingAudio",
@@ -566,7 +578,7 @@
           "target": "InitialisingAudio",
           "messages": [
             {
-              "interface": "System",
+              "interface": "Device",
               "name": "ReadyInd",
               "action": "Call `AudioHandler:initialize()`."
             }
@@ -594,7 +606,7 @@
             {
               "interface": "Display",
               "name": "ReadyInd",
-              "action": ""
+              "action": "Send `WirelessTransceiver:sendContentDimensions()` with the `ReadyInd:width` and `ReadyInd:height` as parameters."
             }
           ],
           "connector": "Right",
@@ -636,7 +648,7 @@
           "target": "Uninitialised",
           "messages": [
             {
-              "interface": "System",
+              "interface": "Device",
               "name": "ErrorInd",
               "action": "Call `TouchDisplay:unresponsive()`.\nCall the `TouchDisplay:displayError()`."
             }
@@ -709,7 +721,7 @@
   "connections": [
     {
       "component": "Server_Connector",
-      "interface": "System",
+      "interface": "Device",
       "connector": "Up",
       "length": 1
     },
@@ -720,20 +732,20 @@
       "length": 1
     },
     {
-      "component": "SystemStatusController",
-      "interface": "System",
+      "component": "DeviceStatusController",
+      "interface": "Device",
       "connector": "Up",
       "length": 1
     },
     {
-      "component": "SystemStatusController",
+      "component": "DeviceStatusController",
       "interface": "Peripherals",
       "connector": "Down",
       "length": 1
     },
     {
       "component": "UiController",
-      "interface": "System",
+      "interface": "Device",
       "connector": "Down",
       "length": 1
     },
@@ -805,6 +817,22 @@
               "name": "touchAreaId",
               "type": "uint",
               "description": "ID of the area that was touched."
+            }
+          ]
+        },
+        {
+          "name": "sendContentDimensions",
+          "description": "Inform the server of the dimensions of the content the display supports.",
+          "parameters": [
+            {
+              "name": "displayWidth",
+              "type": "uint",
+              "description": "The width of the display in pixels."
+            },
+            {
+              "name": "displayHeight",
+              "type": "uint",
+              "description": "The height of the display in pixels."
             }
           ]
         }
@@ -930,7 +958,7 @@
       "length": 1
     },
     {
-      "component": "SystemStatusController",
+      "component": "DeviceStatusController",
       "handler": "PeripheralHandler",
       "connector": "Left",
       "length": 1
@@ -954,8 +982,6 @@
       "length": 1
     }
   ],
-  "systemDisplayName": "Wireles Interactive Networked Display (WIND)",
-  "systemSpecification": "The system is a Wireless Interactive Networked Display (WIND) which is controlled by a central server (not in scope). It operates by creating a connection to the server and then handling requests to display content formatted as a PNG image. Some content must be interactive which is enabled by the display being touch sensitive and the server sending an indexed coordinates map of touch-squares on the display. The system must be extremely low cost, so interaction is limited by the system mapping touch coordinates to the proper id and sending that id back to the server.\n\nThe system further has a speaker for supplying audio queues, which comprises a set of indexed predefined sounds. Each square on the touch-map can have an audio cue associated with it, specified by the index of the sound. The server can update the stored audio samples.",
   "types": [
     {
       "name": "byteArray",
@@ -982,5 +1008,7 @@
       "description": "2-dimensional array of uint",
       "specification": "uint[][]"
     }
-  ]
+  ],
+  "deviceDisplayName": "Wireles Interactive Networked Display (WIND)",
+  "deviceSpecification": "The device is a Wireless Interactive Networked Display (WIND) which is controlled by a central server (not in scope). It operates by creating a connection to the server and then handling requests to display content formatted as a PNG image. Some content must be interactive which is enabled by the display being touch sensitive and the server sending an indexed coordinates map of touch-squares on the display. The device must be extremely low cost, so interaction is limited by the device mapping touch coordinates to the proper id and sending that id back to the server.\n\nThe device further has a speaker for supplying audio queues, which comprises a set of indexed predefined sounds. Each square on the touch-map can have an audio cue associated with it, specified by the index of the sound. The server can update the stored audio samples."
 }

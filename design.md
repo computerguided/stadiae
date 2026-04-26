@@ -53,11 +53,11 @@ The editor's state lives in three module-level singletons.
 
 The domain data — what the file contains. This is the single source of truth for the PlantUML output, the lists on the right, the transition table, and saved files.
 
-A Stadiæ file holds one or more **components** (independent state machines) plus **system-wide** interfaces and messages that every component shares:
+A Stadiæ file holds one or more **components** (independent state machines) plus **device-wide** interfaces and messages that every component shares:
 
 ```js
 Model = {
-  // System-wide (shared across components)
+  // Device-wide (shared across components)
   interfaces: [ {name, isDefault, description} ],
   // Messages carry a list of parameters — free-text records that are
   // documentation-only (never reach PlantUML) but appear in the spec
@@ -106,17 +106,17 @@ Model = {
     ...
   ],
   activeComponentIndex: Number,
-  // System-level component diagram — see §14. Each entry wires one
+  // Device-level component diagram — see §14. Each entry wires one
   // component to one non-default interface. Connector direction/length
   // use the same vocabulary as transitions but without arrowheads.
   connections: [
     { component: String, interface: String,
       connector: "Right"|"Left"|"Up"|"Down", length: Number }
   ],
-  // Handlers — system-level entities parallel to Components but with no
+  // Handlers — device-level entities parallel to Components but with no
   // state machine. Represent asynchronous edges to the outside world
   // (sockets, queues, DB drivers). Render as 3D-brick `node` shapes on
-  // the system diagram. Name is identifier-safe and unique across
+  // the device diagram. Name is identifier-safe and unique across
   // Components ∪ Handlers. Functions are the handler's callable API
   // — documentation-only, never reach PlantUML. Each function has
   // identifier-safe name (unique within its handler), optional
@@ -146,22 +146,22 @@ Model = {
     { component: String, handler: String,
       connector: "Right"|"Left"|"Up"|"Down", length: Number }
   ],
-  // System-level settings. The system diagram nests everything inside
-  // an outer `component SystemName { ... }` wrapper so it carries a
-  // visible boundary labelled with the system's name. Name + displayName
+  // Device-level settings. The device diagram nests everything inside
+  // an outer `component DeviceName { ... }` wrapper so it carries a
+  // visible boundary labelled with the device's name. Name + displayName
   // follow the same convention as components. The two font sizes apply
-  // only to the system diagram; per-component font sizes
+  // only to the device diagram; per-component font sizes
   // (arrowFontSize, stateFontSize) apply only to the state-machine view.
-  systemName: String,            // identifier-safe, default "System"
-  systemDisplayName: String,     // optional free text (may include `\n`)
-  systemComponentFontSize: Number, // Component + Handler labels, default 12
-  systemInterfaceFontSize: Number, // Interface lollipop labels, default 11
-  // Free-text system specification. A developer-facing document that
-  // describes the system as a whole. Lives on Model (one per file),
+  deviceName: String,            // identifier-safe, default "Device"
+  deviceDisplayName: String,     // optional free text (may include `\n`)
+  deviceComponentFontSize: Number, // Component + Handler labels, default 12
+  deviceInterfaceFontSize: Number, // Interface lollipop labels, default 11
+  // Free-text device specification. A developer-facing document that
+  // describes the device as a whole. Lives on Model (one per file),
   // persisted in JSON, never written to PlantUML. Edited via the
-  // System Specification panel below the canvas.
-  systemSpecification: String,
-  // System-wide type definitions. Reference material describing the
+  // Device Specification panel below the canvas.
+  deviceSpecification: String,
+  // Device-wide type definitions. Reference material describing the
   // domain types used in parameter and state-variable type fields.
   // Documentation-only; never enforced or emitted. Each entry has a
   // single-word identifier-safe name (unique across types,
@@ -173,8 +173,8 @@ Model = {
   // equals a defined type name.
   types: [ {name, description, specification} ],
   // Which view the canvas is rendering: "component" shows the active
-  // component's state machine, "system" shows the component diagram.
-  activeView: "component"|"system",
+  // component's state machine, "device" shows the component diagram.
+  activeView: "component"|"device",
   // Save metadata
   dirty: Boolean,             // unsaved edits?
   savedFilename: String|null
@@ -200,11 +200,11 @@ Some subtleties worth noting:
 
 - **Default interfaces and messages are explicit in the list.** `Timer`, `Logical`, `Timeout`, `Yes`, `No` all appear as entries with `isDefault: true`. This keeps list-building and message-lookup code uniform (no special cases) and makes it easy to render them in italics/grey in the UI. The PlantUML emitter filters them out when writing the `Interfaces` / `Messages` sections, because defaults are hard-coded in the PlantUML output.
 
-- **Interfaces and messages are system-wide.** They live on `Model` rather than in each component. Every component references the same interfaces and messages by name. Rename/delete of an interface or message cascades to every component's transitions — see the cascade-handling in `openInterfaceDialog`, `openMessageDialog` and `actionDelete`. This models the real-world semantic: an interface like `RTx` is a contract between components, not a per-component detail.
+- **Interfaces and messages are device-wide.** They live on `Model` rather than in each component. Every component references the same interfaces and messages by name. Rename/delete of an interface or message cascades to every component's transitions — see the cascade-handling in `openInterfaceDialog`, `openMessageDialog` and `actionDelete`. This models the real-world semantic: an interface like `RTx` is a contract between components, not a per-component detail.
 
 - **States, choice-points, and transitions are component-local.** A transition cannot reference a state in another component — transitions always stay within the component that owns them.
 
-- **Components have `name` plus optional `displayName`.** Same convention as states. `name` is identifier-safe and stable (it's what `Model.connections[*].component` refers to, what mask-id keys are built from, what `Selection.components` stores). `displayName` is free text shown on the rendered diagram (system-view component box, state-machine outer wrapper) and may contain `\n` markers that PlantUML interprets as line breaks. The Components list shows the display label with `\n` collapsed to spaces, so the entry stays single-line. When `displayName` is empty, the canvas falls back to `name`. Files saved before this split stored free text directly in `name`; the loader migrates them by slugging the original into a valid `name` and promoting the original text to `displayName`. Connections referring to the old name are re-keyed via a rename map built during the migration. See §4.3.
+- **Components have `name` plus optional `displayName`.** Same convention as states. `name` is identifier-safe and stable (it's what `Model.connections[*].component` refers to, what mask-id keys are built from, what `Selection.components` stores). `displayName` is free text shown on the rendered diagram (device-view component box, state-machine outer wrapper) and may contain `\n` markers that PlantUML interprets as line breaks. The Components list shows the display label with `\n` collapsed to spaces, so the entry stays single-line. When `displayName` is empty, the canvas falls back to `name`. Files saved before this split stored free text directly in `name`; the loader migrates them by slugging the original into a valid `name` and promoting the original text to `displayName`. Connections referring to the old name are re-keyed via a rename map built during the migration. See §4.3.
 
 - **Choice-point names don't include `CP_`.** Users enter `Whitelisted`, the model stores `Whitelisted`, but every appearance in PlantUML is rewritten as `CP_Whitelisted`. Inside transitions, however, the prefix is already baked in — `t.source === "CP_Whitelisted"`. This asymmetry is intentional: it keeps the user-visible names clean while mapping unambiguously to PlantUML tokens.
 
@@ -273,7 +273,7 @@ A Stadiæ file may contain multiple components. This section describes how that 
 
 ### 4.1 Active component and selection semantics
 
-Only one component is *active* at a time. The canvas, the States and Choice-points lists, the transitions table, and the Action panel all reflect the active component. The **Components list** in the top-right system catalogue selects which component is active — clicking a row calls `switchToComponent(idx)` and a small chevron `▸` marks the active row. Two floating buttons on the canvas handle the view-switch: a `◇ System` button at the top-left switches to the system view, and (in system view) a `Component ▸` button at the top-right enters the currently selected component's state machine. In system view no row is marked active because the canvas is showing the system diagram, not any single component's state machine.
+Only one component is *active* at a time. The canvas, the States and Choice-points lists, the transitions table, and the Action panel all reflect the active component. The **Components list** in the top-right device catalogue selects which component is active — clicking a row calls `switchToComponent(idx)` and a small chevron `▸` marks the active row. Two floating buttons on the canvas handle the view-switch: a `◇ Device` button at the top-left switches to the device view, and (in device view) a `Component ▸` button at the top-right enters the currently selected component's state machine. In device view no row is marked active because the canvas is showing the device diagram, not any single component's state machine.
 
 `Selection` is intentionally *not* partitioned per component. It's a single global set of selected elements. When the user switches components (`switchToComponent`), `Selection.clearAll()` is called, so the new active component always starts with nothing selected. This sidesteps all the edge cases that "per-component selection" would produce — stale references to a hidden component's elements, different toolbar-enablement states, canvas highlighting inconsistencies.
 
@@ -306,7 +306,7 @@ All four push a history snapshot before mutating so undo correctly restores comp
 
 ### 4.4 Exports operate per-active-component
 
-PlantUML, PNG, and Markdown exports use whatever the active component is at the time. To export every component, the user switches the active component (one click in the Components list) and exports each one. The file-level save operation (`.json`) is the only one that covers the full file (all components, the shared vocabulary, and the system diagram).
+PlantUML, PNG, and Markdown exports use whatever the active component is at the time. To export every component, the user switches the active component (one click in the Components list) and exports each one. The file-level save operation (`.json`) is the only one that covers the full file (all components, the shared vocabulary, and the device diagram).
 
 ---
 
@@ -316,11 +316,11 @@ Any change to the model or selection calls `refresh()`, which rebuilds the UI. C
 
 ```
 refresh()
-  ├── document.body.classList toggle  — view-system / view-component
+  ├── document.body.classList toggle  — view-device / view-component
   ├── buildComponentList()     — one row per component, chevron on active
   ├── buildStateList()         — repopulate <ul> for States (+ START, H, *)
   ├── buildCPList()            — repopulate <ul> for Choice-points
-  ├── buildInterfaceList()     — repopulate <ul> for Interfaces (system-wide)
+  ├── buildInterfaceList()     — repopulate <ul> for Interfaces (device-wide)
   ├── buildMessageList()       — show messages of currently selected iface(s)
   ├── buildTransitionTable()   — one <tr> per (transition × message)
   ├── buildActionPanel()       — show/hide the action textarea based on selection
@@ -756,18 +756,18 @@ Components have a free-text `description` field that the user edits via a **Desc
 Three things make it distinct from the Action panel:
 
 - **Always visible.** Unlike the Action panel — which appears empty/placeholder unless exactly one transition row is selected — the Description panel always has a bound component because there is always an active component. There is no placeholder mode.
-- **Binding rule.** `resolveDescriptionTarget()` picks the component whose description the panel reflects. In component view, always the active component. In system view, the selected component if `Selection.components.size === 1`, otherwise the active component. The header carries an italic suffix showing the bound component's display label so the user always knows what they are documenting.
-- **Layout.** The panel sits *between* the system catalogue (top of the right panel) and the `.component-panel` (everything else). Default height 100 px. In system view, where `.component-panel` is hidden by CSS, the description panel grows to fill via `flex: 1 1 auto`; the resize handle below it is also hidden, since there is nothing below to resize against.
+- **Binding rule.** `resolveDescriptionTarget()` picks the component whose description the panel reflects. In component view, always the active component. In device view, the selected component if `Selection.components.size === 1`, otherwise the active component. The header carries an italic suffix showing the bound component's display label so the user always knows what they are documenting.
+- **Layout.** The panel sits *between* the device catalogue (top of the right panel) and the `.component-panel` (everything else). Default height 100 px. In device view, where `.component-panel` is hidden by CSS, the description panel grows to fill via `flex: 1 1 auto`; the resize handle below it is also hidden, since there is nothing below to resize against.
 
 The Components list shows a small accent-coloured dot at the right of any row whose component has a non-empty description — same visual weight and convention as the action-dot in the transitions table, so users learn one pattern and recognise it everywhere.
 
 The component-rename cascade re-keys the textarea's `dataset.compName` on the next refresh — the input handler reads the bound name from the dataset rather than capturing it in a closure, so a rename mid-typing-session correctly continues writing to the renamed component (the rename is a model mutation, not a re-binding).
 
-### 10.6 The System Specification panel
+### 10.6 The Device Specification panel
 
-A third textarea-based panel — the **System Specification panel** — lives below the canvas in a column flex wrapper (`#canvas-column`) that holds the canvas, a horizontal resize handle, and the panel. The panel is *always visible in both views*: it documents the system as a whole, independent of which component or diagram is on screen, so it earns a persistent slot rather than floating in the view-scoped right column.
+A third textarea-based panel — the **Device Specification panel** — lives below the canvas in a column flex wrapper (`#canvas-column`) that holds the canvas, a horizontal resize handle, and the panel. The panel is *always visible in both views*: it documents the device as a whole, independent of which component or diagram is on screen, so it earns a persistent slot rather than floating in the view-scoped right column.
 
-The binding is the simplest of the three panels: one `Model.systemSpecification` string, no selection logic, no placeholder mode, no has-description dot. `initSystemSpecPanel()` wires the textarea's `input` handler to live-save into `Model.systemSpecification` with a per-session history coalescer (`sysSpecEditSession.pushed` tracks whether the first keystroke of the current session has already pushed history); `blur` resets the session. `renderSystemSpecPanel()` — called from every `refresh()` — syncs the textarea's `.value` from the model, guarded against re-writing the same value to avoid disrupting cursor position when a refresh happens mid-type.
+The binding is the simplest of the three panels: one `Model.deviceSpecification` string, no selection logic, no placeholder mode, no has-description dot. `initDeviceSpecPanel()` wires the textarea's `input` handler to live-save into `Model.deviceSpecification` with a per-session history coalescer (`sysSpecEditSession.pushed` tracks whether the first keystroke of the current session has already pushed history); `blur` resets the session. `renderDeviceSpecPanel()` — called from every `refresh()` — syncs the textarea's `.value` from the model, guarded against re-writing the same value to avoid disrupting cursor position when a refresh happens mid-type.
 
 The panel is a sibling of `#canvas-panel` under `#canvas-column`, with a draggable `#resize-handle-sysspec` between them. The handle's drag math is inverted from a "pull handle down" gesture because the handle is at the *top* of the panel — dragging up grows the panel (by subtracting `e.clientY - startY` from `startH`); min/max clamps leave a ~200 px floor for the canvas. The existing horizontal main-split slider (`#resize-handle-main`) now operates on `#canvas-column` rather than on `#canvas-panel` directly, so resizing the split changes the width of the whole column (canvas + spec panel together).
 
@@ -805,13 +805,13 @@ When no local function is bound, the panel and its top resize handle carry the `
 
 ### 10.8 Live backtick rendering
 
-The four free-text panels (System Specification, Description, Steps, Action) all contain backtick-delimited cross-references that render as hyperlinks in the spec export. Originally the editor showed only the raw backtick form — the user had to open the spec preview to see whether their references resolved. The live-rendering layer changes that: when a panel loses focus, a styled overlay replaces the textarea, showing the cooked form (backticks consumed, resolved references in monospace + accent color, unresolved references as plain monospace). Click the overlay or focus the textarea (e.g. via Tab or click on the panel area) to swap back to editing.
+The four free-text panels (Device Specification, Description, Steps, Action) all contain backtick-delimited cross-references that render as hyperlinks in the spec export. Originally the editor showed only the raw backtick form — the user had to open the spec preview to see whether their references resolved. The live-rendering layer changes that: when a panel loses focus, a styled overlay replaces the textarea, showing the cooked form (backticks consumed, resolved references in monospace + accent color, unresolved references as plain monospace). Click the overlay or focus the textarea (e.g. via Tab or click on the panel area) to swap back to editing.
 
 **Architecture.** The pattern is a focus-driven swap, chosen over (a) contenteditable with inline styled spans (cursor positioning is the classic contenteditable pain point, plus pasting + IME composition lose their native fidelity) and (b) an always-rendered overlay layered on top of the textarea (font-metric drift between the two layers breaks the illusion at any zoom level). The swap loses one round-trip click for the user but preserves textarea behavior entirely while editing.
 
 **Rendering helper.** `renderLiveBackticks(text, context, idx)` mirrors `renderProse` but emits `<span class="live-ref">` for resolved references (with `data-tooltip` carrying the description) and `<span class="live-ref-plain">` for unresolved (plain monospace, no styling cue, no tooltip). Newlines are kept as `\n` (not `<br>`) since the overlay container uses `white-space: pre-wrap` for textarea-faithful rendering. The resolver is the same `resolveSpecReference()` used by the spec export — single source of truth for what counts as a valid reference.
 
-**Wiring.** `attachLiveBacktickRendering(textarea, getContext, placeholder)` creates a sibling `<div class="live-render">` placed in the same flex slot as the textarea, manages show/hide via focus/blur listeners, and exposes two methods on the textarea object: `refreshLiveOverlay()` (re-render against current value) and `hideLive()` (hide both elements; used by the panel rebuild paths when there's no binding). The `getContext` callback is called per-render and returns the reference-resolution context for the field — this varies per panel: System Specification uses `{kind:"system"}`, Steps uses `{kind:"component", componentName:Component.name}`, Description reads from the textarea's dataset (set by `buildDescriptionPanel`), Action includes `rowMessage` so the per-row `Msg:Param` shortcut resolves correctly.
+**Wiring.** `attachLiveBacktickRendering(textarea, getContext, placeholder)` creates a sibling `<div class="live-render">` placed in the same flex slot as the textarea, manages show/hide via focus/blur listeners, and exposes two methods on the textarea object: `refreshLiveOverlay()` (re-render against current value) and `hideLive()` (hide both elements; used by the panel rebuild paths when there's no binding). The `getContext` callback is called per-render and returns the reference-resolution context for the field — this varies per panel: Device Specification uses `{kind:"device"}`, Steps uses `{kind:"component", componentName:Component.name}`, Description reads from the textarea's dataset (set by `buildDescriptionPanel`), Action includes `rowMessage` so the per-row `Msg:Param` shortcut resolves correctly.
 
 **Refresh discipline.** The textarea's `.value` can change from many sources: user typing, undo/redo, file open, draft restore, panel rebinding to a different entity. The pattern is: any code path that programmatically reassigns `.value` must also call `refreshLiveOverlay()`, even when the value didn't change — the binding could have changed (e.g. clicking between two local functions whose Steps content happens to match) and the overlay's previous "I'm visible" state needs re-evaluation against the current visibility rules. The rules: empty content → textarea visible (placeholder shows), active focus on textarea → textarea stays visible, otherwise → overlay renders and shows.
 
@@ -846,9 +846,9 @@ Name uniqueness is enforced for states (globally, including against choice-point
 
 ### 12.1 Save/Open — JSON
 
-Files are saved as JSON with a top-level `format: "stadiae-v3"` tag. `buildSerializedModel()` emits the full file — every component, every handler, every shared interface/message, all wiring (Component-Interface connections, Handler-Interface connections, Component→Handler call dependencies), every description and action note, and the system-level settings (system name and font sizes). Defaults like `Timer:Timeout` on the messages list are re-synthesised on load, so only user-defined entries go to disk. Optional fields (displayName, description, handlers[], handlerConnections[], handlerCalls[], systemName, systemDisplayName, systemComponentFontSize, systemInterfaceFontSize) are written only when they diverge from their defaults — files that don't use a feature stay byte-minimal.
+Files are saved as JSON with a top-level `format: "stadiae-v4"` tag. `buildSerializedModel()` emits the full file — every component, every handler, every shared interface/message, all wiring (Component-Interface connections, Handler-Interface connections, Component→Handler call dependencies), every description and action note, and the device-level settings (device name and font sizes). Defaults like `Timer:Timeout` on the messages list are re-synthesised on load, so only user-defined entries go to disk. Optional fields (displayName, description, handlers[], handlerConnections[], handlerCalls[], deviceName, deviceDisplayName, deviceComponentFontSize, deviceInterfaceFontSize) are written only when they diverge from their defaults — files that don't use a feature stay byte-minimal.
 
-**Format tolerance.** The loader rejects anything other than `format: "stadiae-v3"` with a clear error. Within v3, every post-initial field is optional: a file without a `handlers` array loads with `Model.handlers = []`; a file without `systemName` loads with the default `"System"`. This schema tolerance is *forward*-compat — a v3 file from any point in v3's history loads cleanly — not backward-compat across format versions. The pre-v3 formats (`stadiae-v1`, the old single-component format, and `stadiae-v2`, the first multi-component format) are no longer supported; files saved under those tags must be loaded in an older build of Stadiæ and re-saved.
+**Format tolerance.** The loader rejects anything other than `format: "stadiae-v4"` with a clear error. Within v4, every post-initial field is optional: a file without a `handlers` array loads with `Model.handlers = []`; a file without `deviceName` loads with the default `"Device"`. This schema tolerance is *forward*-compat — a v4 file from any point in v4's history loads cleanly — not backward-compat across format versions. The pre-v4 formats (`stadiae-v1`, the old single-component format, `stadiae-v2`, the first multi-component format, and `stadiae-v3`, the previous System-vocabulary format) are no longer supported; files saved under those tags must be loaded in an older build of Stadiæ and re-saved.
 
 Save/Save-As uses a `showPrompt` for filenames rather than the native `<input type="file">` save dialog (which browsers don't expose to JS). The file is generated as a `Blob` and downloaded via a programmatic `<a>` click. Open uses a hidden `<input type="file">` triggered by the menu item; the user's selection is read with `FileReader` and parsed.
 
@@ -860,7 +860,7 @@ Export as `.puml` writes the clean (unselected) PlantUML source of whatever is c
 
 Export as `.png` re-renders the clean source via the public server, fetches the resulting image as a blob, and downloads it. Both exports always run with `withSelection: false, includeSalt: false` so the user's on-screen red highlighting and the per-render salt comment are never baked into the output.
 
-The exporter dispatches on `Model.activeView`: in component view it calls `generatePlantUML` (the state-machine generator, scoped to the active component); in system view it calls `generateComponentDiagramPlantUML` (the system-level generator, covering the whole component/handler/interface topology). Default filename is derived from the active component's name or — in system view — the system's display name. To export every component of a multi-component file, switch the active component (one click in the Components list) and export each one; to export the system diagram, switch to system view and export.
+The exporter dispatches on `Model.activeView`: in component view it calls `generatePlantUML` (the state-machine generator, scoped to the active component); in device view it calls `generateComponentDiagramPlantUML` (the device-level generator, covering the whole component/handler/interface topology). Default filename is derived from the active component's name or — in device view — the device's display name. To export every component of a multi-component file, switch the active component (one click in the Components list) and export each one; to export the device diagram, switch to device view and export.
 
 ### 12.3 Export — Transitions as Markdown
 
@@ -872,7 +872,7 @@ The markdown text is shown in a read-only textarea inside a modal dialog. A **Co
 
 ### 12.4 Export — Specification as Word document
 
-The most elaborate export: a full system specification as a `.docx`. Entry point is `File → Export Specification…`, implementation in `exportSpecification()` + `buildSpecificationDocx(d, progress)`. See §15 for the full design — the short version is that it lazy-loads the `docx` library from unpkg.com on first use, fetches every diagram in parallel as both SVG (primary) and PNG (fallback), and assembles a native Word document with proper headings, tables with row-span and fixed column widths, and embedded vector diagrams.
+The most elaborate export: a full device specification as a `.docx`. Entry point is `File → Export Specification…`, implementation in `exportSpecification()` + `buildSpecificationDocx(d, progress)`. See §15 for the full design — the short version is that it lazy-loads the `docx` library from unpkg.com on first use, fetches every diagram in parallel as both SVG (primary) and PNG (fallback), and assembles a native Word document with proper headings, tables with row-span and fixed column widths, and embedded vector diagrams.
 
 Unlike the .puml and .png exports which operate on the currently-visible canvas, the specification export operates on the **whole model** regardless of the active view or component. The output always covers every component, every handler, every interface, every message — one call produces the complete specification.
 
@@ -888,10 +888,10 @@ The layout is a standard CSS flex/grid arrangement; no layout framework is used.
 ├──────────────────────────────────────────────────────────────────────┤
 │ Toolbar (dark chrome)                                                │
 ├────────────────────────────────┬─────────────────────────────────────┤
-│ ┌──────────┐    ┌─────────────┐│ ┌── System catalogue (5 cols) ─────┐│
-│ │ ◇ System │    │ Component ▸ ││ │Comps+│Hdlrs+│Fns+│Ifaces+│ Msgs+ ││
+│ ┌──────────┐    ┌─────────────┐│ ┌── Device catalogue (5 cols) ─────┐│
+│ │ ◇ Device │    │ Component ▸ ││ │Comps+│Hdlrs+│Fns+│Ifaces+│ Msgs+ ││
 │ └──────────┘    └─────────────┘│ │▸CompA│Rad   │    │ RTx   │       ││
-│   (system-view only ─ top-right│ │ CompB│      │    │Storage│       ││
+│   (device-view only ─ top-right│ │ CompB│      │    │Storage│       ││
 │    when a component selected)  │ │      │      ├────┤       ├───────┤│
 │                                │ │      │      │Prms│       │ Prms  ││
 │                                │ │      │      │+   │       │   +   ││
@@ -900,10 +900,10 @@ The layout is a standard CSS flex/grid arrangement; no layout framework is used.
 │ Canvas panel                   │ ┌── Description (active component)─┐│
 │ (rendered PlantUML PNG of      │ │ [ free-text textarea ]           ││
 │  the active component, or      │ └──────────────────────────────────┘│
-│  the system diagram)           │ ──── resize handle ────             │
+│  the device diagram)           │ ──── resize handle ────             │
 │                                │ ┌── Component panel (active) ────────────────┐ │
 │  ──── resize handle ────       │ │ States │ Choice-pts │ Vars   │ │ LocalFns │ │
-│ ┌── System specification ────┐ │ │        │            │ Consts │↕│ Steps    │ │
+│ ┌── Device specification ────┐ │ │        │            │ Consts │↕│ Steps    │ │
 │ │ [ free-text textarea ]    │ │ │        │            │  ↕     │ │   ↕      │ │
 │ │                           │ │ ├──────────────────────────────────────────┬─┤ │
 │ │                           │ │ │  Transitions table                       │A│ │
@@ -913,21 +913,21 @@ The layout is a standard CSS flex/grid arrangement; no layout framework is used.
 └────────────────────────────────┴─────────────────────────────────────┘
             ↑                                   ↑
             canvas-column                       right-panel
-     (canvas + System spec, stacked)     (catalogue, description, component stack)
+     (canvas + Device spec, stacked)     (catalogue, description, component stack)
      ← horizontal drag slider between the two columns →
 ```
 
-The canvas panel hosts the rendered diagram plus a small amount of floating chrome — the `◇ System` button at its top-left (always visible, switches views), the `Component ▸` button at its top-right (visible in system view, enters the selected component), and occasionally a restored-draft banner along the top. Both buttons are absolutely positioned so they persist across the image-replacement cycle that happens on every render. Below the canvas and always visible in both views sits the **System Specification panel** — a free-text textarea bound to `Model.systemSpecification`, separated from the canvas by a vertical-drag resize handle.
+The canvas panel hosts the rendered diagram plus a small amount of floating chrome — the `◇ Device` button at its top-left (always visible, switches views), the `Component ▸` button at its top-right (visible in device view, enters the selected component), and occasionally a restored-draft banner along the top. Both buttons are absolutely positioned so they persist across the image-replacement cycle that happens on every render. Below the canvas and always visible in both views sits the **Device Specification panel** — a free-text textarea bound to `Model.deviceSpecification`, separated from the canvas by a vertical-drag resize handle.
 
 The right panel is vertically subdivided into three regions:
 
-- **System catalogue** at the top holds the file's shared vocabulary as five side-by-side lists: Components, Handlers, Functions, Interfaces, Messages. Each list's header has a `+` button to add an entry. A small chevron `▸` on the active row of the Components list shows which component's state machine is currently displayed below. The Functions column is filtered by the single selected Handler (empty otherwise); the Messages column is filtered by the selected Interfaces. Each of those two columns additionally nests a Parameters panel below its list, visible when exactly one function (respectively message) is selected.
-- **Description panel** sits beneath the catalogue and is always visible. It binds to the active component in component view, or to the selected component in system view (falling back to active when no component or many are selected). Live-saves to `Component.description` per keystroke; never reaches PlantUML.
-- **Component panel** at the bottom shows the active component's States, Choice-points, State variables/Constants (stacked in one column), and Local functions/Steps (also stacked, in their own column) — four lists across plus the Steps editor under Local functions — and below them a horizontal row pairing the Transitions table with the Action panel. Hidden in system view, where the description panel grows to fill the available space.
+- **Device catalogue** at the top holds the file's shared vocabulary as five side-by-side lists: Components, Handlers, Functions, Interfaces, Messages. Each list's header has a `+` button to add an entry. A small chevron `▸` on the active row of the Components list shows which component's state machine is currently displayed below. The Functions column is filtered by the single selected Handler (empty otherwise); the Messages column is filtered by the selected Interfaces. Each of those two columns additionally nests a Parameters panel below its list, visible when exactly one function (respectively message) is selected.
+- **Description panel** sits beneath the catalogue and is always visible. It binds to the active component in component view, or to the selected component in device view (falling back to active when no component or many are selected). Live-saves to `Component.description` per keystroke; never reaches PlantUML.
+- **Component panel** at the bottom shows the active component's States, Choice-points, State variables/Constants (stacked in one column), and Local functions/Steps (also stacked, in their own column) — four lists across plus the Steps editor under Local functions — and below them a horizontal row pairing the Transitions table with the Action panel. Hidden in device view, where the description panel grows to fill the available space.
 
 There are user-draggable resize handles in several places in this stack:
 
-- Between the system catalogue and the description panel (vertical drag).
+- Between the device catalogue and the description panel (vertical drag).
 - Between the description panel and the component panel (vertical drag).
 - Between the lists-grid and the Transitions+Action row (vertical drag).
 - Inside the lists-grid: between the State variables list and the Constants list (vertical drag, splits the column's height).
@@ -943,42 +943,42 @@ The two horizontal handles inside the right panel are independent: dragging one 
 2. On each subsequent change, if the panel has an inline width set, scale it proportionally from the previous container width to the new one. Bounded by min/max constraints (lfns: `[120, gridWidth - 332]`; Action: `[160, available - 320]`).
 3. If the panel doesn't have an inline width yet (CSS default state, or just-reset via dblclick), snapshot the current rendered widths to inline first — this captures the "current" layout as the baseline for proportional scaling. Doing the snapshot makes the panels responsive even from the default state, not only after the user has dragged.
 
-The lfns-column observer additionally re-applies its initial sizing when re-entering component view from system view (where the lists-grid is `display: none` and the column would otherwise have zero width).
+The lfns-column observer additionally re-applies its initial sizing when re-entering component view from device view (where the lists-grid is `display: none` and the column would otherwise have zero width).
 
 Each vertical handle double-clicks to reset to its default. The horizontal Trans/Action handle's double-click clears its inline widths and lets CSS defaults take over (Action: 300px, Transitions: `flex: 1`); the lfns-column handle's double-click clears its inline width and re-applies the initial Action-aligned sizing.
 
 Design decisions worth noting:
 
 - **Dark chrome, light workspace.** The menu bar and toolbar sit on a deep slate background (`--chrome: #1e2230`), contrasting with the white workspace beneath. This pattern (used by Linear, Figma, VS Code) anchors the canvas visually.
-- **One accent colour.** The Computerguided Systems indigo (`#2b2a8f`) from the logo is the only accent, used for primary buttons, hover states, selection highlights, the active component chevron, the System button's "view active" fill, and the logo in the About dialog.
+- **One accent colour.** The Computerguided Systems indigo (`#2b2a8f`) from the logo is the only accent, used for primary buttons, hover states, selection highlights, the active component chevron, the Device button's "view active" fill, and the logo in the About dialog.
 - **Section headers with subtle fills.** The right-panel list headers and the transition-table header use small-caps uppercase labels on a light grey fill — restrained, but enough to read as "sections". The `+` buttons sit in those same headers, flush right, visually integrated.
-- **Active component is one chevron, not selection.** The active row uses a chevron marker rather than the selection-style background fill, so "active" and "selected" can coexist visually without conflict in system view (where a component can be selected for the Add Connection workflow without being the active state-machine subject).
-- **Inter font.** Loaded from Google Fonts. All typography uses Inter in various weights, which reads cleaner than the default system fonts at small sizes.
+- **Active component is one chevron, not selection.** The active row uses a chevron marker rather than the selection-style background fill, so "active" and "selected" can coexist visually without conflict in device view (where a component can be selected for the Add Connection workflow without being the active state-machine subject).
+- **Inter font.** Loaded from Google Fonts. All typography uses Inter in various weights, which reads cleaner than the default device fonts at small sizes.
 
 The CSS uses custom properties extensively (`--bg`, `--surface`, `--accent`, etc.), which makes future re-theming straightforward.
 
 ---
 
-## 14. System diagram (FCM component view)
+## 14. Device diagram (FCM component view)
 
-The system-level component diagram is a second "view" layered on top of the same `Model`. Where the per-component view renders a state machine on the canvas, the system view renders the components as boxes and the interfaces they are wired to as "lollipop" circles, with lines joining each component to each interface it uses. This corresponds to the top-level component diagram of the **FCM methodology** (Functional Components Method): components expose and connect to explicit interfaces, and their state machines handle messages arriving on those interfaces.
+The device-level component diagram is a second "view" layered on top of the same `Model`. Where the per-component view renders a state machine on the canvas, the device view renders the components as boxes and the interfaces they are wired to as "lollipop" circles, with lines joining each component to each interface it uses. This corresponds to the top-level component diagram of the **FCM methodology** (Functional Components Method): components expose and connect to explicit interfaces, and their state machines handle messages arriving on those interfaces.
 
-The two views share data: the same interfaces, the same messages, the same components. The wiring between them — which component connects to which interface — lives in `Model.connections` and is editable only in the system view.
+The two views share data: the same interfaces, the same messages, the same components. The wiring between them — which component connects to which interface — lives in `Model.connections` and is editable only in the device view.
 
 ### 14.1 `Model.connections` and `Model.activeView`
 
 Two fields on `Model` carry the new state:
 
 - `Model.connections: [ {component, interface, connector, length} ]` — flat list of wirings. `component` and `interface` are string references into `Model.components[*].name` and `Model.interfaces[*].name`. `connector` and `length` reuse the same vocabulary as state-machine transitions (see §3.1). Default interfaces (`Timer`, `Logical`) are deliberately never listed — they represent internal service concepts, not inter-component wiring.
-- `Model.activeView: "component" | "system"` — controls canvas rendering and UI visibility. Defaults to `"component"`.
+- `Model.activeView: "component" | "device"` — controls canvas rendering and UI visibility. Defaults to `"component"`.
 
 Cascade helpers (`onComponentRenamed`, `onComponentDeleted`, `onInterfaceRenamed`, `onInterfaceDeleted`) keep `Model.connections` consistent when the names they reference change or the referenced element is deleted. These are invoked from the same rename/delete paths that handle the existing cascades into `Component.transitions[*].messages[*]`, so one user action updates both "levels" atomically and the undo snapshot captures the combined state.
 
-### 14.2 Save format: `stadiae-v3`
+### 14.2 Save format: `stadiae-v4`
 
-The save format's top-level tag is `stadiae-v3`. The file carries the full state: components, handlers, interfaces, messages, Component-Interface connections, Handler-Interface connections, Component→Handler call dependencies, and the system-level settings (system name and font sizes). Optional fields (`displayName`, `description`, the three Handler-related arrays, the four system-level fields) are emitted only when they diverge from their defaults, so files that don't use a given feature stay byte-minimal.
+The save format's top-level tag is `stadiae-v4`. The file carries the full state: components, handlers, interfaces, messages, Component-Interface connections, Handler-Interface connections, Component→Handler call dependencies, and the device-level settings (device name and font sizes). Optional fields (`displayName`, `description`, the three Handler-related arrays, the four device-level fields) are emitted only when they diverge from their defaults, so files that don't use a given feature stay byte-minimal.
 
-The loader rejects anything other than `stadiae-v3` with a clear error. Within v3, missing fields default cleanly — a file saved before `handlers` existed loads with `Model.handlers = []`, and the same applies to every other post-initial-v3 addition. This is forward-compat (an older v3 file loads in a newer build) rather than backward-compat across format versions: the pre-v3 formats (`stadiae-v1` single-component, `stadiae-v2` multi-component without connections) are not supported.
+The loader rejects anything other than `stadiae-v4` with a clear error. Within v4, missing fields default cleanly — a file saved before `handlers` existed loads with `Model.handlers = []`, and the same applies to every other post-initial-v4 addition. This is forward-compat (an older v4 file loads in a newer build) rather than backward-compat across format versions: the pre-v4 formats (`stadiae-v1` single-component, `stadiae-v2` multi-component without connections, and `stadiae-v3` System-vocabulary) are not supported.
 
 `loadModel()` populates every `Model.*` array from the file, dropping any wiring entry whose endpoints no longer exist — a hand-edited file with a dangling reference doesn't crash the loader. `resetModel()` and the loader both finish with `Model.activeView = "component"` so switching between files never leaks view state across loads.
 
@@ -999,46 +999,46 @@ For mask and selection modes, the decoration is injected between the leading `-`
 
 Orphan interfaces (declared in the catalogue but not wired to anything) are omitted from the component-diagram render to keep it uncluttered. They remain visible in the Interfaces list on the right.
 
-### 14.4 Components list and the floating System button
+### 14.4 Components list and the floating Device button
 
-The Components list lives in the top-right system catalogue alongside the Interfaces and Messages lists. `buildComponentList()` emits one row per component; a small chevron `▸` marker on the row whose `idx === Model.activeComponentIndex` and `Model.activeView === "component"` shows which component is "showing its body" on the canvas. The marker space is reserved on every row (zero opacity for non-active rows) so the list doesn't reflow as the active component changes.
+The Components list lives in the top-right device catalogue alongside the Interfaces and Messages lists. `buildComponentList()` emits one row per component; a small chevron `▸` marker on the row whose `idx === Model.activeComponentIndex` and `Model.activeView === "component"` shows which component is "showing its body" on the canvas. The marker space is reserved on every row (zero opacity for non-active rows) so the list doesn't reflow as the active component changes.
 
-A floating `◇ System` button (`#btn-system`) lives at the top-left of the diagram canvas. It is absolutely positioned over `#canvas-panel` with `z-index: 20`, sitting above the rendered PNG. Clicking it calls `switchToSystem()`, which flips `Model.activeView` to `"system"`, clears the selection, and refreshes. CSS gives the button an accent fill while `body.view-system` is set, so its state is unambiguously visible (`background: var(--accent); color: white;`).
+A floating `◇ Device` button (`#btn-device`) lives at the top-left of the diagram canvas. It is absolutely positioned over `#canvas-panel` with `z-index: 20`, sitting above the rendered PNG. Clicking it calls `switchToDevice()`, which flips `Model.activeView` to `"device"`, clears the selection, and refreshes. CSS gives the button an accent fill while `body.view-device` is set, so its state is unambiguously visible (`background: var(--accent); color: white;`).
 
 The button isn't part of `#canvas-content` — that's the inner wrapper `renderDiagram` rebuilds on every render. The button needs to persist across renders without being torn out, so it's a sibling of `#canvas-content` inside `#canvas-panel`. The same arrangement holds the `restored-banner` (autosave restoration prompt) and would hold any future canvas-floating chrome.
 
 Why the canvas, not the right panel: controlling-what-is-shown belongs spatially close to the thing being controlled. The button replaced an earlier pill in the Components list header that competed with the `Components` label and the `+` button for narrow header space. Moving it to the canvas freed the header for symmetric `[label] [+]` styling matching Interfaces and Messages, and put the toggle where the user's attention already is when they decide to switch views.
 
-The component-row click handler dispatches on the active view: in component view it calls `switchToComponent(idx)` (flips view back to `"component"` and sets `activeComponentIndex`); in system view it adds/removes the component from `Selection.components`, the same semantic as clicking the component box on the system canvas — this lets users build connections without having to locate the canvas box.
+The component-row click handler dispatches on the active view: in component view it calls `switchToComponent(idx)` (flips view back to `"component"` and sets `activeComponentIndex`); in device view it adds/removes the component from `Selection.components`, the same semantic as clicking the component box on the device canvas — this lets users build connections without having to locate the canvas box.
 
 The `activeView` and `activeComponentIndex` are both included in the visual fingerprint used by `refresh()` to decide when to re-render, so view and component changes correctly invalidate the cached PNG.
 
-This layout was a refactor from an earlier tab-bar UI. Tabs broke down at scale: more than ~5–8 components forced horizontal scroll or label truncation. A vertical list scrolls cleanly to any size, sits naturally next to the other system-wide lists, and integrates the Edit/Delete toolbar workflow that already exists for every other entity kind. The System button replaced what was previously a pinned `◇ System` tab, then briefly lived in the Components list header before moving to the canvas.
+This layout was a refactor from an earlier tab-bar UI. Tabs broke down at scale: more than ~5–8 components forced horizontal scroll or label truncation. A vertical list scrolls cleanly to any size, sits naturally next to the other device-wide lists, and integrates the Edit/Delete toolbar workflow that already exists for every other entity kind. The Device button replaced what was previously a pinned `◇ Device` tab, then briefly lived in the Components list header before moving to the canvas.
 
 ### 14.5 View-scoped UI
 
-`refresh()` sets either `body.view-system` or `body.view-component` on the document body. CSS rules keyed off these classes:
+`refresh()` sets either `body.view-device` or `body.view-component` on the document body. CSS rules keyed off these classes:
 
-- Hide `.component-panel` (States, Choice-points, Transitions table, Action panel) in system view. These concepts don't apply to the component diagram.
-- Hide the state-machine toolbar buttons (Add Transition, Redirect) in system view and the component-diagram button (Add Connection) in component view.
+- Hide `.component-panel` (States, Choice-points, Transitions table, Action panel) in device view. These concepts don't apply to the component diagram.
+- Hide the state-machine toolbar buttons (Add Transition, Redirect) in device view and the component-diagram button (Add Connection) in component view.
 
-`updateToolbar()` additionally disables Add State and Add Choice-point in system view, belt-and-braces in case a button gets clicked via keyboard focus. Add Interface / Add Message remain live in both views, because interfaces and messages are system-wide vocabulary.
+`updateToolbar()` additionally disables Add State and Add Choice-point in device view, belt-and-braces in case a button gets clicked via keyboard focus. Add Interface / Add Message remain live in both views, because interfaces and messages are device-wide vocabulary.
 
 The canvas click handler uses the view to pick the selection context: `"canvas"` (clears states, choice-points, transitions, START/H/ANY) or `"sysCanvas"` (clears components, interfaces, connections, messages). Both contexts feed the same `selectClick()` rules — the context is only used for the plain-click-replaces-in-same-panel behaviour.
 
 ### 14.6 Entering a component
 
-Entering a component's state machine from the system diagram goes through a floating `Component ▸` button at the top-right of the canvas. The button mirrors the `◇ System` button's position (top-left) and visual weight — spatial symmetry that reads as "navigate up / navigate down" through the hierarchy. Only visible in system view (hidden via `body.view-component .canvas-enter-btn { display: none; }`). Enabled iff `canEnterComponent()` returns true: exactly one Component selected, no handlers/interfaces/messages/connections/handlerConnections/handlerCalls co-selected. On click, `enterSelectedComponent()` resolves the single selected name to a component index and calls `switchToComponent(idx)`.
+Entering a component's state machine from the device diagram goes through a floating `Component ▸` button at the top-right of the canvas. The button mirrors the `◇ Device` button's position (top-left) and visual weight — spatial symmetry that reads as "navigate up / navigate down" through the hierarchy. Only visible in device view (hidden via `body.view-component .canvas-enter-btn { display: none; }`). Enabled iff `canEnterComponent()` returns true: exactly one Component selected, no handlers/interfaces/messages/connections/handlerConnections/handlerCalls co-selected. On click, `enterSelectedComponent()` resolves the single selected name to a component index and calls `switchToComponent(idx)`.
 
 The button replaced an earlier double-click-to-enter gesture on the canvas and on Components-list rows. That gesture was undiscoverable — nothing in the UI advertised that the boxes or rows were double-clickable, and single-click was already load-bearing (it mutated selection). The button makes the action visible: a user who selects a component sees the button light up and immediately understands what it does.
 
-Unlike the System button, the Component button is never accent-filled. The System button is a toggle that doubles as a state indicator ("you are in system view"); the Component button is a pure action ("take me into this component"). Symmetric position, asymmetric semantics.
+Unlike the Device button, the Component button is never accent-filled. The Device button is a toggle that doubles as a state indicator ("you are in device view"); the Component button is a pure action ("take me into this component"). Symmetric position, asymmetric semantics.
 
 Also removed when the button was added: the script-level double-click detector (`lastCanvasClick` state plus `DBLCLICK_WINDOW_MS` / `DBLCLICK_SLOP_PX` constants) that worked around the browser's native `dblclick` being unreliable on Stadiæ's canvas. That detector's complexity is no longer justified — canvas clicks are pure single-click-to-select now.
 
-### 14.7 Warning-badge system
+### 14.7 Warning-badge device
 
-Because a component's state machine uses interfaces for its transition messages, the system diagram's wiring should agree with what the state machines actually use. Stadiæ surfaces the mismatch advisory-only:
+Because a component's state machine uses interfaces for its transition messages, the device diagram's wiring should agree with what the state machines actually use. Stadiæ surfaces the mismatch advisory-only:
 
 - **Interfaces list, in component view.** Non-default interfaces are dimmed when not wired to the active component (`.unwired` class) — a hint that they are out of scope. When an unwired interface is actually used by one of the active component's transitions, the entry switches to a warning style (`.unwired-warning` class) with a circular amber `!` badge. Tooltip text explains the inconsistency.
 - **Handlers list, in component view.** Handlers are dimmed (`.unwired` class) when not linked to the active component. "Linked" means either a direct `Model.handlerCalls` entry exists from the component to the handler (the dashed-arrow call dependency), or the handler shares an interface with the component via `Model.handlerConnections` + `Model.connections`. The check is implemented by `isHandlerLinkedToComponent(handlerName, componentName)`. Unlike interfaces, handlers don't have a "used but unlinked" warning state — handler usage in actions is indirect (through references in prose, through shared interfaces) and there's no clean, automatic way to distinguish a missing dependency from prose that simply mentions a handler in passing.
@@ -1046,22 +1046,22 @@ Because a component's state machine uses interfaces for its transition messages,
 
 The warnings are *advisory*, not prescriptive — users can continue to work and save regardless. The design alternative ("dim unwired interfaces, allow use with a warning badge") was chosen explicitly during the Phase A design conversation; the stronger alternative ("block unwired usage") was rejected as too rigid for the "sketch, then formalise" workflow this tool supports.
 
-Warnings are not shown in system view — the concept of "wired to the active component" doesn't apply when the active thing is the system diagram itself.
+Warnings are not shown in device view — the concept of "wired to the active component" doesn't apply when the active thing is the device diagram itself.
 
 ### 14.8 Editing connections
 
-- `actionAddConnection()` is a pattern dispatcher: it looks at the current selection in system view and routes to one of three outcomes — Component+Interface wires a `Model.connections` entry; Handler+Interface wires a `Model.handlerConnections` entry; Component+Handler wires a `Model.handlerCalls` entry. `detectConnectionPattern()` returns the detected pattern (or `null`), `canAddConnection()` is a thin wrapper. Anything else in the selection (a second component, a random message, a pre-existing connection) makes the detector return `null` — the button stays disabled and the keyboard shortcut no-ops.
+- `actionAddConnection()` is a pattern dispatcher: it looks at the current selection in device view and routes to one of three outcomes — Component+Interface wires a `Model.connections` entry; Handler+Interface wires a `Model.handlerConnections` entry; Component+Handler wires a `Model.handlerCalls` entry. `detectConnectionPattern()` returns the detected pattern (or `null`), `canAddConnection()` is a thin wrapper. Anything else in the selection (a second component, a random message, a pre-existing connection) makes the detector return `null` — the button stays disabled and the keyboard shortcut no-ops.
 - `openConnectionDialog(existing)` is shared across all three wiring records. It duck-types the record — `{component, interface}` vs. `{handler, interface}` vs. `{component, handler}` — and relabels the read-only fields accordingly. Connector type and length inputs work the same way in all three.
 - `changeTransitionDirectionByKey(direction)` was generalised via an `adjustDirection(obj, sessionKey, direction)` helper, shared between transitions and connections. Arrow keys adjust a sole selected transition or a sole selected connection; repeated ↑/↓ extends the length with session coalescing for undo.
 - `actionDelete()` handles `Selection.connections`, `Selection.handlerConnections`, and `Selection.handlerCalls` in a bulk pass. Single-selection-of-one-Component or one-Handler short-circuits to a confirm-first path (both entities own a description and wiring worth pausing for).
 
 ### 14.9 Handlers
 
-A **Handler** is a system-level entity parallel to a Component but without a state machine. Handlers represent asynchronous edges to the outside world — socket listeners, queue subscribers, database drivers. They render on the system diagram using PlantUML's `node` shape (3D brick), distinguishing them visually from the flat-rectangle Component shape.
+A **Handler** is a device-level entity parallel to a Component but without a state machine. Handlers represent asynchronous edges to the outside world — socket listeners, queue subscribers, database drivers. They render on the device diagram using PlantUML's `node` shape (3D brick), distinguishing them visually from the flat-rectangle Component shape.
 
 The data model is three arrays plus a nested structure:
 
-- `Model.handlers` — the Handlers themselves, each carrying `{name, displayName, description, functions}`. Names are identifier-safe and unique across `Model.components` ∪ `Model.handlers` (enforced by `isUniqueSystemEntityName`). The `functions` array is empty-by-default and contains the handler's callable API.
+- `Model.handlers` — the Handlers themselves, each carrying `{name, displayName, description, functions}`. Names are identifier-safe and unique across `Model.components` ∪ `Model.handlers` (enforced by `isUniqueDeviceEntityName`). The `functions` array is empty-by-default and contains the handler's callable API.
 - `Model.handlerConnections` — Handler ↔ Interface wiring. Same shape as `Model.connections` but with `handler` instead of `component`. A Handler on an interface is implicitly a sender; there is no send/receive flag on the record.
 - `Model.handlerCalls` — Component ⇢ Handler function-call dependencies. No interface involved. Rendered as a dashed arrow pointing at the Handler.
 
@@ -1073,40 +1073,40 @@ The data model is three arrays plus a nested structure:
 
 **Mask kinds.** `handler`, `hconn`, `hcall`. Wired through `toggleSelection` and `isRefSelected` so clicks on Handler boxes, Handler-Interface lines, or Component→Handler dashed arrows select the correct record. Functions and function parameters are not on the diagram, so they have no mask entries — they're selected via their list rows.
 
-**Warning-badge system.** Handlers don't participate. Handlers have no transitions, so there's nothing to cross-check. The existing warning system for Component-Interface-vs-transition-usage is untouched.
+**Warning-badge device.** Handlers don't participate. Handlers have no transitions, so there's nothing to cross-check. The existing warning device for Component-Interface-vs-transition-usage is untouched.
 
-**Catalogue layout.** The system catalogue is a five-column grid: Components, Handlers, **Functions**, Interfaces, Messages. The Functions column sits between Handlers and Interfaces — its content is filtered by the single selected Handler (parallel to how Messages is filtered by selected Interfaces). The Functions column is structurally like the Messages column: a `.fns-column` flex wrapper holding a `.list-box`, a resize handle (`#resize-handle-fnparams`), and a `.params-panel` (`#fnparams-panel`). The parameters panel is visible only when exactly one function is selected; hiding is via the same `.hidden` class and display-none CSS that the message-parameter panel uses. Both columns share the `.msgs-column, .fns-column` CSS rule — one place to tune column layout.
+**Catalogue layout.** The device catalogue is a five-column grid: Components, Handlers, **Functions**, Interfaces, Messages. The Functions column sits between Handlers and Interfaces — its content is filtered by the single selected Handler (parallel to how Messages is filtered by selected Interfaces). The Functions column is structurally like the Messages column: a `.fns-column` flex wrapper holding a `.list-box`, a resize handle (`#resize-handle-fnparams`), and a `.params-panel` (`#fnparams-panel`). The parameters panel is visible only when exactly one function is selected; hiding is via the same `.hidden` class and display-none CSS that the message-parameter panel uses. Both columns share the `.msgs-column, .fns-column` CSS rule — one place to tune column layout.
 
 **Selection architecture for the handler→function→fn-parameter chain.** Three sets: `Selection.handlers`, `Selection.functions` (keys `"Handler:FunctionName"`), `Selection.functionParameters` (keys `"Handler:Function:ParamName"`). The chain is enforced at resolution time: `resolveBoundFunction` requires the parent handler to still be in `Selection.handlers`, so stale function keys left by the "plain-click-deselect an already-selected row" path (which bypasses `clearSelectionForContext`) don't leak. `buildFunctionList` performs analogous orphan-cleanup when no single handler is bound, and prefix-prunes within a bound handler when the user switches handlers. Same defensive patterns the message-parameter chain uses, generalized to three levels instead of two.
 
 **Shared parameter-panel renderer.** Both message and function parameter panels go through `renderParamsPanel(panelId, handleId, placeholderId, tableId, tbodyId, addBtnId, owner, selectionSet, clickContext, keyPrefix)`. This is the entire renderer — `buildParamsPanel` and `buildFunctionParamsPanel` are two-line wrappers that resolve their owner and call it. Similarly `openParameterDialog(owner, existing, kind, ownerContext?)` dispatches on `kind === "message" | "function"` for label text and selection key construction; both add / edit flows share the same dialog. CRUD functions are still split per kind (`addParameter` / `addFnParameter`, `editSelected*`, `deleteSelected*`) — the dispatching is thin at the entry points and the shared code lives in the dialog and the renderer.
 
-**Description panel binding.** `resolveDescriptionTarget()` returns a `{kind, entity, label}` triple. In system view, if exactly one Handler is selected with no Component, the Handler wins; if exactly one Component is selected with no Handler, the Component wins. Functions are *not* bound to the Description panel — their descriptions live inline in the Functions list row (em-dash style), consistent with states, interfaces, and messages. A full Description panel for functions would be over-scoped for single-line developer notes.
+**Description panel binding.** `resolveDescriptionTarget()` returns a `{kind, entity, label}` triple. In device view, if exactly one Handler is selected with no Component, the Handler wins; if exactly one Component is selected with no Handler, the Component wins. Functions are *not* bound to the Description panel — their descriptions live inline in the Functions list row (em-dash style), consistent with states, interfaces, and messages. A full Description panel for functions would be over-scoped for single-line developer notes.
 
-### 14.10 System wrapper and font model
+### 14.10 Device wrapper and font model
 
-The system diagram wraps its contents in an outer PlantUML `component SystemName { ... }` block so the whole diagram carries a visible boundary labelled with the system's name. The wrapper is emitted by `generateComponentDiagramPlantUML` right after the `skinparam` block, closed just before `@enduml`. Inside the wrapper sit the Interfaces, Components, Handlers, Component-Interface connections, Handler-Interface connections, and Component→Handler dependencies — i.e. everything that was previously emitted at top level is now one nesting level deeper. PlantUML allows this nesting across all the shape kinds Stadiæ uses (`component`, `node`, `()`, plain edges, dashed edges).
+The device diagram wraps its contents in an outer PlantUML `component DeviceName { ... }` block so the whole diagram carries a visible boundary labelled with the device's name. The wrapper is emitted by `generateComponentDiagramPlantUML` right after the `skinparam` block, closed just before `@enduml`. Inside the wrapper sit the Interfaces, Components, Handlers, Component-Interface connections, Handler-Interface connections, and Component→Handler dependencies — i.e. everything that was previously emitted at top level is now one nesting level deeper. PlantUML allows this nesting across all the shape kinds Stadiæ uses (`component`, `node`, `()`, plain edges, dashed edges).
 
-The wrapper's name uses the same Name + optional displayName convention as components: `Model.systemName` is the identifier-safe PlantUML id (defaults to `"System"`), `Model.systemDisplayName` is free text that may contain `\n` line breaks. When both are set and differ, the emission is `component <systemName> as "<displayName>" { ... }`; when displayName is empty, a plain `component <systemName> { ... }` is emitted. The distinction matters for the PlantUML output's readability when committed to source control.
+The wrapper's name uses the same Name + optional displayName convention as components: `Model.deviceName` is the identifier-safe PlantUML id (defaults to `"Device"`), `Model.deviceDisplayName` is free text that may contain `\n` line breaks. When both are set and differ, the emission is `component <deviceName> as "<displayName>" { ... }`; when displayName is empty, a plain `component <deviceName> { ... }` is emitted. The distinction matters for the PlantUML output's readability when committed to source control.
 
-The wrapper does not participate in the selection-mask render. No `idAssigner` call is made for it, so a click anywhere inside the wrapper's bounds passes through to whichever interior element's mask pixel the click landed on. This is deliberate — the wrapper is a *boundary*, not a selectable entity; it exists to be seen, not interacted with. The system name is edited through the menu, never by clicking the canvas.
+The wrapper does not participate in the selection-mask render. No `idAssigner` call is made for it, so a click anywhere inside the wrapper's bounds passes through to whichever interior element's mask pixel the click landed on. This is deliberate — the wrapper is a *boundary*, not a selectable entity; it exists to be seen, not interacted with. The device name is edited through the menu, never by clicking the canvas.
 
 Two font sizes are stored on `Model` and emitted as `skinparam`:
 
-- `Model.systemComponentFontSize` (default 12) governs both Component and Handler labels. A single setting, because Components and Handlers are both "boxes" on the same diagram and divergent font sizes would create visual noise.
-- `Model.systemInterfaceFontSize` (default 11) governs Interface lollipop labels.
+- `Model.deviceComponentFontSize` (default 12) governs both Component and Handler labels. A single setting, because Components and Handlers are both "boxes" on the same diagram and divergent font sizes would create visual noise.
+- `Model.deviceInterfaceFontSize` (default 11) governs Interface lollipop labels.
 
-These are intentionally separate from `component.arrowFontSize` and `component.stateFontSize`, which are per-component and apply to the state-machine view only. Changing a system font size doesn't alter any state-machine rendering; changing a per-component font size doesn't alter the system diagram. Keeping the two font domains independent means users can tune each view's typography without bleeding side-effects.
+These are intentionally separate from `component.arrowFontSize` and `component.stateFontSize`, which are per-component and apply to the state-machine view only. Changing a device font size doesn't alter any state-machine rendering; changing a per-component font size doesn't alter the device diagram. Keeping the two font domains independent means users can tune each view's typography without bleeding side-effects.
 
-**Menu dispatch.** The menu bar has both a Component menu and a System menu. CSS rules `body.view-component .menu[data-menu="system"] { display: none; }` and its mirror hide one or the other depending on the active view, so exactly one is visible at any time. The Component menu's items (Change name, transition font, state font, Copy transitions…) all act on the active component; the System menu's items (Change name, component/handler font, interface font) all act on the Model-level system settings. Action keys are prefixed (`sys-change-name`, `sys-change-cfont`, `sys-change-ifont`) to keep the dispatch switch unambiguous. The system-rename dialog is `openSystemDialog()`, structurally identical to `openComponentDialog` but writing to `Model.systemName` / `Model.systemDisplayName` instead of a per-component record.
+**Menu dispatch.** The menu bar has both a Component menu and a Device menu. CSS rules `body.view-component .menu[data-menu="device"] { display: none; }` and its mirror hide one or the other depending on the active view, so exactly one is visible at any time. The Component menu's items (Change name, transition font, state font, Copy transitions…) all act on the active component; the Device menu's items (Change name, component/handler font, interface font) all act on the Model-level device settings. Action keys are prefixed (`dev-change-name`, `dev-change-cfont`, `dev-change-ifont`) to keep the dispatch switch unambiguous. The device-rename dialog is `openDeviceDialog()`, structurally identical to `openComponentDialog` but writing to `Model.deviceName` / `Model.deviceDisplayName` instead of a per-component record.
 
-**Save format.** The four fields are emitted only when they differ from their defaults, keeping files that don't customise them byte-identical to before the feature was added. The loader applies the defaults when any field is missing or out of range; the format string stays `stadiae-v3` (the schema gained new optional fields, nothing became incompatible).
+**Save format.** The four fields are emitted only when they differ from their defaults, keeping files that don't customise them byte-identical to before the feature was added. The loader applies the defaults when any field is missing or out of range; the format string stays `stadiae-v4` (the schema gained new optional fields, nothing became incompatible).
 
 ---
 
 ## 15. Specification export
 
-The `File → Export Specification…` menu item opens a preview modal containing the system's specification rendered as a navigable HTML document. The modal carries three buttons: **Download HTML**, **Download .docx**, and **Close**. The HTML version is the primary preview format — the modal embeds it via an iframe with a sticky table-of-contents sidebar on the left and the rendered prose on the right. Both formats are produced from the same model walk; they diverge only at the rendering layer.
+The `File → Export Specification…` menu item opens a preview modal containing the device's specification rendered as a navigable HTML document. The modal carries three buttons: **Download HTML**, **Download .docx**, and **Close**. The HTML version is the primary preview format — the modal embeds it via an iframe with a sticky table-of-contents sidebar on the left and the rendered prose on the right. Both formats are produced from the same model walk; they diverge only at the rendering layer.
 
 ### Why both formats
 
@@ -1127,7 +1127,7 @@ The downloaded HTML file embeds the editable model as a `<script type="applicati
 
 **Escape gotcha.** The JSON payload may contain the literal text `</script` (e.g. inside a description that quotes HTML). Without escaping, the HTML tokenizer treats that sequence as the end of the host script tag and the rest of the JSON spills into the document body. The fix is a one-line `.replace(/<\/script/gi, "<\\/script")` pass before embedding — the JSON parser sees both forms identically, but the HTML tokenizer is fooled. The same idiom appears in many JSON-in-HTML embedders.
 
-**Filename derivation.** Suggested download name comes from `Model.savedFilename` if set (with a known `.stadiae` or `.json` suffix stripped and `.json` appended), else a slugified `Model.systemName`, else the literal `stadiae-model`. Always ends with `.json`. The filename is carried alongside the payload as `<meta name="stadiae-model-filename" content="...">` so the consuming JS doesn't need to know the model's structure.
+**Filename derivation.** Suggested download name comes from `Model.savedFilename` if set (with a known `.stadiae` or `.json` suffix stripped and `.json` appended), else a slugified `Model.deviceName`, else the literal `stadiae-model`. Always ends with `.json`. The filename is carried alongside the payload as `<meta name="stadiae-model-filename" content="...">` so the consuming JS doesn't need to know the model's structure.
 
 **Round-trip safety.** The embed uses `buildSerializedModel()` — the same code path Save and snapshot use. So the embedded source is byte-identical to a fresh Save of the current state. Round-trip: Stadiæ → Save → JSON file = Stadiæ → Export Spec → embedded source. There's no "spec-only" data shape; the model is serialized once and used in three places (file save, history snapshot, spec embed). This is intentional: it means every code path that handles serialization is exercised by both saves and spec exports, so divergence bugs can't hide.
 
@@ -1151,7 +1151,7 @@ Identifiers are already constrained to a-z A-Z 0-9 _ by `isValidIdentifier` (val
 
 Per-parameter anchors live on the parameter-name `<td>` cell rather than the row's `<tr>` because the row's `<tr>` already carries the parent message/function anchor — and an element can only have one `id`. The cell-level id works fine with `scrollIntoView` and gets a brief accent highlight when navigated to (`.ref-target` class added by the iframe's click handler, removed by `setTimeout` after the fade transition completes).
 
-**Index and resolution.** `buildSpecAnchorIndex()` builds nested Maps over all components, handlers, interfaces, types, and their members — done once at the start of generation. Each interface entry's `messages` Map and each handler entry's `functions` Map stores `{anchor, parameters: Map(name → anchor)}` rather than a bare anchor string, so a single lookup can yield either the parent's anchor (two-segment use) or a parameter's anchor (three-segment use). The top-level `types` Map stores `{anchor, description}` keyed by name; types are referenced both via bare backtick lookups (`` `MyType` ``) and via exact-string matches in parameter / state-variable type cells. `resolveSpecReference(idx, token, context)` consumes that index plus the current rendering context and returns either an `{ anchor, label, description }` for a successful lookup or `null` for an unresolved reference. The bare-token fallback chain is: current context's members → top-level system entities (component, handler, interface, **type**) → cross-component scan → cross-interface and cross-handler scans.
+**Index and resolution.** `buildSpecAnchorIndex()` builds nested Maps over all components, handlers, interfaces, types, and their members — done once at the start of generation. Each interface entry's `messages` Map and each handler entry's `functions` Map stores `{anchor, parameters: Map(name → anchor)}` rather than a bare anchor string, so a single lookup can yield either the parent's anchor (two-segment use) or a parameter's anchor (three-segment use). The top-level `types` Map stores `{anchor, description}` keyed by name; types are referenced both via bare backtick lookups (`` `MyType` ``) and via exact-string matches in parameter / state-variable type cells. `resolveSpecReference(idx, token, context)` consumes that index plus the current rendering context and returns either an `{ anchor, label, description }` for a successful lookup or `null` for an unresolved reference. The bare-token fallback chain is: current context's members → top-level device entities (component, handler, interface, **type**) → cross-component scan → cross-interface and cross-handler scans.
 
 The resolver dispatches by segment count (split on `:`). Empty segments (`A::B`, leading/trailing `:`) and 4+ segments are rejected as malformed.
 
@@ -1160,7 +1160,7 @@ The resolver dispatches by segment count (split on `:`). Empty segments (`A::B`,
 **1 segment** — bare token like `Foo`:
 
 - Search the current context first (the component / handler / interface whose chapter is being rendered).
-- Then system-level entities (component / handler / interface names by themselves).
+- Then device-level entities (component / handler / interface names by themselves).
 - Then alphabetical scans across other components, interfaces, and handlers.
 - Tie-breaker on cross-list collision within a component: state variable beats constant (variables are more common in action prose).
 
@@ -1169,7 +1169,7 @@ The resolver dispatches by segment count (split on `:`). Empty segments (`A::B`,
 - `Interface:Message` — exact lookup.
 - `Handler:Function` — exact lookup.
 - `Component:State|CP|Variable|Constant|LocalFunction` — exact lookup, in that priority.
-- **Action-context fallback**: when `context.kind === "component"` and `context.rowMessage` is set, the resolver recognises `Message:Parameter` references whose first segment matches the row's message. The interface qualifier is implicit — the row's own message establishes it. Inside an Action whose row mentions `Connection / ConnectReq`, `ConnectReq:serverId` resolves to the `serverId` parameter without repeating the interface name. The fallback is strictly action-local: it never searches system-wide for messages matching the first segment, to avoid colliding with the existing `Owner:Member` kinds.
+- **Action-context fallback**: when `context.kind === "component"` and `context.rowMessage` is set, the resolver recognises `Message:Parameter` references whose first segment matches the row's message. The interface qualifier is implicit — the row's own message establishes it. Inside an Action whose row mentions `Connection / ConnectReq`, `ConnectReq:serverId` resolves to the `serverId` parameter without repeating the interface name. The fallback is strictly action-local: it never searches device-wide for messages matching the first segment, to avoid colliding with the existing `Owner:Member` kinds.
 
 **3 segments** — `Iface:Msg:Param` and `Handler:Fn:Param`:
 
@@ -1177,7 +1177,7 @@ The resolver dispatches by segment count (split on `:`). Empty segments (`A::B`,
 - Same for handlers.
 - Anything else (component-prefixed three-segment, etc.) is unresolved.
 
-**Rendering context.** Each call into `renderProse` carries a `{ kind, ... }` object describing the surrounding chapter — `{ kind: "component", componentName }` while emitting a component chapter, `{ kind: "interface", interfaceName }` for an interface chapter, `{ kind: "handler", handlerName }` for a handler chapter, `{ kind: "system" }` for the system specification. The transition table's per-row Action cell extends this with `rowMessage: { interface, name }` so the action-context two-segment fallback knows which message the implicit qualifier maps to. The resolver consults `rowMessage` only when handling two-segment tokens; everywhere else it's ignored.
+**Rendering context.** Each call into `renderProse` carries a `{ kind, ... }` object describing the surrounding chapter — `{ kind: "component", componentName }` while emitting a component chapter, `{ kind: "interface", interfaceName }` for an interface chapter, `{ kind: "handler", handlerName }` for a handler chapter, `{ kind: "device" }` for the device specification. The transition table's per-row Action cell extends this with `rowMessage: { interface, name }` so the action-context two-segment fallback knows which message the implicit qualifier maps to. The resolver consults `rowMessage` only when handling two-segment tokens; everywhere else it's ignored.
 
 **Backtick parsing.** `renderProse(text, context, idx)` walks the input character-by-character. A backslash before a backtick is consumed as an escape, emitting a literal backtick and skipping past it. An un-escaped backtick opens a span that closes at the next un-escaped backtick. The contents go to `resolveSpecReference`; a successful resolution emits `<a class="ref" href="#{anchor}">{label}</a>`, an unresolved one emits `<code class="ref-unresolved" title="Unresolved reference">{token}</code>`. Unterminated backtick spans (no closing backtick before end-of-string) are emitted as literal text — defensive, in case the user typed an opening backtick without closing it.
 
@@ -1187,11 +1187,11 @@ The resolver dispatches by segment count (split on `:`). Empty segments (`A::B`,
 
 The SVG approach was chosen over base64-embedded PNGs for three reasons: (1) crisp rendering at any zoom level, since SVG scales without pixelation and matches the docx export's vector-first approach; (2) searchable diagrams — the SVG keeps text as text, so Ctrl-F finds state names inside the rendered diagram; (3) typically smaller embedded size for diagram-heavy documents, since SVG path data and text labels serialize more compactly than equivalent base64 PNG bytes for typical PlantUML output.
 
-**Sidebar TOC.** Rendered into the iframe document as a `<nav class="toc">` element, sticky-positioned on the left. The structure mirrors the document outline: System overview / System specification / System diagram / Components (each component expandable to its sections) / Handlers / Interfaces. Active-section highlighting via `IntersectionObserver` inside the iframe — when an H1/H2 enters the upper portion of the viewport (`rootMargin: '-10% 0px -75% 0px'`), the matching TOC entry gets the `.active` class. Click-to-scroll uses `scrollIntoView({ behavior: 'smooth' })`.
+**Sidebar TOC.** Rendered into the iframe document as a `<nav class="toc">` element, sticky-positioned on the left. The structure mirrors the document outline: Device overview / Device specification / Device diagram / Components (each component expandable to its sections) / Handlers / Interfaces. Active-section highlighting via `IntersectionObserver` inside the iframe — when an H1/H2 enters the upper portion of the viewport (`rootMargin: '-10% 0px -75% 0px'`), the matching TOC entry gets the `.active` class. Click-to-scroll uses `scrollIntoView({ behavior: 'smooth' })`.
 
 **Print stylesheet.** A `@media print` block hides `.toc`, expands `<main>` to full width, removes the dotted-underline reference styling (printed links don't need the visual affordance), and applies `page-break-after: avoid` to H1/H2 so chapter headings don't strand at the bottom of a page.
 
-**Type definitions and auto-linking.** Type definitions are system-wide reference entries (see `Model.types` in §3) rendered as their own chapter at the end of both the HTML and docx specs. They participate in the reference resolver as top-level entities — `` `MyType` `` is a bare reference that resolves to the type's anchor.
+**Type definitions and auto-linking.** Type definitions are device-wide reference entries (see `Model.types` in §3) rendered as their own chapter at the end of both the HTML and docx specs. They participate in the reference resolver as top-level entities — `` `MyType` `` is a bare reference that resolves to the type's anchor.
 
 Beyond explicit backtick references, parameter and state-variable type *cells* in the spec auto-link when the cell's string exactly matches a defined type name. The helper `renderTypeCell(typeStr, idx)` consults `idx.types`: an exact match emits `<a class="ref" href="#type-{name}" data-tooltip="...">` (with the type's description as the tooltip when present), a non-match emits the escaped string verbatim. The match is exact-string only — compound type strings like `Map<String, int>` and nullable markers like `int?` stay plain text. Users wanting links into compound types can use the backtick syntax in surrounding descriptions.
 
@@ -1205,7 +1205,7 @@ Both passes are part of the same `pushHistory()` snapshot, so a single undo rest
 
 **Modal architecture.** `openSpecificationModal()` is the menu-bound entry point. It:
 
-1. Calls `buildSpecificationHTML(progress)` while showing a progress overlay (`Building specification…` → `Rendering system diagram…` → `Rendering {component} context…` → `Rendering {component} state diagram…`).
+1. Calls `buildSpecificationHTML(progress)` while showing a progress overlay (`Building specification…` → `Rendering device diagram…` → `Rendering {component} context…` → `Rendering {component} state diagram…`).
 2. Replaces the progress overlay with the spec modal — `<div class="modal modal-spec">` containing a title strip, an iframe in the body, and three buttons in the footer.
 3. Sets the iframe via `srcdoc=` (not `src=`) so the entire HTML lives inside the attribute and the iframe never makes a network request.
 4. Wires the Download HTML button to write the same string as a `Blob` + anchor click; wires Download .docx to fall through to the existing `buildSpecificationDocx` pipeline; wires Close to `hideModal`.
@@ -1221,11 +1221,11 @@ To deliver this, every rename dialog hooks a string-rewrite pass that runs *befo
 
 **Walker.** `walkAllProse(transform)` visits every free-text field in the model, calling `transform(text, fieldContext)` and assigning the result back. The fields visited:
 
-- `Model.systemSpecification` (context `{kind:"system"}`)
+- `Model.deviceSpecification` (context `{kind:"device"}`)
 - For each component: `description`, every state's `description`, every choice-point's `question` and `description`, every state variable's `description`, every constant's `value` and `description`, every local function's `description` and `steps`, every transition's every message's `action` (context `{kind:"component", componentName}`)
 - For each handler: `description`, every function's `description`, every parameter's `description` (context `{kind:"handler", handlerName}`)
 - For each interface: `description` (context `{kind:"interface", interfaceName}`)
-- For each system message: `description`, every parameter's `description` (context `{kind:"message", interfaceName, name}`)
+- For each device message: `description`, every parameter's `description` (context `{kind:"message", interfaceName, name}`)
 
 Identifier fields — state names, CP names, parameter names — are not visited. They're not prose; they're identifiers. Renames mutate them via the dialog's own logic and then the rewriter cascades the *references* in prose.
 
@@ -1255,7 +1255,7 @@ Identifier fields — state names, CP names, parameter names — are not visited
 
 `exportSpecification()` drives the whole pipeline:
 
-1. Prompt for a filename (default `<systemName>-spec.docx`).
+1. Prompt for a filename (default `<deviceName>-spec.docx`).
 2. Show a progress modal ("Loading document library…" → "Rendering diagrams…" → "Packaging document…").
 3. `loadDocxLibrary()` injects a `<script>` for the UMD build if not already loaded. Resolves to `window.docx` cached in `_docxLib`.
 4. `buildSpecificationDocx(d, progress)` assembles the `docx.Document` tree by walking the model and fetching diagram images as it goes.
@@ -1291,14 +1291,14 @@ Word renders the SVG natively. LibreOffice (recent versions) renders SVG nativel
 
 ### Document structure
 
-H1 is the literal phrase "System specification" — the system's own display name lives in the docx metadata (visible in file properties), not in a visible heading. H1 chapters are the top-level structural units; H2 sections are the subunits within each chapter.
+H1 is the literal phrase "Device specification" — the device's own display name lives in the docx metadata (visible in file properties), not in a visible heading. H1 chapters are the top-level structural units; H2 sections are the subunits within each chapter.
 
-- **H1 "System specification"** → H2 Description (user-authored system specification text) + H2 System architecture (full diagram, component summary table, handler summary table).
+- **H1 "Device specification"** → H2 Description (user-authored device specification text) + H2 Device architecture (full diagram, component summary table, handler summary table).
 - **H1 "Interfaces"** → H2 per interface with its messages table (row-span for multi-parameter messages).
-- **H1 per component** → H2 Context (filtered-diagram image, no outer system wrapper) + H2 Constants + H2 State variables + H2 States + H2 Choice-points + H2 State diagram (full state machine image) + H2 State transition table (row-span for multi-message transitions) + H2 Local functions (per-component reusable action snippets — last section in the chapter so the reader has the full state-machine picture before encountering the refactored step sequences that the actions delegate to).
+- **H1 per component** → H2 Context (filtered-diagram image, no outer device wrapper) + H2 Constants + H2 State variables + H2 States + H2 Choice-points + H2 State diagram (full state machine image) + H2 State transition table (row-span for multi-message transitions) + H2 Local functions (per-component reusable action snippets — last section in the chapter so the reader has the full state-machine picture before encountering the refactored step sequences that the actions delegate to).
 - **H1 per handler** → H2 Functions (row-span for multi-parameter functions).
 
-A well-formed output opens with a table of contents that reads: System specification / Interfaces / each Component / each Handler. The structure matches the user-provided PDF template that drove the design.
+A well-formed output opens with a table of contents that reads: Device specification / Interfaces / each Component / each Handler. The structure matches the user-provided PDF template that drove the design.
 
 ### Choice-points in spec output
 
@@ -1320,7 +1320,7 @@ It's a component-scoped twin of the editor's existing `nodeLabel` helper — the
 
 The model uses the literal two-character sequence `\n` (backslash-n) as a line-break marker in short labels — state display names, choice-point questions — so PlantUML can wrap them when diagram layout is tight. In prose the line-break is a rendering artifact, not semantic. `mkCell` normalises every cell's text: `\n` → space, real newlines → space, whitespace runs collapsed, trimmed. Same flattening applied to the H1 headings and prose sentences that embed component/handler labels.
 
-Body prose (the system specification textarea, component descriptions, handler descriptions) uses `mkParas` which preserves real newlines as paragraph breaks — only **table cells** and **headings** are flattened to single-line.
+Body prose (the device specification textarea, component descriptions, handler descriptions) uses `mkParas` which preserves real newlines as paragraph breaks — only **table cells** and **headings** are flattened to single-line.
 
 ### Tables and column widths
 
@@ -1363,7 +1363,7 @@ The header text distinguishes "Message description" / "Function description" fro
 
 ### Per-component Context diagrams
 
-Each component section includes a Context diagram — the system diagram restricted to that component's immediate neighbourhood. The filter is computed by `buildFocusFilter(componentName)` and threaded into `generateComponentDiagramPlantUML` via a `focus` option.
+Each component section includes a Context diagram — the device diagram restricted to that component's immediate neighbourhood. The filter is computed by `buildFocusFilter(componentName)` and threaded into `generateComponentDiagramPlantUML` via a `focus` option.
 
 The neighbourhood is:
 
@@ -1372,15 +1372,15 @@ The neighbourhood is:
 - Handlers on any of those interfaces (showing who's on the other end).
 - Handlers the component calls directly.
 
-Explicitly *not* included: other components on the same interface. The context diagram is the component's outgoing/incoming contract surface, not the full ecosystem. Cross-component relationships belong in the system diagram proper.
+Explicitly *not* included: other components on the same interface. The context diagram is the component's outgoing/incoming contract surface, not the full ecosystem. Cross-component relationships belong in the device diagram proper.
 
-**The outer system wrapper is dropped for Context diagrams.** The full system diagram encloses everything in `component SystemName { ... }` to carry the visible system boundary. For a single-component focused view that's visual redundancy — there's no "whole system" being shown, just one component's neighbourhood. `buildFocusFilter` sets `skipSystemWrapper: true` on the returned filter; the generator tests this flag and skips both the opening `component SystemName {` line and its matching `}` closer.
+**The outer device wrapper is dropped for Context diagrams.** The full device diagram encloses everything in `component DeviceName { ... }` to carry the visible device boundary. For a single-component focused view that's visual redundancy — there's no "whole device" being shown, just one component's neighbourhood. `buildFocusFilter` sets `skipDeviceWrapper: true` on the returned filter; the generator tests this flag and skips both the opening `component DeviceName {` line and its matching `}` closer.
 
-`generateComponentDiagramPlantUML` exposes six `allow*` predicates (`allowComponent`, `allowHandler`, `allowInterface`, `allowConnection`, `allowHandlerConnection`, `allowHandlerCall`) that default to `() => true` when `focus` is null, and consult the filter sets when focus is set. The predicates gate every emission loop — components, handlers, interfaces (via `wiredInterfaces`), and all three wiring kinds. The `skipSystemWrapper` flag is handled separately from the allow-predicates since it gates structural syntax (the outer `component {...}` block) rather than entity emission.
+`generateComponentDiagramPlantUML` exposes six `allow*` predicates (`allowComponent`, `allowHandler`, `allowInterface`, `allowConnection`, `allowHandlerConnection`, `allowHandlerCall`) that default to `() => true` when `focus` is null, and consult the filter sets when focus is set. The predicates gate every emission loop — components, handlers, interfaces (via `wiredInterfaces`), and all three wiring kinds. The `skipDeviceWrapper` flag is handled separately from the allow-predicates since it gates structural syntax (the outer `component {...}` block) rather than entity emission.
 
 ### Empty-case and error fallbacks
 
-Every potentially-empty section falls back to a one-line italic statement rather than an empty table: `"No handlers are defined for this system."`, `"This interface has no messages."`, `"This component has no choice-points."`, `"The <handler> exposes no functions."`, and so on. Missing descriptions render as `"No description provided."` in cells. Per-diagram render failures produce `"Could not render <diagram>: <reason>"` italic paragraphs in place of the image. The document always generates.
+Every potentially-empty section falls back to a one-line italic statement rather than an empty table: `"No handlers are defined for this device."`, `"This interface has no messages."`, `"This component has no choice-points."`, `"The <handler> exposes no functions."`, and so on. Missing descriptions render as `"No description provided."` in cells. Per-diagram render failures produce `"Could not render <diagram>: <reason>"` italic paragraphs in place of the image. The document always generates.
 
 ### What the generator doesn't do
 
@@ -1414,7 +1414,7 @@ If you want to:
 
 - **Add a new entity kind to the spec export** (e.g. a "Scenarios" chapter): add the section in `buildSpecificationDocx`, match its heading level to the H1/H2 convention (chapter heading is H1, subsections H2), and use the existing `mkTable` / `mkCell` helpers with one of the `COL_N` width profiles (or add a new profile if the column layout is different). Remember to apply `{width: COL_N[i]}` to every body cell — omitting it lets Google Docs collapse the column on import.
 
-- **Change visual theming**: edit the CSS custom properties block at the top of `<style>`. The accent colour threads through toolbar hover, selection, primary buttons, the active component chevron, the System button's view-active fill, and the logo — one variable.
+- **Change visual theming**: edit the CSS custom properties block at the top of `<style>`. The accent colour threads through toolbar hover, selection, primary buttons, the active component chevron, the Device button's view-active fill, and the logo — one variable.
 
 - **Add a new menu item**: add `<div class="item" data-action="...">` under the right `<div class="menu">`, then a `case` in the menu click-dispatch switch.
 

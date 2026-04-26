@@ -186,7 +186,7 @@
   }
   /* Inner wrapper that holds the swappable diagram image. The
      canvas-panel is the positioning parent for floating chrome (the
-     System button, the restored-banner); canvas-content is what
+     Device button, the restored-banner); canvas-content is what
      renderDiagram wipes and repopulates on each render. */
   .canvas-content {
     flex: 1;
@@ -197,14 +197,14 @@
     min-height: 0;
     align-self: stretch;
   }
-  /* Floating System button in the canvas's top-left corner. Toggles
+  /* Floating Device button in the canvas's top-left corner. Toggles
      between the state-machine view (of the active component) and the
-     system-level component diagram. Sits above the diagram because
+     device-level component diagram. Sits above the diagram because
      controlling-what-is-shown belongs where the effect happens, not in
-     the list chrome on the right. When the system view is active the
+     the list chrome on the right. When the device view is active the
      button styles as accent-filled so users have a persistent "you are
      here" cue. */
-  .canvas-system-btn {
+  .canvas-device-btn {
     position: absolute;
     top: 10px;
     left: 10px;
@@ -223,23 +223,23 @@
     transition: all 0.15s;
     box-shadow: var(--shadow-sm);
   }
-  .canvas-system-btn:hover {
+  .canvas-device-btn:hover {
     background: var(--accent-soft);
     color: var(--accent);
     border-color: var(--accent);
   }
-  body.view-system .canvas-system-btn {
+  body.view-device .canvas-device-btn {
     background: var(--accent);
     color: white;
     border-color: var(--accent);
   }
   /* Floating "Enter component" button in the canvas's top-right corner.
-     Symmetric in position and visual weight to the System button at the
+     Symmetric in position and visual weight to the Device button at the
      top-left: the two together form a spatial "navigate up / navigate
-     down" pair. Only visible in system view (drilling into a component
-     only makes sense from the system). Enabled when exactly one
+     down" pair. Only visible in device view (drilling into a component
+     only makes sense from the device). Enabled when exactly one
      Component is selected and nothing else that would disqualify the
-     action. Unlike the System button this one is never accent-filled —
+     action. Unlike the Device button this one is never accent-filled —
      it is a pure action (take me into this component), not a state
      indicator. */
   .canvas-enter-btn {
@@ -584,15 +584,15 @@
     opacity: 0.75;
     margin-left: 4px;
   }
-  /* === System catalogue (components + interfaces + messages, shared across components) === */
-  .system-panel {
+  /* === Device catalogue (components + interfaces + messages, shared across components) === */
+  .device-panel {
     flex: 0 0 auto;
     height: 160px;
     min-height: 80px;
     display: flex;
     flex-direction: column;
   }
-  .system-grid {
+  .device-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
     gap: 12px;
@@ -607,32 +607,32 @@
     gap: 12px;
     min-height: 0;
   }
-  /* In system view the component-level panels have no meaning — hide them.
-     The system-view panels (Components list, etc.) take their place and
+  /* In device view the component-level panels have no meaning — hide them.
+     The device-view panels (Components list, etc.) take their place and
      are shown via the inverse rule in their own block. */
-  body.view-system .component-panel { display: none; }
-  /* In system view the description panel takes over the bottom area
+  body.view-device .component-panel { display: none; }
+  /* In device view the description panel takes over the bottom area
      since the component-level panels are hidden — flex-grow from its
      fixed ~100px to the available height of the column. */
-  body.view-system .desc-panel {
+  body.view-device .desc-panel {
     flex: 1 1 auto;
     height: auto;
   }
   /* Toolbar buttons scoped to a specific view: the state-machine editing
-     buttons are only visible in component view; the system-diagram
-     editing button is only visible in system view. Hidden (not just
+     buttons are only visible in component view; the device-diagram
+     editing button is only visible in device view. Hidden (not just
      disabled) to keep the toolbar uncluttered. */
-  body.view-system #btn-add-trans,
-  body.view-system #btn-redirect { display: none; }
+  body.view-device #btn-add-trans,
+  body.view-device #btn-redirect { display: none; }
   body.view-component #btn-add-conn { display: none; }
   /* Menu visibility is view-scoped. The Component menu's items all
      operate on the active component's state machine and don't apply
-     in system view; the System menu's items operate on the system
-     diagram (system name, component/handler label font, interface
+     in device view; the Device menu's items operate on the device
+     diagram (device name, component/handler label font, interface
      font) and don't apply in component view. Exactly one of the two
      menus is visible at any time. */
-  body.view-system .menu[data-menu="component"] { display: none; }
-  body.view-component .menu[data-menu="system"] { display: none; }
+  body.view-device .menu[data-menu="component"] { display: none; }
+  body.view-component .menu[data-menu="device"] { display: none; }
   .list-box ul, .params-panel ul {
     list-style: none;
     margin: 0; padding: 4px;
@@ -699,7 +699,7 @@
     min-width: 100%;
   }
   /* Interface list items when the active component isn't wired to that
-     interface in the system diagram. Two flavours:
+     interface in the device diagram. Two flavours:
      - .unwired:         interface not used by this component either.
                          Dimmed to signal "out of scope".
      - .unwired-warning: interface IS used in this component's transitions
@@ -820,7 +820,7 @@
   }
   /* Transition row "has action" indicator dot (first column). The cell
      also carries a warning marker for transitions whose interface isn't
-     wired to the active component in the system diagram — the `::before`
+     wired to the active component in the device diagram — the `::before`
      slot renders the action dot, the `::after` slot renders the warning. */
   .trans-panel td.action-dot {
     width: 28px;
@@ -975,7 +975,7 @@
   #resize-handle-steps.hidden { display: none; }
 
   /* === Canvas column wrapper === */
-  /* Stacks the canvas on top of the system-specification panel with a
+  /* Stacks the canvas on top of the device-specification panel with a
      resize handle between them. The column takes `flex: 1` of the
      main horizontal split (the same slot `.canvas-panel` used to
      occupy directly); the canvas inside the column takes `flex: 1`
@@ -992,14 +992,14 @@
     min-height: 0;
   }
 
-  /* === System specification panel === */
+  /* === Device specification panel === */
   /* Lives below the canvas in the canvas column. Always visible in
-     both views (it documents the system as a whole). Structurally
+     both views (it documents the device as a whole). Structurally
      identical to the Action panel — header strip + textarea body —
-     but never shows a placeholder, since the system spec is always
+     but never shows a placeholder, since the device spec is always
      bound and never switches off. Height defaults to 140 px; the
      handle above it is draggable, double-click to reset. */
-  .sysspec-panel {
+  .devspec-panel {
     background: var(--surface);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
@@ -1011,7 +1011,7 @@
     overflow: hidden;
     box-shadow: var(--shadow-sm);
   }
-  .sysspec-panel .header {
+  .devspec-panel .header {
     background: var(--surface-3);
     padding: 8px 14px;
     font-weight: 600;
@@ -1021,7 +1021,7 @@
     color: var(--text-muted);
     border-bottom: 1px solid var(--border);
   }
-  .sysspec-panel textarea {
+  .devspec-panel textarea {
     flex: 1;
     border: none;
     outline: none;
@@ -1033,13 +1033,13 @@
     color: var(--text);
     background: var(--surface);
   }
-  .sysspec-panel textarea:focus {
+  .devspec-panel textarea:focus {
     background: var(--surface);
     box-shadow: inset 0 0 0 2px var(--accent-soft);
   }
 
   /* === Description panel === */
-  /* Sits between the system catalogue and the component panel. Always
+  /* Sits between the device catalogue and the component panel. Always
      visible; in component view, the States/CPs/Transitions/Action stack
      sits underneath it via .component-panel. The Action panel's CSS
      above is mirrored here for visual coherence. */
@@ -1066,7 +1066,7 @@
     border-bottom: 1px solid var(--border);
     /* Header carries an inline indicator on the right of which component
        this binds to (so the user knows which thing they're documenting,
-       since the panel can follow selection in system view). */
+       since the panel can follow selection in device view). */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1174,9 +1174,9 @@
   .live-tooltip.visible { opacity: 1; }
   /* The resize handle below the description is only meaningful in
      component view, where there is something below it to resize against.
-     In system view the description is the last thing in the column and
+     In device view the description is the last thing in the column and
      there is nothing below; hide the handle. */
-  body.view-system #resize-handle-desc { display: none; }
+  body.view-device #resize-handle-desc { display: none; }
 
   /* The Messages column and Functions column each nest a parameter
      panel below their primary list box. When a single message (or
@@ -1822,13 +1822,13 @@
       <div class="item" data-action="copy-transitions-md">Copy transitions as Markdown table...</div>
     </div>
   </div>
-  <div class="menu" data-menu="system">System
+  <div class="menu" data-menu="device">Device
     <div class="dropdown">
-      <div class="item" data-action="sys-change-name">Change name...</div>
-      <div class="item" data-action="sys-change-cfont">Change component/handler font size...</div>
-      <div class="item" data-action="sys-change-ifont">Change interface font size...</div>
+      <div class="item" data-action="dev-change-name">Change name...</div>
+      <div class="item" data-action="dev-change-cfont">Change component/handler font size...</div>
+      <div class="item" data-action="dev-change-ifont">Change interface font size...</div>
       <div class="separator"></div>
-      <div class="item" data-action="sys-type-defs">Type definitions...</div>
+      <div class="item" data-action="dev-type-defs">Type definitions...</div>
     </div>
   </div>
   <div class="menu" data-menu="help">Help
@@ -1867,22 +1867,22 @@
 <div class="main">
   <div class="canvas-column" id="canvas-column">
     <div class="canvas-panel" id="canvas-panel">
-      <button class="canvas-system-btn" id="btn-system" title="Show the system diagram (component view)">◇ System</button>
+      <button class="canvas-device-btn" id="btn-device" title="Show the device diagram (component view)">◇ Device</button>
       <button class="canvas-enter-btn" id="btn-enter-component" title="Enter the selected component's state machine">Component ▸</button>
       <div class="canvas-content" id="canvas-content">
         <div class="loading">Rendering diagram...</div>
       </div>
     </div>
-    <div class="resize-handle" id="resize-handle-sysspec" title="Drag to resize; double-click to reset"></div>
-    <div class="sysspec-panel" id="sysspec-panel">
-      <div class="header">System specification</div>
-      <textarea id="sysspec-textarea" placeholder="Describe the system as a whole. This is the design guide you write your components and handlers against."></textarea>
+    <div class="resize-handle" id="resize-handle-devspec" title="Drag to resize; double-click to reset"></div>
+    <div class="devspec-panel" id="devspec-panel">
+      <div class="header">Device specification</div>
+      <textarea id="devspec-textarea" placeholder="Describe the device as a whole. This is the design guide you write your components and handlers against."></textarea>
     </div>
   </div>
   <div class="resize-handle-h" id="resize-handle-main" title="Drag to resize; double-click to reset"></div>
   <div class="right-panel">
-    <div class="system-panel" id="system-panel">
-      <div class="system-grid">
+    <div class="device-panel" id="device-panel">
+      <div class="device-grid">
         <div class="list-box">
           <div class="header">
             <span>Components</span>
@@ -1950,7 +1950,7 @@
         </div>
       </div>
     </div>
-    <div class="resize-handle" id="resize-handle-system" title="Drag to resize"></div>
+    <div class="resize-handle" id="resize-handle-device" title="Drag to resize"></div>
     <div class="desc-panel" id="desc-panel">
       <div class="header" id="desc-header">Description</div>
       <textarea id="desc-textarea" class="desc-textarea"
@@ -2054,11 +2054,11 @@
  * ============================================================= */
 
 // ---------- Model ----------
-// The top-level Model holds system-wide data (interfaces, messages, save
+// The top-level Model holds device-wide data (interfaces, messages, save
 // metadata) and an array of components. Each component owns its own states,
 // choice-points, transitions, name, and font sizes. Interfaces and messages
 // are shared across all components — they represent the contract vocabulary
-// of the system as a whole.
+// of the device as a whole.
 //
 // The `Component` accessor below is a thin convenience that always points
 // at the currently active component. Reading `Component.states` is exactly
@@ -2076,7 +2076,7 @@ function makeEmptyComponent(name, displayName) {
     displayName: displayName || "",
     // Optional free-text description of what this component does. Pure
     // developer documentation — persisted in JSON, never emitted to
-    // PlantUML. Edited via the Description panel below the system
+    // PlantUML. Edited via the Description panel below the device
     // catalogue. Same role as `transition.action` is to a transition.
     description: "",
     arrowFontSize: 9,
@@ -2114,7 +2114,7 @@ function makeEmptyComponent(name, displayName) {
 }
 
 const Model = {
-  // System-wide data (shared across all components)
+  // Device-wide data (shared across all components)
   // START is implicit. Default interfaces: Timer, Logical. Default messages: Timeout, Yes, No
   interfaces: [
     { name: "Timer", isDefault: true },
@@ -2128,32 +2128,32 @@ const Model = {
   // Components
   components: [ makeEmptyComponent("Component Name") ],
   activeComponentIndex: 0,
-  // System-level settings. The system is the outer "container" on the
+  // Device-level settings. The device is the outer "container" on the
   // component diagram — it draws as `component <name> { ... }` with all
   // components, handlers, interfaces, and wiring nested inside, giving
-  // the diagram a clear "this is what the system is" boundary. The name
+  // the diagram a clear "this is what the device is" boundary. The name
   // follows the same convention as components (identifier-safe stable
   // handle plus optional free-text displayName that shows on the
   // canvas).
-  systemName: "System",
-  systemDisplayName: "",
-  // Two font-size settings specific to the system diagram. Per-component
+  deviceName: "Device",
+  deviceDisplayName: "",
+  // Two font-size settings specific to the device diagram. Per-component
   // font sizes (arrowFontSize, stateFontSize) apply to the state-machine
-  // view only; these two apply to the system view only. Keeping them
+  // view only; these two apply to the device view only. Keeping them
   // separate means changing one doesn't quietly alter the other's
   // diagram.
-  systemComponentFontSize: 12,   // applies to both Component and Handler labels
-  systemInterfaceFontSize: 11,   // applies to Interface lollipop labels
-  // Free-text system specification. A developer-facing document that
-  // describes the system as a whole — the design guide the user
+  deviceComponentFontSize: 12,   // applies to both Component and Handler labels
+  deviceInterfaceFontSize: 11,   // applies to Interface lollipop labels
+  // Free-text device specification. A developer-facing document that
+  // describes the device as a whole — the design guide the user
   // writes their components and handlers against. Multi-line,
   // persisted in JSON, never emitted to PlantUML. Lives on Model
   // (one per file) rather than per-component; the Description panels
   // handle per-component docs.
-  systemSpecification: "",
-  // Handlers are system-level entities that send messages to Components
+  deviceSpecification: "",
+  // Handlers are device-level entities that send messages to Components
   // via interfaces, and expose functions that Components can call
-  // directly. They parallel Components in the system catalogue but have
+  // directly. They parallel Components in the device catalogue but have
   // no state machine — they represent the edges of the FCM model, where
   // asynchronous input comes from the outside world. Each entry:
   //   { name: String,          // identifier-safe, unique across
@@ -2161,7 +2161,7 @@ const Model = {
   //     displayName: String,   // optional free text
   //     description: String }  // optional developer documentation
   handlers: [],
-  // System-level component diagram. Each entry is a connection between a
+  // Device-level component diagram. Each entry is a connection between a
   // component and an interface — the component "touches" that interface.
   // Default interfaces (Timer, Logical) are intentionally excluded from
   // this list; they're internal service concepts, not inter-component
@@ -2180,21 +2180,21 @@ const Model = {
   // at the Handler (calls are made to the Handler's functions, so the
   // dependency flows Component → Handler).
   handlerCalls: [],
-  // System-wide type definitions. Reference material describing the
+  // Device-wide type definitions. Reference material describing the
   // domain types used in parameter and state-variable type fields.
   // Documentation-only — never emitted to PlantUML, never enforced
   // anywhere in the model. The HTML and docx specs render these as
   // a dedicated chapter at the end of the document, and parameter /
   // state-variable type cells auto-link to the matching type when
   // their string exactly matches a defined type name. Each entry:
-  //   { name:          String,   // identifier-safe, unique system-wide
+  //   { name:          String,   // identifier-safe, unique device-wide
   //     description:   String,   // one-line summary
   //     specification: String }  // free multi-line prose (encoding,
   //                              // range, validity, examples, etc.)
   types: [],
-  // Which view is showing on the canvas: the system-level component
-  // diagram ("system") or the state machine of the active component
-  // ("component"). The leftmost pinned tab sets "system"; clicking any
+  // Which view is showing on the canvas: the device-level component
+  // diagram ("device") or the state machine of the active component
+  // ("component"). The leftmost pinned tab sets "device"; clicking any
   // component tab sets "component".
   activeView: "component",
   // Save metadata
@@ -2414,14 +2414,14 @@ const Selection = {
   // transitions: keys "source|target|interface|name" for each individual message on a transition,
   // or "source|target||" for the initial (no-message) transition.
   transitions: new Set(),
-  // System-diagram selections: components (by name) and connections
+  // Device-diagram selections: components (by name) and connections
   // (keyed "Component|Interface"). Only meaningful while Model.activeView
-  // is "system", but cleared on every view switch so they never leak.
+  // is "device", but cleared on every view switch so they never leak.
   components: new Set(),
   connections: new Set(),
   // Handler selections parallel Component selections. Handler wiring
   // keys: "Handler|Interface" (for handlerConnections) and
-  // "Component|Handler" (for handlerCalls). Same "System view only,
+  // "Component|Handler" (for handlerCalls). Same "Device view only,
   // cleared on every view switch" contract as the component-side sets.
   handlers: new Set(),
   handlerConnections: new Set(),
@@ -2528,11 +2528,11 @@ function snapshot() {
     handlerConnections: Model.handlerConnections,
     handlerCalls: Model.handlerCalls,
     types: Model.types,
-    systemName: Model.systemName,
-    systemDisplayName: Model.systemDisplayName,
-    systemComponentFontSize: Model.systemComponentFontSize,
-    systemInterfaceFontSize: Model.systemInterfaceFontSize,
-    systemSpecification: Model.systemSpecification
+    deviceName: Model.deviceName,
+    deviceDisplayName: Model.deviceDisplayName,
+    deviceComponentFontSize: Model.deviceComponentFontSize,
+    deviceInterfaceFontSize: Model.deviceInterfaceFontSize,
+    deviceSpecification: Model.deviceSpecification
   });
 }
 function restore(str) {
@@ -2546,13 +2546,13 @@ function restore(str) {
   Model.handlerConnections = Array.isArray(d.handlerConnections) ? d.handlerConnections : [];
   Model.handlerCalls = Array.isArray(d.handlerCalls) ? d.handlerCalls : [];
   Model.types = Array.isArray(d.types) ? d.types : [];
-  // System-level fields — defaults applied when a snapshot predates them
+  // Device-level fields — defaults applied when a snapshot predates them
   // (applies when undoing through a legacy file load).
-  Model.systemName = (typeof d.systemName === "string") ? d.systemName : "System";
-  Model.systemDisplayName = (typeof d.systemDisplayName === "string") ? d.systemDisplayName : "";
-  Model.systemComponentFontSize = (typeof d.systemComponentFontSize === "number") ? d.systemComponentFontSize : 12;
-  Model.systemInterfaceFontSize = (typeof d.systemInterfaceFontSize === "number") ? d.systemInterfaceFontSize : 11;
-  Model.systemSpecification = (typeof d.systemSpecification === "string") ? d.systemSpecification : "";
+  Model.deviceName = (typeof d.deviceName === "string") ? d.deviceName : "Device";
+  Model.deviceDisplayName = (typeof d.deviceDisplayName === "string") ? d.deviceDisplayName : "";
+  Model.deviceComponentFontSize = (typeof d.deviceComponentFontSize === "number") ? d.deviceComponentFontSize : 12;
+  Model.deviceInterfaceFontSize = (typeof d.deviceInterfaceFontSize === "number") ? d.deviceInterfaceFontSize : 11;
+  Model.deviceSpecification = (typeof d.deviceSpecification === "string") ? d.deviceSpecification : "";
   // Clamp index defensively
   if (Model.activeComponentIndex >= Model.components.length) {
     Model.activeComponentIndex = Math.max(0, Model.components.length - 1);
@@ -2625,7 +2625,7 @@ function nextRenderSalt() {
   return SESSION_PREFIX + "-" + renderSalt.toString(36);
 }
 
-// Generate PlantUML source for the system-level component diagram.
+// Generate PlantUML source for the device-level component diagram.
 // Mirrors the options of generatePlantUML:
 //   mode:          "visible" (for rendering) or "mask" (for hit detection)
 //   withSelection: highlight selected components/interfaces/connections in red
@@ -2657,13 +2657,13 @@ function generateComponentDiagramPlantUML(opts = {}) {
     // specification exporter to generate a per-component "context"
     // diagram. `focus` carries the component name and the pre-computed
     // allowed sets the caller wants rendered. When omitted, the full
-    // system diagram is generated.
+    // device diagram is generated.
     focus = null
   } = opts;
   const isMask = mode === "mask";
   // Predicates the rest of the generator calls to decide whether an
   // entity is in scope. When `focus` is null, everything is allowed —
-  // the full-system rendering behaviour. When focus is set, only the
+  // the full-device rendering behaviour. When focus is set, only the
   // entries in each allowed-set pass.
   const allowComponent = focus ? (name => focus.components.has(name)) : (() => true);
   const allowHandler = focus ? (name => focus.handlers.has(name)) : (() => true);
@@ -2672,11 +2672,11 @@ function generateComponentDiagramPlantUML(opts = {}) {
   const allowHandlerConnection = focus ? (hc => focus.handlerConnections.has(hc.handler + "|" + hc.interface)) : (() => true);
   const allowHandlerCall = focus ? (hc => focus.handlerCalls.has(hc.component + "|" + hc.handler)) : (() => true);
   // When the generator is called for a per-component "context" diagram,
-  // the outer `component SystemName { ... }` box reads as visual
+  // the outer `component DeviceName { ... }` box reads as visual
   // redundancy — a single focused component doesn't need the whole-
-  // system boundary around it. `focus.skipSystemWrapper` drops both
+  // device boundary around it. `focus.skipDeviceWrapper` drops both
   // the opening wrapper line and its matching closing `}`.
-  const skipSystemWrapper = !!(focus && focus.skipSystemWrapper);
+  const skipDeviceWrapper = !!(focus && focus.skipDeviceWrapper);
   const lines = [];
   lines.push("@startuml");
   if (includeSalt) {
@@ -2685,14 +2685,14 @@ function generateComponentDiagramPlantUML(opts = {}) {
   }
   lines.push("skinparam componentStyle rectangle");
   lines.push("skinparam {");
-  lines.push(`  InterfaceFontSize ${Model.systemInterfaceFontSize}`);
-  lines.push(`  ComponentFontSize ${Model.systemComponentFontSize}`);
+  lines.push(`  InterfaceFontSize ${Model.deviceInterfaceFontSize}`);
+  lines.push(`  ComponentFontSize ${Model.deviceComponentFontSize}`);
   // Handlers render with PlantUML's `node` shape, which has its own
   // font setting independent of `component`. Keep them locked together
   // so the single "component/handler font size" menu item controls
   // both — divergent font sizes would break the "components and
   // handlers are peer boxes" visual story.
-  lines.push(`  NodeFontSize ${Model.systemComponentFontSize}`);
+  lines.push(`  NodeFontSize ${Model.deviceComponentFontSize}`);
   if (isMask) {
     lines.push("  InterfaceFontColor #00000000");
     lines.push("  ComponentFontColor #00000000");
@@ -2701,19 +2701,19 @@ function generateComponentDiagramPlantUML(opts = {}) {
   lines.push("}");
   lines.push("");
 
-  // Wrapper "system" box. Everything on the diagram nests inside this
+  // Wrapper "device" box. Everything on the diagram nests inside this
   // outer `component` so the diagram carries a visible boundary labelled
-  // with the system's name. Same name+displayName convention as
-  // components: `systemName` is the identifier-safe PlantUML id, and an
-  // optional `systemDisplayName` provides the rendered label.
-  const sysId = Model.systemName || "System";
-  const sysDisplay = (Model.systemDisplayName && Model.systemDisplayName.length > 0)
-                      ? Model.systemDisplayName : sysId;
-  if (!skipSystemWrapper) {
-    if (sysDisplay === sysId) {
-      lines.push(`component ${sysId} {`);
+  // with the device's name. Same name+displayName convention as
+  // components: `deviceName` is the identifier-safe PlantUML id, and an
+  // optional `deviceDisplayName` provides the rendered label.
+  const devId = Model.deviceName || "Device";
+  const devDisplay = (Model.deviceDisplayName && Model.deviceDisplayName.length > 0)
+                      ? Model.deviceDisplayName : devId;
+  if (!skipDeviceWrapper) {
+    if (devDisplay === devId) {
+      lines.push(`component ${devId} {`);
     } else {
-      lines.push(`component ${sysId} as "${plantUMLEscape(sysDisplay)}" {`);
+      lines.push(`component ${devId} as "${plantUMLEscape(devDisplay)}" {`);
     }
     lines.push("");
   }
@@ -2901,7 +2901,7 @@ function generateComponentDiagramPlantUML(opts = {}) {
   }
 
   // Close the outer wrapper box (when one was opened).
-  if (!skipSystemWrapper) {
+  if (!skipDeviceWrapper) {
     lines.push("");
     lines.push("}");
   }
@@ -3011,7 +3011,7 @@ function generatePlantUML(opts = {}) {
   lines.push("'== Component ==");
   // Collapse any `\n` markers (or literal newlines) in the active
   // component's display label to spaces for the outer frame header.
-  // Multi-line labels are appropriate on the system diagram's compact
+  // Multi-line labels are appropriate on the device diagram's compact
   // component boxes, but inside the component view the frame's header
   // has plenty of horizontal room and a second line of title crowds
   // the state-machine content below. Components list and switcher
@@ -3235,9 +3235,9 @@ function isUniqueConstantName(name, excludeName=null) {
   const consts = Array.isArray(Component.constants) ? Component.constants : [];
   return !consts.some(k => k.name === name && k.name !== excludeName);
 }
-// Types are system-wide; uniqueness is enforced across the entire
+// Types are device-wide; uniqueness is enforced across the entire
 // Model.types array. Names also can't collide with the other
-// system-wide identifiers (component, handler, interface) since
+// device-wide identifiers (component, handler, interface) since
 // backtick references resolve all four kinds in the same first-segment
 // namespace — accepting a duplicate would make `Foo` ambiguous.
 function isUniqueTypeName(name, excludeName=null) {
@@ -3264,7 +3264,7 @@ function isUniqueComponentName(name, excludeName=null) {
 }
 
 // Visible label for a component — what shows on the canvas (component
-// box in system view, outer wrapper in state-machine view), in the
+// box in device view, outer wrapper in state-machine view), in the
 // Components list, and in tooltips. Falls back to the identifier-safe
 // `name` when no `displayName` is set, matching the state.displayName
 // convention.
@@ -3292,7 +3292,7 @@ function slugifyComponentName(name) {
 // Walk every free-text field in the model and apply `transform` to
 // each one. The transform receives `(text, context)` and returns the
 // new text. The context describes where the field lives:
-//   {kind:"system"}                                  System Specification
+//   {kind:"device"}                                  Device Specification
 //   {kind:"component", componentName:"X"}            anything inside component X
 //   {kind:"handler", handlerName:"H"}                anything inside handler H
 //   {kind:"interface", interfaceName:"I"}            anything inside interface I
@@ -3305,7 +3305,7 @@ function slugifyComponentName(name) {
 // InventoryTracker's prose should not.
 //
 // Fields visited:
-//   - Model.systemSpecification                       {system}
+//   - Model.deviceSpecification                       {device}
 //   - For each component: description, every state's description,
 //     every choice-point's description, every state variable's
 //     description, every constant's value and description, every
@@ -3323,7 +3323,7 @@ function slugifyComponentName(name) {
 function walkAllProse(transform) {
   const apply = (s, ctx) => (typeof s === "string" && s.length > 0) ? transform(s, ctx) : s;
 
-  Model.systemSpecification = apply(Model.systemSpecification, { kind: "system" });
+  Model.deviceSpecification = apply(Model.deviceSpecification, { kind: "device" });
 
   for (const c of Model.components) {
     const ctx = { kind: "component", componentName: c.name };
@@ -3603,7 +3603,7 @@ function isValidIdentifier(name) {
   return /^[A-Za-z][A-Za-z0-9_]*$/.test(name);
 }
 
-// Build a file-system friendly base name from a user-facing component
+// Build a file-device friendly base name from a user-facing component
 // name. Component names can contain spaces, punctuation, and the literal
 // two-character sequence `\n` used to break labels into multiple lines
 // on the canvas. For a filename we:
@@ -3652,15 +3652,15 @@ let renderSeq = 0;
 
 function renderDiagram() {
   const myRenderSeq = ++renderSeq;
-  // The System button and any other persistent floating chrome live in
+  // The Device button and any other persistent floating chrome live in
   // #canvas-panel; the swappable image content goes into the inner
   // #canvas-content so we can wipe + repopulate it without touching the
   // chrome.
   const panel = document.getElementById("canvas-content");
 
-  // Dispatch on the current view. System view renders the component
+  // Dispatch on the current view. Device view renders the component
   // diagram; component view renders the active component's state machine.
-  const gen = (Model.activeView === "system")
+  const gen = (Model.activeView === "device")
     ? generateComponentDiagramPlantUML
     : generatePlantUML;
 
@@ -3849,7 +3849,7 @@ function onDiagramMouseMove(e) {
 
 // Canvas clicks are plain single-click-to-select only. The previous
 // build supported a double-click-to-enter-component gesture on the
-// system diagram, but it was undiscoverable: nothing on the canvas
+// device diagram, but it was undiscoverable: nothing on the canvas
 // advertised that components were double-clickable. Entering a
 // component now flows through the floating "Component ▸" button at
 // the top-right of the canvas.
@@ -3876,7 +3876,7 @@ function onDiagramClick(e) {
     }
     return;
   }
-  const ctx = Model.activeView === "system" ? "sysCanvas" : "canvas";
+  const ctx = Model.activeView === "device" ? "devCanvas" : "canvas";
   selectClick(e, ctx, () => toggleSelection(hit.ref), isRefSelected(hit.ref));
   refresh();
 }
@@ -4007,8 +4007,8 @@ function clearSelectionForContext(ctx) {
       Selection.history = false;
       Selection.any = false;
       break;
-    case "sysCanvas":
-      // Canvas-selectable things in the system (component-diagram) view:
+    case "devCanvas":
+      // Canvas-selectable things in the device (component-diagram) view:
       // components, handlers, interfaces (the lollipop circles),
       // component-interface connections, handler-interface connections,
       // and component-handler call dependencies. Interfaces here share
@@ -4111,12 +4111,12 @@ function toggleSelection(ref) {
       for (const k of rows) Selection.transitions.add(k);
     }
   } else if (kind === "comp") {
-    // System-diagram component box
+    // Device-diagram component box
     const name = key.replace(/^comp:/, "");
     if (Selection.components.has(name)) Selection.components.delete(name);
     else Selection.components.add(name);
   } else if (kind === "iface") {
-    // System-diagram interface lollipop — selects the interface itself
+    // Device-diagram interface lollipop — selects the interface itself
     // (same key space as the Interfaces list selection). Deselecting
     // cascades the same way a list-click deselect does: messages
     // belonging to the interface go with it (they'd be invisible in
@@ -4139,7 +4139,7 @@ function toggleSelection(ref) {
       Selection.interfaces.add(name);
     }
   } else if (kind === "connection") {
-    // System-diagram connection line. Key is "conn:Component|Interface".
+    // Device-diagram connection line. Key is "conn:Component|Interface".
     const id = key.replace(/^conn:/, "");
     if (Selection.connections.has(id)) Selection.connections.delete(id);
     else Selection.connections.add(id);
@@ -4205,8 +4205,8 @@ function isRefSelected(ref) {
 // ---------- UI building ----------
 function refresh() {
   // Reflect the current view on <body> so view-scoped CSS rules (hiding
-  // per-component panels in system view, etc.) can key off it.
-  document.body.classList.toggle("view-system", Model.activeView === "system");
+  // per-component panels in device view, etc.) can key off it.
+  document.body.classList.toggle("view-device", Model.activeView === "device");
   document.body.classList.toggle("view-component", Model.activeView === "component");
 
   // Selection changes end any in-progress arrow-key adjustment session.
@@ -4229,7 +4229,7 @@ function refresh() {
   buildActionPanel();
   buildStepsPanel();
   buildDescriptionPanel();
-  renderSystemSpecPanel();
+  renderDeviceSpecPanel();
   buildParamsPanel();
   buildFunctionParamsPanel();
   updateToolbar();
@@ -4237,8 +4237,8 @@ function refresh() {
   // Only re-render the diagram when something visible has changed. Includes
   // interface and message selections because they bold matching message
   // labels on the rendered diagram. Also includes the active view and the
-  // system-diagram selections, so switching between state-machine and
-  // system view (or changing a component/connection selection in system
+  // device-diagram selections, so switching between state-machine and
+  // device view (or changing a component/connection selection in device
   // view) invalidates the cached render.
   const visualFingerprint = snapshot() + "|view:" + Model.activeView +
     "|cmp:" + Model.activeComponentIndex + "|sel:" +
@@ -4474,7 +4474,7 @@ function initStepsPanel() {
 // Resolve which component the Description panel is currently bound to.
 //
 //   component view  → always the active component.
-//   system view     → the selected component if exactly one is selected,
+//   device view     → the selected component if exactly one is selected,
 //                     otherwise the active component.
 //
 // Returns {idx, component}. Always returns a valid component because
@@ -4485,7 +4485,7 @@ function initStepsPanel() {
 //   component view → always the active component (Handlers don't have a
 //                    state-machine view, so "active component" is the
 //                    only meaningful binding in that view).
-//   system view    → if exactly one Handler is selected (and no
+//   device view    → if exactly one Handler is selected (and no
 //                    Component), bind to that Handler.
 //                    Else if exactly one Component is selected (and no
 //                    Handler), bind to that Component.
@@ -4496,14 +4496,14 @@ function initStepsPanel() {
 function resolveDescriptionTarget() {
   const compN = Selection.components.size;
   const handN = Selection.handlers.size;
-  if (Model.activeView === "system") {
-    // In system view the Description panel is bound to whatever
+  if (Model.activeView === "device") {
+    // In device view the Description panel is bound to whatever
     // component or handler the user has exactly-one-of selected.
     // Anything else — nothing selected, multi-selection, a
     // non-component/handler selection (interface, connection, call,
     // etc.) — returns null so the panel shows a placeholder rather
     // than falling back to the active component. The active
-    // component in system view is an implementation detail (it's
+    // component in device view is an implementation detail (it's
     // "the component whose state machine we'd return to"), not a
     // natural description target.
     if (handN === 1 && compN === 0) {
@@ -4536,7 +4536,7 @@ function buildDescriptionPanel() {
   const textarea = document.getElementById("desc-textarea");
 
   if (!target) {
-    // System view, nothing / multi / non-describable selection. Show
+    // Device view, nothing / multi / non-describable selection. Show
     // a placeholder header, blank the textarea, and clear the dataset
     // attributes the input handler keys on — so if the user types by
     // accident the handler short-circuits instead of writing to a
@@ -4644,21 +4644,21 @@ function initDescriptionPanel() {
   );
 }
 
-// Per-session history coalescing for the System Specification textarea.
+// Per-session history coalescing for the Device Specification textarea.
 // Only one spec field exists per file, so the session key is a constant
-// ("sysspec") — any keystroke while the session is "pushed" skips
+// ("devspec") — any keystroke while the session is "pushed" skips
 // history, and blur resets the session so the next edit starts fresh.
-let sysSpecEditSession = { pushed: false };
-function initSystemSpecPanel() {
-  const textarea = document.getElementById("sysspec-textarea");
+let devSpecEditSession = { pushed: false };
+function initDeviceSpecPanel() {
+  const textarea = document.getElementById("devspec-textarea");
   textarea.addEventListener("input", () => {
-    if (!sysSpecEditSession.pushed) {
+    if (!devSpecEditSession.pushed) {
       pushHistory();
-      sysSpecEditSession = { pushed: true };
+      devSpecEditSession = { pushed: true };
     }
     const newVal = textarea.value;
-    if ((Model.systemSpecification || "") !== newVal) {
-      Model.systemSpecification = newVal;
+    if ((Model.deviceSpecification || "") !== newVal) {
+      Model.deviceSpecification = newVal;
       // No visual re-render needed — the spec has no dot indicator or
       // other list affordance, just the textarea itself. But the Save
       // button's enabled state tracks Model.dirty, so the toolbar
@@ -4670,15 +4670,15 @@ function initSystemSpecPanel() {
     }
   });
   textarea.addEventListener("blur", () => {
-    sysSpecEditSession = { pushed: false };
+    devSpecEditSession = { pushed: false };
   });
   // Live rendering — when the textarea loses focus, swap to a styled
   // overlay that renders backtick references in cooked form. Click
   // the overlay to swap back to editing.
   attachLiveBacktickRendering(
     textarea,
-    () => ({ kind: "system" }),
-    "Describe the system as a whole. This is the design guide you write your components and handlers against."
+    () => ({ kind: "device" }),
+    "Describe the device as a whole. This is the design guide you write your components and handlers against."
   );
 }
 
@@ -4686,9 +4686,9 @@ function initSystemSpecPanel() {
 // undo/redo, file open, and draft-restore all update the visible text.
 // Guarded against re-writing the same value to avoid disrupting the
 // cursor position of a user who happens to be typing during a refresh.
-function renderSystemSpecPanel() {
-  const textarea = document.getElementById("sysspec-textarea");
-  const current = Model.systemSpecification || "";
+function renderDeviceSpecPanel() {
+  const textarea = document.getElementById("devspec-textarea");
+  const current = Model.deviceSpecification || "";
   if (textarea.value !== current) {
     textarea.value = current;
     // Live overlay needs to track external value changes too (undo,
@@ -5331,17 +5331,17 @@ function deleteSelectedChoicePoint() {
   refresh();
 }
 
-function switchToSystem() {
-  if (Model.activeView === "system") return;
-  Model.activeView = "system";
+function switchToDevice() {
+  if (Model.activeView === "device") return;
+  Model.activeView = "device";
   Selection.clearAll();
   refresh();
 }
 
 function switchToComponent(idx) {
   if (idx < 0 || idx >= Model.components.length) return;
-  const wasSystemView = Model.activeView === "system";
-  if (idx === Model.activeComponentIndex && !wasSystemView) return;
+  const wasDeviceView = Model.activeView === "device";
+  if (idx === Model.activeComponentIndex && !wasDeviceView) return;
   Model.activeView = "component";
   Model.activeComponentIndex = idx;
   // Clear all selections — a new component means new context.
@@ -5350,13 +5350,13 @@ function switchToComponent(idx) {
 }
 
 // Enablement predicate for the floating "Component ▸" button on the
-// canvas. Requires system view + exactly one Component selected +
+// canvas. Requires device view + exactly one Component selected +
 // nothing disqualifying co-selected (a handler, a connection, a
 // message, etc.). We keep this strict rather than "at least one
 // component" because the button's meaning is "enter THIS component"
 // and a multi-component selection has no single answer.
 function canEnterComponent() {
-  if (Model.activeView !== "system") return false;
+  if (Model.activeView !== "device") return false;
   if (Selection.components.size !== 1) return false;
   // Any other kind of selection makes the intent ambiguous.
   const noise = Selection.handlers.size + Selection.interfaces.size +
@@ -5431,7 +5431,7 @@ function openComponentDialog(existing) {
       // the OwnerRenamePredicate only matches the FIRST segment,
       // and bare references in other components' prose mean those
       // components' own entities — not this component. The risk
-      // is a bare reference in a third-party context (system spec,
+      // is a bare reference in a third-party context (device spec,
       // interface description) where the user meant the component
       // explicitly. Those rewrite correctly.
       if (oldName !== name) {
@@ -5443,7 +5443,7 @@ function openComponentDialog(existing) {
         // Cascade the rename through connections (and any other model
         // store that holds the component name as a reference).
         onComponentRenamed(oldName, name);
-        // Selection keys for system view also key by component name —
+        // Selection keys for device view also key by component name —
         // re-key so a rename doesn't deselect the user's component.
         if (Selection.components.has(oldName)) {
           Selection.components.delete(oldName);
@@ -5467,20 +5467,20 @@ function openComponentDialog(existing) {
   document.getElementById("cancel").onclick = hideModal;
 }
 
-// Edit the system's name + display name. Mirrors openComponentDialog's
+// Edit the device's name + display name. Mirrors openComponentDialog's
 // shape — identifier-safe Name field + free-text Display name — but
 // runs against the Model-level fields rather than a per-component
 // record. The display name renders as the label of the outer wrapper
-// box on the system diagram; the identifier appears only in the
+// box on the device diagram; the identifier appears only in the
 // PlantUML source as the wrapper's id.
-function openSystemDialog() {
+function openDeviceDialog() {
   modalContainer.innerHTML = `
-    <div class="title">System properties</div>
+    <div class="title">Device properties</div>
     <div class="body">
       <label>Name:</label>
-      <input type="text" id="sys-name" value="${escapeHTML(Model.systemName||'')}">
+      <input type="text" id="dev-name" value="${escapeHTML(Model.deviceName||'')}">
       <label>Display name:</label>
-      <input type="text" id="sys-dn" value="${escapeHTML(Model.systemDisplayName||'')}">
+      <input type="text" id="dev-dn" value="${escapeHTML(Model.deviceDisplayName||'')}">
     </div>
     <div class="actions">
       <button id="ok">OK</button>
@@ -5488,8 +5488,8 @@ function openSystemDialog() {
     </div>`;
   modalContainer.className = "modal";
   modalOverlay.classList.add("show");
-  const nameI = document.getElementById("sys-name");
-  const dnI = document.getElementById("sys-dn");
+  const nameI = document.getElementById("dev-name");
+  const dnI = document.getElementById("dev-dn");
   const ok = document.getElementById("ok");
   const update = () => { ok.disabled = !nameI.value.trim(); };
   nameI.addEventListener("input", update); update();
@@ -5497,12 +5497,12 @@ function openSystemDialog() {
   ok.onclick = () => {
     const name = nameI.value.trim();
     if (!isValidIdentifier(name)) {
-      showAlert("Error", "System name must be a single word (letters, digits, underscore)."); return;
+      showAlert("Error", "Device name must be a single word (letters, digits, underscore)."); return;
     }
     const dn = dnI.value;
     pushHistory();
-    Model.systemName = name;
-    Model.systemDisplayName = dn;
+    Model.deviceName = name;
+    Model.deviceDisplayName = dn;
     hideModal();
     refresh();
   };
@@ -5775,7 +5775,7 @@ function buildConstantList() {
 // represents one component; a chevron marks which one is currently
 // "active" (state-machine view shows its body). Click semantics depend
 // on the current view: in component view, click = switch to that
-// component's state machine; in system view, click = toggle selection
+// component's state machine; in device view, click = toggle selection
 // (for Add Connection or to enable the Component ▸ canvas button).
 function buildComponentList() {
   const ul = document.getElementById("list-comps");
@@ -5830,13 +5830,13 @@ function buildComponentList() {
       li.appendChild(dot);
     }
 
-    // Click: system view = toggle selection; component view = switch to.
+    // Click: device view = toggle selection; component view = switch to.
     li.addEventListener("click", (e) => {
-      if (Model.activeView === "system") {
+      if (Model.activeView === "device") {
         // Select the component, same semantics as clicking its box on
         // the canvas — enables the Add Connection workflow without
         // forcing the user to locate the box.
-        selectClick(e, "sysCanvas", () => {
+        selectClick(e, "devCanvas", () => {
           if (Selection.components.has(c.name)) Selection.components.delete(c.name);
           else Selection.components.add(c.name);
         }, Selection.components.has(c.name));
@@ -5860,7 +5860,7 @@ function buildComponentList() {
 function buildHandlerList() {
   const ul = document.getElementById("list-handlers");
   ul.innerHTML = "";
-  // Linkage check applies only in component view — at the system level
+  // Linkage check applies only in component view — at the device level
   // every handler renders plainly because the concept of "linked to
   // the active component" doesn't exist there. Parallel to how
   // buildInterfaceList scopes its wiring check.
@@ -5893,16 +5893,16 @@ function buildHandlerList() {
     // user-defined so the conditional is purely view-scoped.
     if (inComponentView && !isHandlerLinkedToComponent(h.name, activeCompName)) {
       li.classList.add("unwired");
-      li.title = `Not connected to "${activeCompName}" in the system diagram.`;
+      li.title = `Not connected to "${activeCompName}" in the device diagram.`;
     }
 
     // Click: toggle selection regardless of view. Handlers only exist
-    // at the system level, so clicking one implicitly says "look at the
-    // system diagram" — but we don't force a view switch, because a
+    // at the device level, so clicking one implicitly says "look at the
+    // device diagram" — but we don't force a view switch, because a
     // user might be setting up a selection in component view before
-    // opening system view to Add Connection.
+    // opening device view to Add Connection.
     li.addEventListener("click", (e) => {
-      selectClick(e, "sysCanvas", () => {
+      selectClick(e, "devCanvas", () => {
         if (Selection.handlers.has(h.name)) Selection.handlers.delete(h.name);
         else Selection.handlers.add(h.name);
       }, Selection.handlers.has(h.name));
@@ -5915,7 +5915,7 @@ function buildHandlerList() {
 function addHandler() { openHandlerDialog(null); }
 
 // Add or edit a handler. Mirrors openComponentDialog almost exactly —
-// the only differences are: validation uses isUniqueSystemEntityName
+// the only differences are: validation uses isUniqueDeviceEntityName
 // (handlers must be unique across Components ∪ Handlers), the cascade
 // helper is onHandlerRenamed, and the selection-key re-keying targets
 // Selection.handlers / Selection.handlerConnections / Selection.handlerCalls.
@@ -5946,7 +5946,7 @@ function openHandlerDialog(existing) {
     if (!isValidIdentifier(name)) {
       showAlert("Error", "Handler name must be a single word (letters, digits, underscore)."); return;
     }
-    if (!isUniqueSystemEntityName(name, existing?.name)) {
+    if (!isUniqueDeviceEntityName(name, existing?.name)) {
       showAlert("Error", "A component or handler with this name already exists."); return;
     }
     const dn = dnI.value;
@@ -5983,10 +5983,10 @@ function openHandlerDialog(existing) {
       }
     } else {
       Model.handlers.push({ name, displayName: dn, description: "", functions: [] });
-      // If we're not already in system view, switch to it — handlers
-      // only show on the system diagram and the user will want to see
+      // If we're not already in device view, switch to it — handlers
+      // only show on the device diagram and the user will want to see
       // what they just added.
-      if (Model.activeView !== "system") switchToSystem();
+      if (Model.activeView !== "device") switchToDevice();
     }
     hideModal();
     refresh();
@@ -5999,7 +5999,7 @@ function buildInterfaceList() {
   const ul = document.getElementById("list-ifaces");
   ul.innerHTML = "";
   const sorted = [...Model.interfaces].sort((a,b) => a.name.localeCompare(b.name));
-  // Wiring checks only apply in component view; in system view every
+  // Wiring checks only apply in component view; in device view every
   // interface renders plainly since the whole concept of "wired to the
   // active component" doesn't exist there.
   const inComponentView = Model.activeView === "component";
@@ -6043,7 +6043,7 @@ function buildInterfaceList() {
           const badge = document.createElement("span");
           badge.className = "iface-warn";
           badge.textContent = "!";
-          badge.title = `Interface "${i.name}" is used by this component's state machine but not connected to it in the system diagram.`;
+          badge.title = `Interface "${i.name}" is used by this component's state machine but not connected to it in the device diagram.`;
           // Prepend: the badge leads the row so it sits visually next
           // to the interface name it warns about. Before the description
           // was added, the badge could live at the end (right-edge via
@@ -6053,7 +6053,7 @@ function buildInterfaceList() {
           li.insertBefore(badge, li.firstChild);
         } else {
           li.classList.add("unwired");
-          li.title = `Not connected to "${activeCompName}" in the system diagram.`;
+          li.title = `Not connected to "${activeCompName}" in the device diagram.`;
         }
       }
     }
@@ -6294,7 +6294,7 @@ function buildTransitionTable() {
       if (m && m.action && m.action.trim().length > 0) hasAction = true;
     }
     // Does this row use an interface that isn't wired to the active
-    // component in the system diagram? Default interfaces (Timer, Logical)
+    // component in the device diagram? Default interfaces (Timer, Logical)
     // and the initial transition (empty iface) are exempt.
     let unwiredWarning = false;
     // Wiring warning: only meaningful for non-default real interfaces.
@@ -6314,7 +6314,7 @@ function buildTransitionTable() {
     if (unwiredWarning) indicatorClasses.push("unwired-warning");
     const titleParts = [];
     if (hasAction) titleParts.push("Has action");
-    if (unwiredWarning) titleParts.push(`Interface "${r.iface}" is not connected to "${Component.name}" in the system diagram`);
+    if (unwiredWarning) titleParts.push(`Interface "${r.iface}" is not connected to "${Component.name}" in the device diagram`);
     const indicatorTitle = titleParts.join(" — ");
     tr.innerHTML = `<td class="${indicatorClasses.join(' ')}" title="${escapeHTML(indicatorTitle)}"></td>
                     <td>${escapeHTML(nodeLabel(r.t.source))}</td>
@@ -6333,7 +6333,7 @@ function buildTransitionTable() {
 }
 
 function updateToolbar() {
-  const inSystem = Model.activeView === "system";
+  const inDevice = Model.activeView === "device";
 
   // Save: only if saved before AND dirty
   document.getElementById("btn-save").disabled = !(Model.savedFilename && Model.dirty);
@@ -6347,13 +6347,13 @@ function updateToolbar() {
   document.getElementById("btn-paste").disabled = !canPaste();
 
   // Add state / cp / state variable / local function: only in
-  // component view (no meaning in system view).
-  document.getElementById("btn-add-state").disabled = inSystem;
-  document.getElementById("btn-add-cp").disabled = inSystem;
-  document.getElementById("btn-add-var").disabled = inSystem;
-  document.getElementById("btn-add-const").disabled = inSystem;
-  document.getElementById("btn-add-lfn").disabled = inSystem;
-  // Add interface: always — interfaces are system-wide vocabulary.
+  // component view (no meaning in device view).
+  document.getElementById("btn-add-state").disabled = inDevice;
+  document.getElementById("btn-add-cp").disabled = inDevice;
+  document.getElementById("btn-add-var").disabled = inDevice;
+  document.getElementById("btn-add-const").disabled = inDevice;
+  document.getElementById("btn-add-lfn").disabled = inDevice;
+  // Add interface: always — interfaces are device-wide vocabulary.
   document.getElementById("btn-add-iface").disabled = false;
 
   // Add message: exactly one interface selected
@@ -6372,13 +6372,13 @@ function updateToolbar() {
   document.getElementById("btn-add-fnparam").disabled = Selection.functions.size !== 1;
 
   // Add transition / Redirect: only meaningful in component view.
-  document.getElementById("btn-add-trans").disabled = inSystem || !canAddTransition();
-  document.getElementById("btn-redirect").disabled = inSystem || !canRedirectTransitions();
+  document.getElementById("btn-add-trans").disabled = inDevice || !canAddTransition();
+  document.getElementById("btn-redirect").disabled = inDevice || !canRedirectTransitions();
 
-  // Add connection: only meaningful in system view.
+  // Add connection: only meaningful in device view.
   document.getElementById("btn-add-conn").disabled = !canAddConnection();
 
-  // Enter selected component (system view only). The button is hidden
+  // Enter selected component (device view only). The button is hidden
   // via CSS in component view, but we still set its disabled state so
   // the hover affordance and enablement state are correct when the
   // view switches back.
@@ -6394,11 +6394,11 @@ function updateToolbar() {
     if (el) el.disabled = disabled;
   };
 
-  // Components — system-wide; never gated by view.
+  // Components — device-wide; never gated by view.
   setBtn("btn-edit-comp", Selection.components.size !== 1);
   setBtn("btn-del-comp",  Selection.components.size === 0);
 
-  // Handlers — system-wide.
+  // Handlers — device-wide.
   setBtn("btn-edit-handler", Selection.handlers.size !== 1);
   setBtn("btn-del-handler",  Selection.handlers.size === 0);
 
@@ -6429,26 +6429,26 @@ function updateToolbar() {
   setBtn("btn-del-param",  Selection.messageParameters.size === 0);
 
   // States — pseudo-states (START, history, ANY) excluded. Also
-  // disabled in system view since states aren't visible there.
+  // disabled in device view since states aren't visible there.
   const stateSel = [...Selection.states].filter(n => n !== "START" && n !== "[H]" && n !== "*");
-  setBtn("btn-edit-state", inSystem || stateSel.length !== 1);
-  setBtn("btn-del-state",  inSystem || stateSel.length === 0);
+  setBtn("btn-edit-state", inDevice || stateSel.length !== 1);
+  setBtn("btn-del-state",  inDevice || stateSel.length === 0);
 
-  // Choice-points — disabled in system view.
-  setBtn("btn-edit-cp", inSystem || Selection.choicePoints.size !== 1);
-  setBtn("btn-del-cp",  inSystem || Selection.choicePoints.size === 0);
+  // Choice-points — disabled in device view.
+  setBtn("btn-edit-cp", inDevice || Selection.choicePoints.size !== 1);
+  setBtn("btn-del-cp",  inDevice || Selection.choicePoints.size === 0);
 
-  // State variables — component-scoped, disabled in system view.
-  setBtn("btn-edit-var", inSystem || Selection.stateVariables.size !== 1);
-  setBtn("btn-del-var",  inSystem || Selection.stateVariables.size === 0);
+  // State variables — component-scoped, disabled in device view.
+  setBtn("btn-edit-var", inDevice || Selection.stateVariables.size !== 1);
+  setBtn("btn-del-var",  inDevice || Selection.stateVariables.size === 0);
 
   // Constants — same as state variables.
-  setBtn("btn-edit-const", inSystem || Selection.constants.size !== 1);
-  setBtn("btn-del-const",  inSystem || Selection.constants.size === 0);
+  setBtn("btn-edit-const", inDevice || Selection.constants.size !== 1);
+  setBtn("btn-del-const",  inDevice || Selection.constants.size === 0);
 
   // Local functions — same.
-  setBtn("btn-edit-lfn", inSystem || Selection.localFunctions.size !== 1);
-  setBtn("btn-del-lfn",  inSystem || Selection.localFunctions.size === 0);
+  setBtn("btn-edit-lfn", inDevice || Selection.localFunctions.size !== 1);
+  setBtn("btn-del-lfn",  inDevice || Selection.localFunctions.size === 0);
 }
 
 function isDefaultInterface(name) {
@@ -6466,7 +6466,7 @@ function isDefaultMessage(iface, name) {
 // are never listed here — they're internal service concepts, not
 // inter-component wiring, and get skipped anywhere this matters.
 
-// Is component `cname` wired to interface `iname` in the system diagram?
+// Is component `cname` wired to interface `iname` in the device diagram?
 function isWired(cname, iname) {
   return Model.connections.some(c => c.component === cname && c.interface === iname);
 }
@@ -6474,7 +6474,7 @@ function isWired(cname, iname) {
 // Does the specified handler have any link to the specified component?
 // Two ways count as linked:
 //   1. Direct call dependency: the component has a handlerCalls entry
-//      pointing at this handler (dashed arrow in the system diagram).
+//      pointing at this handler (dashed arrow in the device diagram).
 //   2. Shared interface: the handler is wired to an interface that
 //      this component is also wired to. Both endpoints meet in the
 //      middle through the interface.
@@ -6566,9 +6566,9 @@ function onHandlerDeleted(name) {
 
 // Handler existence + uniqueness. The uniqueness check is unified
 // across Components and Handlers — the user's mental model is that both
-// are system-level entities with their own name, and the renderer /
-// mask-id system assumes names are unique across the entity space.
-function isUniqueSystemEntityName(name, excludeName=null) {
+// are device-level entities with their own name, and the renderer /
+// mask-id device assumes names are unique across the entity space.
+function isUniqueDeviceEntityName(name, excludeName=null) {
   const trimmed = (name || "").trim();
   if (Model.components.some(c => c.name === trimmed && c.name !== excludeName)) return false;
   if (Model.handlers.some(h => h.name === trimmed && h.name !== excludeName)) return false;
@@ -6604,7 +6604,7 @@ function isUsageMatch(iface, name) {
 }
 
 // Can we add a connection between a component and an interface?
-// Valid when we're in system view, exactly one component and exactly one
+// Valid when we're in device view, exactly one component and exactly one
 // non-default interface are selected, and a matching connection doesn't
 // already exist. Default interfaces (Timer/Logical) are excluded because
 // they're not inter-component wiring.
@@ -6620,7 +6620,7 @@ function isUsageMatch(iface, name) {
 // name plus the resolved entity names for the caller to act on, or
 // null if nothing matches.
 function detectConnectionPattern() {
-  if (Model.activeView !== "system") return null;
+  if (Model.activeView !== "device") return null;
   const cN = Selection.components.size;
   const hN = Selection.handlers.size;
   const iN = Selection.interfaces.size;
@@ -6811,8 +6811,8 @@ function canDelete() {
 function canEdit() {
   // single state (not START) OR single CP OR single non-default iface OR single non-default msg
   // OR all rows of exactly one transition are selected OR exactly one
-  // connection (system-diagram) is selected OR exactly one component
-  // (system-diagram) is selected OR exactly one handler / handler
+  // connection (device-diagram) is selected OR exactly one component
+  // (device-diagram) is selected OR exactly one handler / handler
   // connection / handler call is selected.
   const s = Selection.states.size;
   const c = Selection.choicePoints.size;
@@ -7043,7 +7043,7 @@ function showAbout() {
       <div class="logo">${logoSVG}</div>
       <div class="text">
         <strong>Stadiæ</strong> — State Diagram Editor.<br><br>
-        A GUI front-end for authoring PlantUML system and state diagrams, developed by Computerguided Systems.
+        A GUI front-end for authoring PlantUML device and state diagrams, developed by Computerguided Systems.
       </div>
     </div>
     <div class="actions"><button id="about-ok">OK</button></div>`;
@@ -7058,7 +7058,7 @@ function showManual() {
     {id: "concepts", title: "Core Concepts"},
     {id: "interface", title: "The Interface"},
     {id: "components", title: "Components"},
-    {id: "system-diagram", title: "System Diagram"},
+    {id: "device-diagram", title: "Device Diagram"},
     {id: "workflow", title: "Typical Workflow"},
     {id: "states", title: "States"},
     {id: "choicepoints", title: "Choice-points"},
@@ -7135,18 +7135,18 @@ function manualContent() {
     <section id="m-intro">
       <h2>Introduction</h2>
       <p>Stadiæ is a graphical editor for the structure and behaviour of functional components. It is a front-end for <a href="https://plantuml.com" target="_blank">PlantUML</a>: every edit you make is translated to PlantUML source code and rendered by a PlantUML server — either the public server at <code>plantuml.com</code> or a server running on your own machine. You get the convenience of a GUI plus a clean, version-controllable <code>.puml</code> file you can export at any time.</p>
-      <p>A Stadiæ file captures two levels of a design in one place: a <strong>system diagram</strong> showing how components relate to each other via shared interfaces, and one <strong>state machine</strong> per component showing that component's behaviour. Interfaces and messages are shared across all components, so the vocabulary stays consistent as you move between levels.</p>
-      <p>State diagrams in Stadiæ describe a component's <em>behaviour</em> — the states it can be in, the messages it handles, the choices it makes, and how it transitions between states. The system diagram describes the component <em>decomposition</em> — which components exist and which interfaces they speak over.</p>
+      <p>A Stadiæ file captures two levels of a design in one place: a <strong>device diagram</strong> showing how components relate to each other via shared interfaces, and one <strong>state machine</strong> per component showing that component's behaviour. Interfaces and messages are shared across all components, so the vocabulary stays consistent as you move between levels.</p>
+      <p>State diagrams in Stadiæ describe a component's <em>behaviour</em> — the states it can be in, the messages it handles, the choices it makes, and how it transitions between states. The device diagram describes the component <em>decomposition</em> — which components exist and which interfaces they speak over.</p>
     </section>
 
     <section id="m-concepts">
       <h2>Core Concepts</h2>
-      <h3>System</h3>
-      <p>A Stadiæ file describes a <strong>system</strong> made up of one or more <strong>components</strong> that talk to each other and to <strong>handlers</strong> through shared <strong>interfaces</strong>. The system is the top-level entity; everything else hangs off it. The system has a name, an optional system-wide specification (free-text prose), and a set of optional <strong>type definitions</strong> describing the domain types used in parameters and state variables.</p>
+      <h3>Device</h3>
+      <p>A Stadiæ file describes a <strong>device</strong> made up of one or more <strong>components</strong> that talk to each other and to <strong>handlers</strong> through shared <strong>interfaces</strong>. The device is the top-level entity; everything else hangs off it. The device has a name, an optional device-wide specification (free-text prose), and a set of optional <strong>type definitions</strong> describing the domain types used in parameters and state variables.</p>
       <h3>Components</h3>
-      <p>A <strong>component</strong> is a complete state machine with its own states, choice-points, transitions, state variables, constants, and local functions. Components share the system's <em>interfaces</em> and <em>messages</em> — that's the contract vocabulary they communicate with — but each component's behaviour is its own. Components are selected through the <strong>Components list</strong> in the top-right catalogue; clicking a row switches the canvas and the lower panels to that component's state machine. See <a href="#m-components" data-target="m-components">Components</a>.</p>
+      <p>A <strong>component</strong> is a complete state machine with its own states, choice-points, transitions, state variables, constants, and local functions. Components share the device's <em>interfaces</em> and <em>messages</em> — that's the contract vocabulary they communicate with — but each component's behaviour is its own. Components are selected through the <strong>Components list</strong> in the top-right catalogue; clicking a row switches the canvas and the lower panels to that component's state machine. See <a href="#m-components" data-target="m-components">Components</a>.</p>
       <h3>Handlers</h3>
-      <p>A <strong>handler</strong> is a system-level entity that wraps an external resource (radio, sockets, timers, hardware, the network) — anything that has a name and an API but no internal state machine. Components talk to handlers either through shared interfaces or via direct function calls (handler functions exposed as a synchronous API). Handlers have descriptions and functions but no states or transitions. In the Handlers list, a handler dims when it isn't connected to the currently-active component, the same way unconnected interfaces dim.</p>
+      <p>A <strong>handler</strong> is a device-level entity that wraps an external resource (radio, sockets, timers, hardware, the network) — anything that has a name and an API but no internal state machine. Components talk to handlers either through shared interfaces or via direct function calls (handler functions exposed as a synchronous API). Handlers have descriptions and functions but no states or transitions. In the Handlers list, a handler dims when it isn't connected to the currently-active component, the same way unconnected interfaces dim.</p>
       <h3>States and Choice-points</h3>
       <p>A <strong>state</strong> is a distinct situation the component can be in (e.g. <code>Advertising</code>, <code>Connecting</code>). Each state has a <em>name</em> (single word, unique <em>within the component</em>, used in PlantUML) and an optional <em>display name</em> (free text, can use <code>\\n</code> for line breaks) shown on the rendered diagram. A <strong>choice-point</strong> is a decision node: it asks a question (e.g. <em>"Is Server Whitelisted?"</em>) and branches on <code>Yes</code> or <code>No</code>. Choice-points are drawn as white rectangles to distinguish them from regular states. Both states and choice-points are component-local.</p>
       <h3>Interfaces and Messages</h3>
@@ -7164,7 +7164,7 @@ function manualContent() {
         <li><strong>Local functions</strong> — name, description, multi-line steps. Reusable action snippets referenced by name from transition actions. See <a href="#m-localfns" data-target="m-localfns">Local functions</a>.</li>
       </ul>
       <h3>Type definitions</h3>
-      <p>System-wide named definitions of domain types (<code>UserId</code>, <code>Timestamp</code>, <code>Currency</code>) with optional descriptions and free-text specifications. Defined under <em>System &rarr; Type definitions...</em>. Auto-link to the type's definition in the spec when a parameter or state-variable type field exactly matches a type name. See <a href="#m-typedefs" data-target="m-typedefs">Type definitions</a>.</p>
+      <p>Device-wide named definitions of domain types (<code>UserId</code>, <code>Timestamp</code>, <code>Currency</code>) with optional descriptions and free-text specifications. Defined under <em>Device &rarr; Type definitions...</em>. Auto-link to the type's definition in the spec when a parameter or state-variable type field exactly matches a type name. See <a href="#m-typedefs" data-target="m-typedefs">Type definitions</a>.</p>
       <h3>Transitions</h3>
       <p>A <strong>transition</strong> describes how the component moves from a <em>source</em> state to a <em>target</em> state when one or more messages are received. Transitions that share a source and target can be grouped — multiple messages on one arrow declutter the diagram. Each transition row has an <em>Action</em> field (free-text prose describing what the transition does); actions are documented in the spec but stay out of PlantUML.</p>
       <h3>Pseudo-states</h3>
@@ -7175,36 +7175,36 @@ function manualContent() {
         <li><strong>∗ (any)</strong> — a wildcard source, the inverse of H. See <a href="#m-any" data-target="m-any">ANY State</a>.</li>
       </ul>
       <h3>Cross-references in prose</h3>
-      <p>Any free-text field in the model — System Specification, transition Actions, descriptions on every entity — supports <strong>backtick-delimited references</strong> to named entities elsewhere in the model. Wrap a name in backticks and the spec export turns it into a hyperlink. Bare names like <code>\`Idle\`</code> resolve in the surrounding context first; qualified names like <code>\`Card:Charge\`</code> or <code>\`Connection:ConnectReq:serverId\`</code> link to a specific message or parameter. Renames cascade automatically — change a name and references update everywhere. Hover any link in the rendered spec to see the target's description in a tooltip.</p>
-      <p><strong>Live preview while editing.</strong> Backtick references in the System Specification, transition Action, local-function Steps, and entity Description panels are rendered <em>in place</em> when you click out of the field. Resolved references show in monospace with the accent color (no backticks visible); unresolved references show as plain monospace text. Click anywhere on the rendered field to swap back to the editable text with the backticks visible. Press <kbd>Esc</kbd> to leave the field quickly without reaching for the mouse — useful for verifying that all your references resolve correctly. Hovering a resolved reference shows its description in a tooltip, the same way the rendered spec does.</p>
+      <p>Any free-text field in the model — Device Specification, transition Actions, descriptions on every entity — supports <strong>backtick-delimited references</strong> to named entities elsewhere in the model. Wrap a name in backticks and the spec export turns it into a hyperlink. Bare names like <code>\`Idle\`</code> resolve in the surrounding context first; qualified names like <code>\`Card:Charge\`</code> or <code>\`Connection:ConnectReq:serverId\`</code> link to a specific message or parameter. Renames cascade automatically — change a name and references update everywhere. Hover any link in the rendered spec to see the target's description in a tooltip.</p>
+      <p><strong>Live preview while editing.</strong> Backtick references in the Device Specification, transition Action, local-function Steps, and entity Description panels are rendered <em>in place</em> when you click out of the field. Resolved references show in monospace with the accent color (no backticks visible); unresolved references show as plain monospace text. Click anywhere on the rendered field to swap back to the editable text with the backticks visible. Press <kbd>Esc</kbd> to leave the field quickly without reaching for the mouse — useful for verifying that all your references resolve correctly. Hovering a resolved reference shows its description in a tooltip, the same way the rendered spec does.</p>
     </section>
 
     <section id="m-interface">
       <h2>The Interface</h2>
       <h3>Menu bar</h3>
-      <p><strong>File</strong> manages diagrams (new, open, save, save as, export). <strong>Component</strong> (visible in component view) acts on the <em>active</em> component — change its name, font sizes, or copy its transition table as Markdown. <strong>System</strong> (visible in system view) acts on the system as a whole — change its name, change the label font sizes for Components/Handlers and Interfaces, and open the Type definitions dialog. <strong>Help</strong> opens this manual and the About box.</p>
+      <p><strong>File</strong> manages diagrams (new, open, save, save as, export). <strong>Component</strong> (visible in component view) acts on the <em>active</em> component — change its name, font sizes, or copy its transition table as Markdown. <strong>Device</strong> (visible in device view) acts on the device as a whole — change its name, change the label font sizes for Components/Handlers and Interfaces, and open the Type definitions dialog. <strong>Help</strong> opens this manual and the About box.</p>
       <h3>Toolbar</h3>
       <p>All common actions are one click away. A button is greyed out when the current selection does not make the action meaningful. Hover the Add Transition button or any list&apos;s <code>✎</code>/<code>−</code> when it is disabled and check your selection — the rules in <a href="#m-rules" data-target="m-rules">Rules Reference</a> explain each enablement condition.</p>
       <h3>Diagram canvas (left)</h3>
       <p>Shows the rendered PNG of the <em>active</em> component. States, choice-points, and transitions can be selected by clicking them directly on the canvas. Clicking on empty canvas clears the current selection.</p>
-      <h3>System catalogue (top right)</h3>
-      <p>The top section of the right panel holds five side-by-side lists for the system-wide vocabulary: <strong>Components</strong>, <strong>Handlers</strong>, <strong>Functions</strong> (under the selected handler), <strong>Interfaces</strong>, and <strong>Messages</strong> (under the selected interfaces). Every entry in these lists is shared across the whole file. Each list has a small <code>+</code> button in its header to add a new entry, plus <code>✎</code> and <code>−</code> buttons to edit and delete the selected row. Click an interface to toggle its selection; messages of the selected interface(s) then appear in the Messages list. Same idiom for handler &rarr; functions.</p>
-      <p>The entry point to the <a href="#m-system-diagram" data-target="m-system-diagram">system diagram</a> view is the floating <code>◇ System</code> button in the top-left corner of the diagram canvas; the button stays accent-coloured while system view is active. To return to a state-machine view, click any component row in the Components list.</p>
+      <h3>Device catalogue (top right)</h3>
+      <p>The top section of the right panel holds five side-by-side lists for the device-wide vocabulary: <strong>Components</strong>, <strong>Handlers</strong>, <strong>Functions</strong> (under the selected handler), <strong>Interfaces</strong>, and <strong>Messages</strong> (under the selected interfaces). Every entry in these lists is shared across the whole file. Each list has a small <code>+</code> button in its header to add a new entry, plus <code>✎</code> and <code>−</code> buttons to edit and delete the selected row. Click an interface to toggle its selection; messages of the selected interface(s) then appear in the Messages list. Same idiom for handler &rarr; functions.</p>
+      <p>The entry point to the <a href="#m-device-diagram" data-target="m-device-diagram">device diagram</a> view is the floating <code>◇ Device</code> button in the top-left corner of the diagram canvas; the button stays accent-coloured while device view is active. To return to a state-machine view, click any component row in the Components list.</p>
       <h3>Components list</h3>
-      <p>One row per component. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas. In component view, click a row to switch the canvas and lower panels to that component. In system view, click a row to toggle selection (same as clicking the component's box on the canvas); the floating <code>Component ▸</code> button at the top-right of the canvas then enters the selected component's state machine. To rename a component, select it and click <code>✎</code>; to delete it, select it and click <code>−</code>. Component names must be unique. The minimum is one component — the last one cannot be deleted.</p>
+      <p>One row per component. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas. In component view, click a row to switch the canvas and lower panels to that component. In device view, click a row to toggle selection (same as clicking the component's box on the canvas); the floating <code>Component ▸</code> button at the top-right of the canvas then enters the selected component's state machine. To rename a component, select it and click <code>✎</code>; to delete it, select it and click <code>−</code>. Component names must be unique. The minimum is one component — the last one cannot be deleted.</p>
       <h3>Component panel (bottom right)</h3>
-      <p>The rest of the right panel shows the active component's <em>States</em>, <em>Choice-points</em>, <em>State variables</em> (with <em>Constants</em> beneath them in the same column), and <em>Local functions</em> (with the <em>Steps</em> editor beneath, in the same column), plus below them the transitions table side-by-side with the Action panel. These panels are hidden in system view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. The panels are resizable in several places: <em>thin horizontal bars</em> between vertically-stacked panels resize their heights (State variables ↔ Constants, Local functions ↔ Steps, the Transitions table ↔ everything above); <em>a thin vertical bar</em> between the State variables/Constants column and the Local functions/Steps column resizes the Steps area horizontally — useful when authoring long local-function bodies. The Transitions/Action row below has its own independent vertical resizer. Double-click any resize bar to reset it to its default. A separate vertical slider between the canvas and the right panel lets you shift the main left/right split, and a horizontal slider above the System Specification panel resizes that panel against the canvas.</p>
+      <p>The rest of the right panel shows the active component's <em>States</em>, <em>Choice-points</em>, <em>State variables</em> (with <em>Constants</em> beneath them in the same column), and <em>Local functions</em> (with the <em>Steps</em> editor beneath, in the same column), plus below them the transitions table side-by-side with the Action panel. These panels are hidden in device view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. The panels are resizable in several places: <em>thin horizontal bars</em> between vertically-stacked panels resize their heights (State variables ↔ Constants, Local functions ↔ Steps, the Transitions table ↔ everything above); <em>a thin vertical bar</em> between the State variables/Constants column and the Local functions/Steps column resizes the Steps area horizontally — useful when authoring long local-function bodies. The Transitions/Action row below has its own independent vertical resizer. Double-click any resize bar to reset it to its default. A separate vertical slider between the canvas and the right panel lets you shift the main left/right split, and a horizontal slider above the Device Specification panel resizes that panel against the canvas.</p>
       <h3>Transition table</h3>
-      <p>Lists every transition of the active component, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. A small dot in the first column marks rows that have an action description. A small amber <code>!</code> next to it marks rows whose interface isn't wired to the active component in the system diagram — see <a href="#m-system-diagram" data-target="m-system-diagram">System Diagram</a>.</p>
+      <p>Lists every transition of the active component, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. A small dot in the first column marks rows that have an action description. A small amber <code>!</code> next to it marks rows whose interface isn't wired to the active component in the device diagram — see <a href="#m-device-diagram" data-target="m-device-diagram">Device Diagram</a>.</p>
       <h3>Action panel</h3>
       <p>Below the transitions table, a free-text area shows the <em>action</em> of the currently selected transition row. Actions are developer documentation that is saved with the diagram but not rendered into the PlantUML — see <a href="#m-transitions" data-target="m-transitions">Transitions</a>.</p>
-      <h3>System Specification panel</h3>
-      <p>Below the canvas, a free-text area titled <em>System specification</em> is always visible in both views. It is the design guide the developer writes the system against — architecture overview, requirements, constraints, rationale — whatever you want to keep in sight while modelling. The field is file-scoped (one specification per file), multi-line, persisted to the saved <code>.json</code> but never written to the generated PlantUML. Edits live-save to the model and coalesce into a single undo step per typing session; a blur or switching focus ends the session. The panel's height is adjustable via the thin slider above it — drag to resize, double-click to reset to the default 140 px.</p>
+      <h3>Device Specification panel</h3>
+      <p>Below the canvas, a free-text area titled <em>Device specification</em> is always visible in both views. It is the design guide the developer writes the device against — architecture overview, requirements, constraints, rationale — whatever you want to keep in sight while modelling. The field is file-scoped (one specification per file), multi-line, persisted to the saved <code>.json</code> but never written to the generated PlantUML. Edits live-save to the model and coalesce into a single undo step per typing session; a blur or switching focus ends the session. The panel's height is adjustable via the thin slider above it — drag to resize, double-click to reset to the default 140 px.</p>
     </section>
 
     <section id="m-components">
       <h2>Components</h2>
-      <p>A single <code>.json</code> file can hold multiple components — one for each state machine in the system you are modelling. All components share the same pool of interfaces and messages, because those represent the contract vocabulary between components. States, choice-points, transitions, and action notes belong to a single component and cannot cross component boundaries.</p>
+      <p>A single <code>.json</code> file can hold multiple components — one for each state machine in the device you are modelling. All components share the same pool of interfaces and messages, because those represent the contract vocabulary between components. States, choice-points, transitions, and action notes belong to a single component and cannot cross component boundaries.</p>
       <p>The <strong>Components list</strong> in the top-right catalogue is the place to see, switch, and manage components. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas; the lower panels (States, Choice-points, transitions, Action) always reflect that <em>active</em> component. The Interfaces and Messages lists alongside it are shared — editing them affects every component.</p>
       <h3>Add, rename, delete</h3>
       <p>Click the <code>+</code> in the Components list header to add a new component. To rename one, select its row in the list and click <code>✎</code>; the same dialog is available via <em>Component → Change name…</em> for the active component. To delete a component, select its row and click <code>−</code> — its states, choice-points, and transitions are removed after a confirmation, but the shared interfaces and messages are not touched. You cannot delete the last remaining component.</p>
@@ -7212,39 +7212,39 @@ function manualContent() {
       <p>Components have two name fields, exactly like states:</p>
       <ul>
         <li><strong>Name</strong> — a single identifier-safe word (letters, digits, underscores; must start with a letter). This is the stable handle used throughout the model — in connections, in PlantUML ids, in references — so it must be unique across the file. The dialogs reject duplicates and any name that isn't an identifier.</li>
-        <li><strong>Display name</strong> — optional free text shown on the rendered diagram (component box on the system canvas, outer wrapper on the state-machine view). May contain the literal sequence <code>\\n</code> for line breaks. When empty, the diagram falls back to the identifier name.</li>
+        <li><strong>Display name</strong> — optional free text shown on the rendered diagram (component box on the device canvas, outer wrapper on the state-machine view). May contain the literal sequence <code>\\n</code> for line breaks. When empty, the diagram falls back to the identifier name.</li>
       </ul>
       <p>The Components list always shows the display name on a single line (with any <code>\\n</code> markers collapsed to spaces). The full label and, when distinct, the underlying identifier are visible on hover.</p>
       <p>Opening an older save file that stored free text directly in <em>Name</em> auto-migrates: the original text is moved into <em>Display name</em> and a slugged identifier becomes the <em>Name</em>. Connections referring to the old name are re-keyed in step. The diagram looks identical because it always reads the display label.</p>
       <h3>Switching components</h3>
-      <p>In component view, clicking a row in the Components list switches the active component and <strong>clears the current selection</strong>, so you always start in a clean state in the new component. The diagram re-renders for the new component; interfaces and messages stay as they were. To enter a component from <em>system</em> view, click its row (or its box on the canvas) to select it, then click the floating <code>Component ▸</code> button at the top-right of the canvas.</p>
+      <p>In component view, clicking a row in the Components list switches the active component and <strong>clears the current selection</strong>, so you always start in a clean state in the new component. The diagram re-renders for the new component; interfaces and messages stay as they were. To enter a component from <em>device</em> view, click its row (or its box on the canvas) to select it, then click the floating <code>Component ▸</code> button at the top-right of the canvas.</p>
       <h3>Description</h3>
-      <p>Each component (and each handler) has a free-text <strong>Description</strong> — developer documentation explaining what the entity does, what it owns, why it exists. The Description panel sits between the system catalogue and the rest of the right-hand column and is always visible. Type into it and the change is saved live to the model; one undo step per typing run per entity (matching the Action panel's behaviour for transitions).</p>
+      <p>Each component (and each handler) has a free-text <strong>Description</strong> — developer documentation explaining what the entity does, what it owns, why it exists. The Description panel sits between the device catalogue and the rest of the right-hand column and is always visible. Type into it and the change is saved live to the model; one undo step per typing run per entity (matching the Action panel's behaviour for transitions).</p>
       <p>Which entity the panel binds to depends on the view:</p>
       <ul>
         <li><strong>Component view</strong> — always the active component (the one with the chevron).</li>
-        <li><strong>System view</strong> — the selected handler if exactly one handler is selected (with no component); otherwise the selected component if exactly one component is selected (with no handler); otherwise the active component.</li>
+        <li><strong>Device view</strong> — the selected handler if exactly one handler is selected (with no component); otherwise the selected component if exactly one component is selected (with no handler); otherwise the active component.</li>
       </ul>
       <p>The header of the Description panel shows <code>DESCRIPTION</code> for a Component or <code>DESCRIPTION (HANDLER)</code> for a Handler, with the bound entity's display label as a quiet italic suffix on the right. A small accent-coloured dot appears next to an entity's name in its list (Components or Handlers) when its description is non-empty — same convention as the action-dot in the transitions table.</p>
       <p>Descriptions are persisted in the saved <code>.json</code> file but never written to the generated PlantUML — they are pure documentation, not part of the rendered diagram.</p>
       <h3>Interfaces and messages are shared</h3>
-      <p>Adding, renaming, or deleting an interface (or message) updates it everywhere. For example, renaming <code>RTx</code> to <code>Transport</code> updates every transition in every component that references it. Deleting a message cascades through every component's transitions and drops any transitions that end up empty. This keeps the contract vocabulary consistent across the whole system — no manual sync needed.</p>
+      <p>Adding, renaming, or deleting an interface (or message) updates it everywhere. For example, renaming <code>RTx</code> to <code>Transport</code> updates every transition in every component that references it. Deleting a message cascades through every component's transitions and drops any transitions that end up empty. This keeps the contract vocabulary consistent across the whole device — no manual sync needed.</p>
       <h3>Exports</h3>
-      <p>The PlantUML and PNG exports export <em>whatever is currently showing on the canvas</em>. In component view that is the active component's state machine; in system view it is the system diagram. Switch views, export, switch back — no dedicated "export the system" command is needed. The Markdown-table export always reflects the active component's transitions.</p>
-      <p>The <code>.json</code> save covers the whole file — every component, every handler, every shared interface/message, all wiring, and system-level settings like the system name and font sizes.</p>
+      <p>The PlantUML and PNG exports export <em>whatever is currently showing on the canvas</em>. In component view that is the active component's state machine; in device view it is the device diagram. Switch views, export, switch back — no dedicated "export the device" command is needed. The Markdown-table export always reflects the active component's transitions.</p>
+      <p>The <code>.json</code> save covers the whole file — every component, every handler, every shared interface/message, all wiring, and device-level settings like the device name and font sizes.</p>
     </section>
 
-    <section id="m-system-diagram">
-      <h2>System Diagram</h2>
-      <p>Above the state machines sits the <strong>system diagram</strong>: a single picture of your whole file showing components as boxes, handlers as 3D-brick boxes, and interfaces as lollipops, with lines marking who is wired to what. This is Stadiæ's view of the system's decomposition — the "one level up" from individual component behaviour.</p>
+    <section id="m-device-diagram">
+      <h2>Device Diagram</h2>
+      <p>Above the state machines sits the <strong>device diagram</strong>: a single picture of your whole file showing components as boxes, handlers as 3D-brick boxes, and interfaces as lollipops, with lines marking who is wired to what. This is Stadiæ's view of the device's decomposition — the "one level up" from individual component behaviour.</p>
 
-      <h3>Opening the system view</h3>
-      <p>A floating <code>◇ System</code> button at the top-left of the diagram canvas switches from a state-machine view to the system diagram; the button stays accent-coloured while the system view is active. The States, Choice-points, State variables, Constants, Local functions, Transitions, and Action panels hide in this view — they don't apply at the system level. The Components, Handlers, Functions, Interfaces, and Messages lists stay visible.</p>
-      <p>To return to a state-machine view from system view, select a component (click its row in the Components list or its box on the canvas) and click the floating <code>Component ▸</code> button at the top-right of the canvas. The button is the only way into a component &mdash; single-click selects, the button enters. In component view, clicking a component row still switches directly, since you're already in "navigate between components" mode.</p>
+      <h3>Opening the device view</h3>
+      <p>A floating <code>◇ Device</code> button at the top-left of the diagram canvas switches from a state-machine view to the device diagram; the button stays accent-coloured while the device view is active. The States, Choice-points, State variables, Constants, Local functions, Transitions, and Action panels hide in this view — they don't apply at the device level. The Components, Handlers, Functions, Interfaces, and Messages lists stay visible.</p>
+      <p>To return to a state-machine view from device view, select a component (click its row in the Components list or its box on the canvas) and click the floating <code>Component ▸</code> button at the top-right of the canvas. The button is the only way into a component &mdash; single-click selects, the button enters. In component view, clicking a component row still switches directly, since you're already in "navigate between components" mode.</p>
 
-      <h3>The system box</h3>
-      <p>The whole diagram is enclosed in an outer <strong>system</strong> box labelled with the system's name. The name follows the same Name + Display-name convention as components and handlers: Name is an identifier-safe word used in the PlantUML source, Display name is free text (may include <code>\\n</code> line breaks) that appears as the outer box's label. Defaults are <code>System</code> and no display name.</p>
-      <p>To rename the system, switch to system view and use <strong>System → Change name…</strong>. The same menu also offers font-size controls for the system diagram:</p>
+      <h3>The device box</h3>
+      <p>The whole diagram is enclosed in an outer <strong>device</strong> box labelled with the device's name. The name follows the same Name + Display-name convention as components and handlers: Name is an identifier-safe word used in the PlantUML source, Display name is free text (may include <code>\\n</code> line breaks) that appears as the outer box's label. Defaults are <code>Device</code> and no display name.</p>
+      <p>To rename the device, switch to device view and use <strong>Device → Change name…</strong>. The same menu also offers font-size controls for the device diagram:</p>
       <ul>
         <li><strong>Change component/handler font size…</strong> — the label size used on Component and Handler boxes.</li>
         <li><strong>Change interface font size…</strong> — the label size used on Interface lollipops.</li>
@@ -7252,9 +7252,9 @@ function manualContent() {
       <p>These font sizes are independent of the per-component transition/state font sizes (which apply only to the state-machine view).</p>
 
       <h3>Handlers</h3>
-      <p>A <strong>Handler</strong> is a system-level entity that represents an asynchronous interface to the outside world — a socket listener, a message-queue subscriber, a database driver. Handlers sit alongside Components in the system catalogue and render as 3D-brick boxes on the diagram (in contrast to Components, which render as flat rectangles).</p>
+      <p>A <strong>Handler</strong> is a device-level entity that represents an asynchronous interface to the outside world — a socket listener, a message-queue subscriber, a database driver. Handlers sit alongside Components in the device catalogue and render as 3D-brick boxes on the diagram (in contrast to Components, which render as flat rectangles).</p>
       <p>Structurally a Handler carries a <strong>Name</strong> and optional <strong>Display name</strong> (same rules as Components: Name is identifier-safe and unique across both Components and Handlers; Display name is free text that may contain <code>\\n</code> line breaks), plus a free-text <strong>Description</strong>. Handlers have no state machine — there is no "enter" action for them, only selection and editing.</p>
-      <p>Handlers participate in the system diagram in two ways:</p>
+      <p>Handlers participate in the device diagram in two ways:</p>
       <ul>
         <li><strong>Send messages on an interface.</strong> Wire a Handler to an Interface and the Handler becomes a sender on that interface. Any Component wired to the same interface is, by elimination, a receiver; the diagram automatically flips those Component connections to directed arrows pointing <em>at</em> the Component. You do not need to mark the direction manually — it is derived from the wiring.</li>
         <li><strong>Expose functions to be called by Components.</strong> A Component that calls functions exposed by a Handler declares this with a direct Component→Handler dependency line — a dashed arrow pointing at the Handler. No interface is involved.</li>
@@ -7264,18 +7264,18 @@ function manualContent() {
       <h3>Functions</h3>
       <p>A Handler exposes <strong>functions</strong> — its callable API. Any Component that has a call-dependency line to the Handler can invoke any of those functions. Functions are documentation only: they never appear in the generated PlantUML and they don't affect the diagram. They exist so developers can write the action of a transition against a concrete API.</p>
       <p>Each function has a <strong>Name</strong> (single-word identifier, unique within its Handler — different Handlers can each have a <code>connect</code> function, that's fine), an optional <strong>Description</strong> shown after the name in the list as <code>connect &mdash; Opens a socket to the host</code>, and a <strong>parameter list</strong>.</p>
-      <p>The <strong>Functions</strong> list sits between the Handlers and Interfaces lists in the system catalogue. It's filtered by the currently-selected Handler: select one Handler, see its functions; select zero or multiple, the list is empty. The <code>+</code> button in its header is enabled only when exactly one Handler is selected (the rule parallels "Add Message" which needs one Interface selected).</p>
+      <p>The <strong>Functions</strong> list sits between the Handlers and Interfaces lists in the device catalogue. It's filtered by the currently-selected Handler: select one Handler, see its functions; select zero or multiple, the list is empty. The <code>+</code> button in its header is enabled only when exactly one Handler is selected (the rule parallels "Add Message" which needs one Interface selected).</p>
       <p>When exactly one function is selected, a <strong>Parameters</strong> panel appears below the Functions list — mirroring how message parameters work. Each parameter has a <strong>Name</strong>, an optional <strong>Type</strong>, and an optional <strong>Description</strong>. The panel renders each row as an inline list item — <code>amount : uint &mdash; Amount to charge in cents</code> — with type and description shown as muted secondary text after the name. Use the <code>+</code> in the panel header to add one. Parameters are ordered alphabetically. The panel hides again when zero or multiple functions are selected.</p>
       <p>Function parameters are documentation, just like message parameters: they don't reach the generated PlantUML, but they do appear in the specification export. There they render as dedicated <em>Parameter description</em> column in the function table, distinct from the <em>Function description</em> column.</p>
 
       <h3>Connecting things up</h3>
-      <p>The <strong>Add Connection</strong> button dispatches on what is selected. In all three patterns, everything else in the system must be deselected:</p>
+      <p>The <strong>Add Connection</strong> button dispatches on what is selected. In all three patterns, everything else in the device must be deselected:</p>
       <ul>
         <li>One <strong>Component</strong> + one non-default <strong>Interface</strong> → wires the Component to the Interface. Plain line when no Handler is on the same Interface; arrow pointing at the Component when one is.</li>
         <li>One <strong>Handler</strong> + one non-default <strong>Interface</strong> → wires the Handler to the Interface as a sender.</li>
         <li>One <strong>Component</strong> + one <strong>Handler</strong> → adds a dashed Component→Handler call dependency.</li>
       </ul>
-      <p>Selection can be made from the canvas (click a box / lollipop) or from the list on the right — whichever is faster. Interfaces appear on the system canvas only once they have at least one wiring, so the first connection to any interface is always made via the list. Default interfaces (<code>Timer</code>, <code>Logical</code>) never appear on the system diagram and cannot be connected — they are internal service concepts.</p>
+      <p>Selection can be made from the canvas (click a box / lollipop) or from the list on the right — whichever is faster. Interfaces appear on the device canvas only once they have at least one wiring, so the first connection to any interface is always made via the list. Default interfaces (<code>Timer</code>, <code>Logical</code>) never appear on the device diagram and cannot be connected — they are internal service concepts.</p>
       <p>To remove a wiring or dependency line, click it on the canvas and press <kbd>Delete</kbd>.</p>
 
       <h3>Connection direction and length</h3>
@@ -7283,25 +7283,25 @@ function manualContent() {
       <p><strong>Shortcut:</strong> with a connection selected, the arrow keys (<kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd>) change the direction directly. Repeated <kbd>↑</kbd> or <kbd>↓</kbd> extends the length by one dash each press.</p>
 
       <h3>Consistency with state machines</h3>
-      <p>Because a component's state machine uses interfaces for its transition messages, the system diagram's wiring should agree with what the state machines actually use. Stadiæ surfaces any mismatch without blocking it:</p>
+      <p>Because a component's state machine uses interfaces for its transition messages, the device diagram's wiring should agree with what the state machines actually use. Stadiæ surfaces any mismatch without blocking it:</p>
       <ul>
         <li>In the Interfaces list, interfaces <em>not</em> wired to the active component render dimmed — a hint that they are "out of scope" for this component.</li>
         <li>If an unwired interface is actually <em>used</em> in one of the active component's transitions, its list entry gets a small amber <code>!</code> badge. The transitions table shows the same <code>!</code> in the indicator column next to every row that references an unwired interface.</li>
       </ul>
-      <p>To clear a warning: either switch to the system view and add the missing connection, or switch to the state machine and stop using that interface.</p>
+      <p>To clear a warning: either switch to the device view and add the missing connection, or switch to the state machine and stop using that interface.</p>
     </section>
 
     <section id="m-workflow">
       <h2>Typical Workflow</h2>
       <ol>
-        <li><strong>Name the first component</strong> via <em>Component → Change name</em>, or start a fresh file via <em>File → New</em>. For a multi-component system, add more components with the <code>+</code> in the Components list header.</li>
+        <li><strong>Name the first component</strong> via <em>Component → Change name</em>, or start a fresh file via <em>File → New</em>. For a multi-component device, add more components with the <code>+</code> in the Components list header.</li>
         <li><strong>Define the shared vocabulary</strong>: add interfaces (<code>+</code> in the Interfaces list header), then messages per interface. These are shared across every component, so define them once.</li>
-        <li><strong>Wire the system diagram</strong>: click the floating <code>◇ System</code> button at the top-left of the canvas, then select a component + an interface and click Add Connection. Repeat for every component-interface relationship in your architecture.</li>
+        <li><strong>Wire the device diagram</strong>: click the floating <code>◇ Device</code> button at the top-left of the canvas, then select a component + an interface and click Add Connection. Repeat for every component-interface relationship in your architecture.</li>
         <li><strong>Lay out each component</strong>: click the component you want to edit in the Components list, then add states and choice-points.</li>
         <li><strong>Wire up transitions</strong>: select a source state, a target, and a message, then click Add Transition.</li>
         <li><strong>Pick the initial state</strong>: select START and the intended first state, then Add Transition.</li>
         <li><strong>Refine</strong>: select elements and click <code>✎</code> in the relevant list to change properties; adjust connector direction on transitions for a cleaner layout.</li>
-        <li><strong>Save</strong>: <em>File → Save As</em> (JSON, reloadable). The file captures every component plus the shared vocabulary and the system diagram. Export to <code>.puml</code> or <code>.png</code> per active component when you want to share individual diagrams outside the tool.</li>
+        <li><strong>Save</strong>: <em>File → Save As</em> (JSON, reloadable). The file captures every component plus the shared vocabulary and the device diagram. Export to <code>.puml</code> or <code>.png</code> per active component when you want to share individual diagrams outside the tool.</li>
       </ol>
     </section>
 
@@ -7370,10 +7370,10 @@ function manualContent() {
 
     <section id="m-typedefs">
       <h2>Type definitions</h2>
-      <p>A <strong>type definition</strong> is a system-wide named description of a domain type \u2014 the meaning of a string parameter, the encoding of an integer field, the value range of an enum. Open the dialog from <em>System &rarr; Type definitions...</em>. Type definitions are documentation-only: they never enter the generated PlantUML, never enforce anything in the model, and are entirely optional. Their job is to give the reader of the specification one place to look up what each type actually means.</p>
+      <p>A <strong>type definition</strong> is a device-wide named description of a domain type \u2014 the meaning of a string parameter, the encoding of an integer field, the value range of an enum. Open the dialog from <em>Device &rarr; Type definitions...</em>. Type definitions are documentation-only: they never enter the generated PlantUML, never enforce anything in the model, and are entirely optional. Their job is to give the reader of the specification one place to look up what each type actually means.</p>
       <p>Each type has three fields:</p>
       <ul>
-        <li><em>Name</em> \u2014 single-word identifier (letters, digits, underscore). Unique system-wide \u2014 must not collide with any component, handler, interface, or other type name.</li>
+        <li><em>Name</em> \u2014 single-word identifier (letters, digits, underscore). Unique device-wide \u2014 must not collide with any component, handler, interface, or other type name.</li>
         <li><em>Description</em> \u2014 single-line summary. Shown in the dialog list, in the spec table, and in the hover tooltip when a parameter type cell links here.</li>
         <li><em>Specification</em> \u2014 free multi-line text. The full body \u2014 encoding, range, validity rules, examples, ABNF, JSON Schema, whatever the type actually <em>is</em>. Backtick references work here; a type's specification can reference another type, a message, or any other named entity in the model.</li>
       </ul>
@@ -7547,7 +7547,7 @@ function manualContent() {
     <section id="m-files">
       <h2>Saving, Opening &amp; Exporting</h2>
       <h3>Save / Save As</h3>
-      <p>Stadiæ saves the entire file &mdash; every component, every handler, every shared interface and message, all wiring, every description and action note, and system-level settings like the system name and font sizes &mdash; as a compact <code>.json</code> file. Use <em>File → Save As</em> the first time; after that, <em>File → Save</em> writes to the same filename. The file format tag is <code>stadiae-v3</code>.</p>
+      <p>Stadiæ saves the entire file &mdash; every component, every handler, every shared interface and message, all wiring, every description and action note, and device-level settings like the device name and font sizes &mdash; as a compact <code>.json</code> file. Use <em>File → Save As</em> the first time; after that, <em>File → Save</em> writes to the same filename. The file format tag is <code>stadiae-v4</code>.</p>
       <h3>Open</h3>
       <p><em>File → Open</em> loads a previously saved <code>.json</code> file. If the current diagram has unsaved edits you'll be asked whether to discard them first.</p>
       <h3>Autosave</h3>
@@ -7555,17 +7555,17 @@ function manualContent() {
       <p>The draft is independent of your disk saves — it is always kept up-to-date with the latest in-memory state, so even a crash right after <em>Save</em> is covered. The draft is cleared when you explicitly <em>File → New</em> or click <em>Discard</em> on the restoration banner.</p>
       <div class="tip">Autosave uses the browser's local storage, so it survives across sessions but is scoped to this browser on this machine. To share a diagram or move it to another computer, use <em>Save As</em> and transfer the <code>.json</code> file.</div>
       <h3>Export as PlantUML (.puml)</h3>
-      <p>Writes the clean PlantUML source of whatever is currently showing on the canvas (no selection highlighting) to a <code>.puml</code> file. In component view this is the active component's state machine; in system view it is the system diagram (the whole component + handler + interface topology, enclosed in the outer system box). To export every component, switch the active component (one click in the Components list) and export each one; to export the system diagram, switch to system view and export. Feed the files to any PlantUML tool, check them into source control, or paste them into an online PlantUML renderer.</p>
+      <p>Writes the clean PlantUML source of whatever is currently showing on the canvas (no selection highlighting) to a <code>.puml</code> file. In component view this is the active component's state machine; in device view it is the device diagram (the whole component + handler + interface topology, enclosed in the outer device box). To export every component, switch the active component (one click in the Components list) and export each one; to export the device diagram, switch to device view and export. Feed the files to any PlantUML tool, check them into source control, or paste them into an online PlantUML renderer.</p>
       <h3>Export as PNG</h3>
-      <p>Downloads whatever is currently rendered on the canvas as a PNG image — the active component's state machine in component view, the system diagram in system view. Useful for embedding in reports and slides.</p>
+      <p>Downloads whatever is currently rendered on the canvas as a PNG image — the active component's state machine in component view, the device diagram in device view. Useful for embedding in reports and slides.</p>
       <h3>Export Specification</h3>
-      <p>Under <em>File → Export Specification…</em>, Stadiæ opens a preview modal containing the system's specification rendered as a navigable HTML document. The modal has three buttons: <strong>Download HTML</strong>, <strong>Download .docx</strong>, and <strong>Close</strong>. The HTML version is the primary preview format — read it inside the modal, drill into sections through the sidebar, then download as either format depending on what you need. Esc closes the modal at any point.</p>
-      <p><strong>Sidebar navigation.</strong> The HTML preview has a sticky table-of-contents on the left listing every chapter and section: System overview, System specification, System diagram, then a Components group (each component lists its Context, Constants, State variables, States, Choice-points, State diagram, State transitions, Local functions), Handlers, and Interfaces. Click any entry to jump there with a smooth scroll. The active section highlights as you scroll, so you always know where you are in the document.</p>
+      <p>Under <em>File → Export Specification…</em>, Stadiæ opens a preview modal containing the device's specification rendered as a navigable HTML document. The modal has three buttons: <strong>Download HTML</strong>, <strong>Download .docx</strong>, and <strong>Close</strong>. The HTML version is the primary preview format — read it inside the modal, drill into sections through the sidebar, then download as either format depending on what you need. Esc closes the modal at any point.</p>
+      <p><strong>Sidebar navigation.</strong> The HTML preview has a sticky table-of-contents on the left listing every chapter and section: Device overview, Device specification, Device diagram, then a Components group (each component lists its Context, Constants, State variables, States, Choice-points, State diagram, State transitions, Local functions), Handlers, and Interfaces. Click any entry to jump there with a smooth scroll. The active section highlights as you scroll, so you always know where you are in the document.</p>
       <p><strong>Self-contained HTML.</strong> The downloaded HTML file embeds everything inline — CSS, sidebar interactivity, and diagrams as inline SVG — so it works offline, sits at a single URL, and can be opened from any browser without dependencies. SVG diagrams stay crisp at any zoom level, and their text is searchable (Ctrl-F finds state names directly inside diagrams). Print the HTML directly from the browser to get a clean PDF (the sidebar is hidden in print, links de-styled).</p>
       <p><strong>Embedded source.</strong> The downloaded HTML also carries the editable <code>.json</code> source of the model, embedded as inert text inside the file. A discreet <em>Download source</em> button in the page footer lets anyone receiving the spec retrieve the original source and re-open it in Stadiæ to amend, regenerate, or fork. The footer also shows the spec's generation timestamp so the snapshot is dated. <em>Note:</em> the embedded source is not protected — readers of the spec can extract the full model. If your spec is intended for wider distribution than the source itself, consider that before sharing.</p>
-      <p><strong>Cross-references in free text.</strong> Inside any free-text field — the System Specification textarea, transition Action text, local-function Steps, descriptions on components, handlers, interfaces, messages, parameters, states, choice-points, state variables, constants, and local functions — wrap a name in backticks (<code>\`Name\`</code>) to make it a live hyperlink in the rendered HTML. The reference resolver:</p>
+      <p><strong>Cross-references in free text.</strong> Inside any free-text field — the Device Specification textarea, transition Action text, local-function Steps, descriptions on components, handlers, interfaces, messages, parameters, states, choice-points, state variables, constants, and local functions — wrap a name in backticks (<code>\`Name\`</code>) to make it a live hyperlink in the rendered HTML. The reference resolver:</p>
       <ul>
-        <li><strong>Bare names</strong> (no colon) are resolved in the surrounding context first. Inside a transition action of <code>OrderManager</code>, <code>\`Idle\`</code> resolves to that component's Idle state, <code>\`PAYMENT_TIMEOUT\`</code> to its constant, <code>\`recomputeTotal\`</code> to its local function. If the bare name isn't found in context, the resolver falls back to system-level entities (component / handler / interface names) and then alphabetical scans across other components.</li>
+        <li><strong>Bare names</strong> (no colon) are resolved in the surrounding context first. Inside a transition action of <code>OrderManager</code>, <code>\`Idle\`</code> resolves to that component's Idle state, <code>\`PAYMENT_TIMEOUT\`</code> to its constant, <code>\`recomputeTotal\`</code> to its local function. If the bare name isn't found in context, the resolver falls back to device-level entities (component / handler / interface names) and then alphabetical scans across other components.</li>
         <li><strong>Qualified names</strong> use <code>:</code> as separator. Two-segment forms address members directly: <code>\`Component:State\`</code>, <code>\`Component:Variable\`</code>, <code>\`Component:Constant\`</code>, <code>\`Component:LocalFunction\`</code>, <code>\`Interface:Message\`</code>, <code>\`Handler:Function\`</code>. Three-segment forms address parameters: <code>\`Interface:Message:Parameter\`</code> and <code>\`Handler:Function:Parameter\`</code> link to the exact parameter row in the spec's Interfaces or Handlers chapter.</li>
         <li><strong>Inside transition Action text</strong>, the interface qualifier on a message:parameter reference is implicit \u2014 the row's own message establishes it. Inside an Action whose row mentions <em>Connection / ConnectReq</em>, you can write <code>\`ConnectReq:serverId\`</code> to link to the <code>serverId</code> parameter without repeating the interface name. The full <code>\`Connection:ConnectReq:serverId\`</code> form works too and reads identically; the short form just spares the typing when the surrounding row already names the message.</li>
         <li><strong>Function-call syntax</strong> is allowed and treated as decorative. <code>\`recomputeTotal()\`</code>, <code>\`Timer:getCurrentTime()\`</code>, and <code>\`recomputeTotal(amount)\`</code> all resolve to the function or local-function whose name is to the left of the parens. The parens stay in the rendered text \u2014 the link reads as you wrote it \u2014 but the resolver ignores them when looking up the target. Anything from the first <code>(</code> onward is stripped before resolution.</li>
@@ -7575,15 +7575,15 @@ function manualContent() {
       </ul>
       <p><strong>Document structure.</strong> Both formats use the same chapter layout, with H1 per major section and H2 per subsection inside:</p>
       <ul>
-        <li><strong>System overview</strong> — name, intro paragraph.</li>
-        <li><strong>System specification</strong> — the contents of the System Specification textarea (line breaks preserved as paragraphs).</li>
-        <li><strong>System diagram</strong> — the system-level diagram with components, handlers, interfaces, and connections.</li>
+        <li><strong>Device overview</strong> — name, intro paragraph.</li>
+        <li><strong>Device specification</strong> — the contents of the Device Specification textarea (line breaks preserved as paragraphs).</li>
+        <li><strong>Device diagram</strong> — the device-level diagram with components, handlers, interfaces, and connections.</li>
         <li><strong>Component chapters</strong> — one per component. Description, then sections in order: Context (filtered diagram), Constants, State variables, States, Choice-points, State diagram, State transition table (with row-span cell merging for multi-message transitions), Local functions (Name / Description / Steps with line breaks preserved).</li>
         <li><strong>Handlers</strong> — one section per handler with its functions and parameters.</li>
         <li><strong>Interfaces</strong> — one section per interface with its messages and parameters.</li>
       </ul>
       <p><strong>Empty sections</strong> get a one-line fallback (<em>This component has no constants.</em>, <em>This interface has no messages.</em>, etc.) so the document structure is always visible. Empty descriptions get replaced by <em>No description provided.</em> — grep-friendly when auditing for gaps.</p>
-      <p>The default filename is <code>&lt;systemname&gt;-spec.html</code> or <code>&lt;systemname&gt;-spec.docx</code>.</p>
+      <p>The default filename is <code>&lt;devicename&gt;-spec.html</code> or <code>&lt;devicename&gt;-spec.docx</code>.</p>
       <div class="tip">The first .docx export of a session downloads the docx library from <code>unpkg.com</code> (~600KB). Subsequent exports in the same session reuse the cached library. This means the first .docx export needs network access to unpkg.com; if you're offline, wait until you're back on a network, then try again. The HTML export does not need any external library — it's all rendered inline.</div>
       <h3>Copy transitions as Markdown</h3>
       <p>Under <em>Component → Copy transitions as Markdown table…</em>, Stadiæ produces a markdown table of the <em>active</em> component's transitions, with columns <em>Source</em>, <em>Target</em>, <em>Interface</em>, <em>Message</em>, and <em>Action</em>. Source and target use their display names / questions, and newlines inside cells become <code>&lt;br&gt;</code> so the markdown stays well-formed. Click <em>Copy to clipboard</em> or just select-all in the textarea and paste elsewhere.</p>
@@ -7660,7 +7660,7 @@ function manualContent() {
         <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>Paste copied elements into the active component</td></tr>
         <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>Delete selected</td></tr>
         <tr><td><kbd>Enter</kbd></td><td>Edit the selected element (opens the same dialog as the Edit button). Inside a dialog, confirm (same as clicking OK).</td></tr>
-        <tr><td><kbd>Esc</kbd></td><td>Close the current dialog (same as clicking Cancel). When typing in the System Specification, transition Action, local-function Steps, or Description panel, leave the field — same effect as clicking elsewhere; the rendered live preview takes over.</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close the current dialog (same as clicking Cancel). When typing in the Device Specification, transition Action, local-function Steps, or Description panel, leave the field — same effect as clicking elsewhere; the rendered live preview takes over.</td></tr>
         <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Change the direction of the selected transition. Repeatedly pressing <kbd>↑</kbd> or <kbd>↓</kbd> also extends the arrow length.</td></tr>
         <tr><td><kbd>Ctrl</kbd>-click / <kbd>⌘</kbd>-click</td><td>Add the clicked item to the current selection (or remove it if already selected). Mainly needed when selecting multiple items <em>within the same panel</em> — clicks across different panels already add automatically.</td></tr>
       </table>
@@ -8103,8 +8103,8 @@ function deleteSelectedConstant() {
   refresh();
 }
 
-// Type definitions modal — opens from System → Type definitions….
-// Shows a list of system-wide types with Add / Edit / Delete buttons.
+// Type definitions modal — opens from Device → Type definitions….
+// Shows a list of device-wide types with Add / Edit / Delete buttons.
 // Internal selection is tracked locally (one type at a time can be
 // edited); the dialog is self-contained and doesn't affect the main
 // Selection set. On Add or Edit, a sub-dialog opens with three fields:
@@ -8496,7 +8496,7 @@ function openTransitionDialog(existing) {
   document.getElementById("cancel").onclick = hideModal;
 }
 
-// Edit dialog for a system-diagram connection. Mirrors the transition
+// Edit dialog for a device-diagram connection. Mirrors the transition
 // dialog's connector + length controls: Left / Right / Up / Down, with
 // length only meaningful for Up and Down (same convention as transitions,
 // since a connection is geometrically the same "source-to-target" shape).
@@ -9308,7 +9308,7 @@ function actionDelete() {
   Component.transitions = Component.transitions.filter(t => t.source==="START" || (t.messages && t.messages.length > 0));
 
   // Delete messages — cascade across ALL components, since messages are
-  // shared system-wide.
+  // shared device-wide.
   for (const key of Selection.messages) {
     const [iface, name] = key.split(":");
     Model.messages = Model.messages.filter(m => !(m.interface===iface && m.name===name));
@@ -9340,7 +9340,7 @@ function actionDelete() {
       });
       c.transitions = c.transitions.filter(t => t.source==="START" || t.messages.length>0);
     }
-    // Drop any system-diagram connections to this now-deleted interface.
+    // Drop any device-diagram connections to this now-deleted interface.
     // Also prunes any Handler connection to it.
     onInterfaceDeleted(iname);
   }
@@ -9358,7 +9358,7 @@ function actionDelete() {
     Component.transitions = Component.transitions.filter(t => t.source !== prefixed && t.target !== prefixed);
   }
 
-  // Delete system-diagram connections
+  // Delete device-diagram connections
   for (const connKey of Selection.connections) {
     const [cname, iname] = connKey.split("|");
     Model.connections = Model.connections.filter(
@@ -9588,11 +9588,11 @@ function resetModel(componentName) {
   Model.handlerConnections = [];
   Model.handlerCalls = [];
   Model.types = [];
-  Model.systemName = "System";
-  Model.systemDisplayName = "";
-  Model.systemComponentFontSize = 12;
-  Model.systemInterfaceFontSize = 11;
-  Model.systemSpecification = "";
+  Model.deviceName = "Device";
+  Model.deviceDisplayName = "";
+  Model.deviceComponentFontSize = 12;
+  Model.deviceInterfaceFontSize = 11;
+  Model.deviceSpecification = "";
   Model.activeView = "component";
 }
 
@@ -9618,7 +9618,7 @@ function save() {
 // byte-identical.
 function buildSerializedModel() {
   const out = {
-    format: "stadiae-v3",
+    format: "stadiae-v4",
     // Emit only user-defined entries. Strip helper fields (isDefault
     // is always false here; `description` is included only when set).
     interfaces: Model.interfaces.filter(i => !i.isDefault).map(i => {
@@ -9713,7 +9713,7 @@ function buildSerializedModel() {
       }
       return out;
     }),
-    // System-level component diagram: {component, interface} pairs.
+    // Device-level component diagram: {component, interface} pairs.
     // Default interfaces never appear here.
     connections: Model.connections,
     activeComponentIndex: Model.activeComponentIndex
@@ -9750,13 +9750,13 @@ function buildSerializedModel() {
   }
   if (Model.handlerConnections.length > 0) out.handlerConnections = Model.handlerConnections;
   if (Model.handlerCalls.length > 0) out.handlerCalls = Model.handlerCalls;
-  // System-level fields. Only write when they diverge from the defaults,
+  // Device-level fields. Only write when they diverge from the defaults,
   // so files that don't customise them stay minimal.
-  if (Model.systemName && Model.systemName !== "System") out.systemName = Model.systemName;
-  if (Model.systemDisplayName && Model.systemDisplayName.length > 0) out.systemDisplayName = Model.systemDisplayName;
-  if (Model.systemComponentFontSize && Model.systemComponentFontSize !== 12) out.systemComponentFontSize = Model.systemComponentFontSize;
-  if (Model.systemInterfaceFontSize && Model.systemInterfaceFontSize !== 11) out.systemInterfaceFontSize = Model.systemInterfaceFontSize;
-  if (Model.systemSpecification && Model.systemSpecification.length > 0) out.systemSpecification = Model.systemSpecification;
+  if (Model.deviceName && Model.deviceName !== "Device") out.deviceName = Model.deviceName;
+  if (Model.deviceDisplayName && Model.deviceDisplayName.length > 0) out.deviceDisplayName = Model.deviceDisplayName;
+  if (Model.deviceComponentFontSize && Model.deviceComponentFontSize !== 12) out.deviceComponentFontSize = Model.deviceComponentFontSize;
+  if (Model.deviceInterfaceFontSize && Model.deviceInterfaceFontSize !== 11) out.deviceInterfaceFontSize = Model.deviceInterfaceFontSize;
+  if (Model.deviceSpecification && Model.deviceSpecification.length > 0) out.deviceSpecification = Model.deviceSpecification;
   if (Array.isArray(Model.types) && Model.types.length > 0) {
     out.types = Model.types.map(t => {
       // Per-record minification: drop empty optional fields so
@@ -9991,7 +9991,7 @@ function showTransitionsMarkdown() {
 }
 
 // ---------- Specification export ----------
-// Generate a .docx specification document describing the entire system.
+// Generate a .docx specification document describing the entire device.
 // The output carries the model's full vocabulary as native Word-style
 // paragraphs and tables with rendered diagram images. The .docx format
 // is chosen over Markdown because round-trip fidelity in consumer tools
@@ -10002,11 +10002,11 @@ function showTransitionsMarkdown() {
 // Implementation outline:
 //   1. Lazy-load the `docx` UMD build from unpkg on first use (cached
 //      thereafter on `window._docx`). Library-free until user exports.
-//   2. For each diagram — system overview, per-component context
+//   2. For each diagram — device overview, per-component context
 //      (filtered), per-component state machine — fetch the image bytes
 //      from the configured PlantUML server.
 //   3. Build a docx.Document tree mirroring the old Markdown template
-//      structure: H1 title, H2 Description, H2 System architecture,
+//      structure: H1 title, H2 Description, H2 Device architecture,
 //      H2 Interfaces + H3 per interface, H2 per component, H2 per
 //      handler.
 //   4. Pack via docx.Packer and trigger download.
@@ -10146,7 +10146,7 @@ function mkPara(d, text) {
 }
 
 // Multi-line text → one Paragraph per line. Preserves the visual
-// line-breaks of a user-authored textarea (System Specification,
+// line-breaks of a user-authored textarea (Device Specification,
 // component description).
 function mkParas(d, text) {
   const str = text == null ? "" : String(text);
@@ -10285,7 +10285,7 @@ function mkTable(d, headers, bodyRows, columnWidths) {
 // ============================================================
 // Produces a self-contained .html file (CSS inline, diagrams inlined
 // as SVG, sidebar TOC + active-section highlighting in a small
-// inline script) describing the entire system. Same content as the
+// inline script) describing the entire device. Same content as the
 // docx export — components, handlers, interfaces, transitions,
 // constants, state variables, local functions — but rendered as a
 // navigable web document with backtick-delimited cross-references.
@@ -10336,7 +10336,7 @@ function buildSpecAnchorIndex() {
     components: new Map(),
     handlers: new Map(),
     interfaces: new Map(),
-    // System-wide type definitions. Same {anchor, description} shape;
+    // Device-wide type definitions. Same {anchor, description} shape;
     // resolved by bare-name reference and by exact-string match in
     // parameter / state-variable type cells. No nested members.
     types: new Map(),
@@ -10348,7 +10348,7 @@ function buildSpecAnchorIndex() {
     perHandler: new Map()
   };
   // Tooltip hygiene: flatten newlines and the diagram-wrap `\n`
-  // marker, collapse whitespace, cap length so a runaway System
+  // marker, collapse whitespace, cap length so a runaway Device
   // Specification paragraph doesn't fill the screen. The cap is
   // generous — 360 chars is roughly four lines at the tooltip's
   // ~360px width — and the truncation marker tells the reader there
@@ -10403,7 +10403,7 @@ function buildSpecAnchorIndex() {
     }
     idx.perInterface.set(i.name, { messages: msgs });
   }
-  // Type definitions — system-wide, no nested members. Tooltip text
+  // Type definitions — device-wide, no nested members. Tooltip text
   // pulls from description (the single-line summary) rather than the
   // full multi-line specification, since tooltips are meant to give
   // a glance, not a treatise. Readers wanting detail click through.
@@ -10420,7 +10420,7 @@ function buildSpecAnchorIndex() {
 //
 // 1 segment — bare token "Foo":
 //   * Search component context (variable, constant, state, CP, local fn)
-//   * Then system-level entities (component / handler / interface name)
+//   * Then device-level entities (component / handler / interface name)
 //   * Then alphabetical scans across other scopes
 //
 // 2 segments "Owner:Member":
@@ -10428,7 +10428,7 @@ function buildSpecAnchorIndex() {
 //   * Interface:Message
 //   * Handler:Function
 //   * Inside transition Action context only: Message:Parameter where
-//     the Message is the action's row message (no system-wide search,
+//     the Message is the action's row message (no device-wide search,
 //     to avoid colliding with the existing Owner:Member kinds).
 //
 // 3 segments "Owner:Member:SubMember":
@@ -10552,7 +10552,7 @@ function resolveSpecReference(idx, token, context) {
       if (f) return ret(f);
     }
   }
-  // System-level fallback.
+  // Device-level fallback.
   const sys = idx.components.get(bareKey)
            || idx.handlers.get(bareKey)
            || idx.interfaces.get(bareKey)
@@ -10992,23 +10992,23 @@ async function fetchDiagramAsInlineSVG(plantUMLSource) {
   }
 }
 
-// Build the sidebar TOC HTML. Tree structure: System → Interfaces →
+// Build the sidebar TOC HTML. Tree structure: Device → Interfaces →
 // Components (each expandable to its sections) → Handlers. Mirrors
 // the body order: interfaces before components because messages are
 // the vocabulary the components are described against. Active-section
 // highlighting is wired in the embedded script at the end.
 function buildSidebarTOC() {
-  let html = `<nav class="toc"><div class="toc-title">${escapeHTML(Model.systemDisplayName || Model.systemName || "System")}</div>`;
+  let html = `<nav class="toc"><div class="toc-title">${escapeHTML(Model.deviceDisplayName || Model.deviceName || "Device")}</div>`;
   html += `<ul class="toc-root">`;
-  // System-level entries
-  html += `<li><a href="#system">System overview</a></li>`;
-  if ((Model.systemSpecification || "").length > 0) {
-    html += `<li><a href="#system-spec">System specification</a></li>`;
+  // Device-level entries
+  html += `<li><a href="#device">Device overview</a></li>`;
+  if ((Model.deviceSpecification || "").length > 0) {
+    html += `<li><a href="#device-spec">Device specification</a></li>`;
   }
   if (Model.components.length > 0) {
-    html += `<li><a href="#system-diagram">System architecture</a></li>`;
+    html += `<li><a href="#device-diagram">Device architecture</a></li>`;
   }
-  // Interfaces group — system-default interfaces (Timer, Logical) are
+  // Interfaces group — device-default interfaces (Timer, Logical) are
   // not part of the spec, so they don't appear in the TOC either.
   const userInterfaces = Model.interfaces.filter(i => !i.isDefault);
   if (userInterfaces.length > 0) {
@@ -11497,43 +11497,43 @@ function buildSpecScript() {
 }
 
 // Build the entire spec body (everything inside <main>). Walks the
-// model in spec order: system overview, system spec, system diagram,
+// model in spec order: device overview, device spec, device diagram,
 // per-component chapter, handlers chapter, interfaces chapter.
 async function buildSpecBody(idx, progress) {
   const parts = [];
-  const sysName = Model.systemDisplayName || Model.systemName || "System";
+  const devName = Model.deviceDisplayName || Model.deviceName || "Device";
 
-  // === System overview ===
-  parts.push(`<section id="system" class="entity-anchor">`);
-  parts.push(`<h1>${escapeHTML(sysName)}</h1>`);
-  parts.push(`<p>This document specifies the <strong>${escapeHTML(sysName)}</strong> system. It covers the system architecture, the components and their state machines, the interfaces between them, the handlers wrapping external resources, and the messages and functions used throughout. Cross-references are clickable; hover the underlined identifiers to navigate to their definitions.</p>`);
+  // === Device overview ===
+  parts.push(`<section id="device" class="entity-anchor">`);
+  parts.push(`<h1>${escapeHTML(devName)}</h1>`);
+  parts.push(`<p>This document specifies the <strong>${escapeHTML(devName)}</strong> device. It covers the device architecture, the components and their state machines, the interfaces between them, the handlers wrapping external resources, and the messages and functions used throughout. Cross-references are clickable; hover the underlined identifiers to navigate to their definitions.</p>`);
   parts.push(`</section>`);
 
-  // === System specification ===
-  if ((Model.systemSpecification || "").length > 0) {
-    parts.push(`<section id="system-spec" class="entity-anchor">`);
-    parts.push(`<h2>System specification</h2>`);
-    parts.push(`<p>${renderProseMultiline(Model.systemSpecification, { kind: "system" }, idx)}</p>`);
+  // === Device specification ===
+  if ((Model.deviceSpecification || "").length > 0) {
+    parts.push(`<section id="device-spec" class="entity-anchor">`);
+    parts.push(`<h2>Device specification</h2>`);
+    parts.push(`<p>${renderProseMultiline(Model.deviceSpecification, { kind: "device" }, idx)}</p>`);
     parts.push(`</section>`);
   }
 
-  // === System diagram ===
+  // === Device diagram ===
   if (Model.components.length > 0) {
-    parts.push(`<section id="system-diagram" class="entity-anchor">`);
-    parts.push(`<h2>System architecture</h2>`);
-    if (progress) progress.update("Rendering system diagram…");
+    parts.push(`<section id="device-diagram" class="entity-anchor">`);
+    parts.push(`<h2>Device architecture</h2>`);
+    if (progress) progress.update("Rendering device diagram…");
     // The function name is misleadingly historical — it produces the
     // SYSTEM-level architectural diagram (components + handlers +
     // interfaces + connections), which is what we want here. The
     // confusingly-named generatePlantUML produces the state machine
     // of the currently-active component, which is wrong for this
     // section.
-    const sysSrc = generateComponentDiagramPlantUML({ withSelection: false, includeSalt: false });
-    const sysSvg = await fetchDiagramAsInlineSVG(sysSrc);
-    if (sysSvg) {
-      parts.push(`<div class="diagram">${sysSvg}</div>`);
+    const devSrc = generateComponentDiagramPlantUML({ withSelection: false, includeSalt: false });
+    const devSvg = await fetchDiagramAsInlineSVG(devSrc);
+    if (devSvg) {
+      parts.push(`<div class="diagram">${devSvg}</div>`);
     } else {
-      parts.push(`<div class="diagram-missing">System diagram could not be rendered (PlantUML server unavailable).</div>`);
+      parts.push(`<div class="diagram-missing">Device diagram could not be rendered (PlantUML server unavailable).</div>`);
     }
 
     // Component summary table — same overview the docx produces. Two
@@ -11544,7 +11544,7 @@ async function buildSpecBody(idx, progress) {
     // reference like `OrderManager` lands on the table row from
     // anywhere in the spec. The detailed component chapter further
     // down keeps its own anchor on the H1.
-    const sysCtx = { kind: "system" };
+    const devCtx = { kind: "device" };
     parts.push(`<p>The descriptions of the identified components are given in the table below.</p>`);
     parts.push(`<table><thead><tr><th>Component</th><th>Description</th></tr></thead><tbody>`);
     for (const c of Model.components) {
@@ -11554,19 +11554,19 @@ async function buildSpecBody(idx, progress) {
       // Mirrors the interfaces summary table's behaviour. The link
       // target is the component's stable identifier; the reader sees
       // the display label.
-      parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorComp(c.name))}">${escapeHTML(label)}</a></td><td>${renderDesc(c.description, sysCtx, idx)}</td></tr>`);
+      parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorComp(c.name))}">${escapeHTML(label)}</a></td><td>${renderDesc(c.description, devCtx, idx)}</td></tr>`);
     }
     parts.push(`</tbody></table>`);
 
     // Handler summary table — fallback to italic note when none.
     if (Model.handlers.length === 0) {
-      parts.push(`<p class="no-content">No handlers are defined for this system.</p>`);
+      parts.push(`<p class="no-content">No handlers are defined for this device.</p>`);
     } else {
       parts.push(`<p>The descriptions of the identified handlers are given in the table below.</p>`);
       parts.push(`<table><thead><tr><th>Handler</th><th>Description</th></tr></thead><tbody>`);
       for (const h of Model.handlers) {
         const label = handlerDisplayLabel(h).replace(/\\n/g, " ");
-        parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorHandler(h.name))}">${escapeHTML(label)}</a></td><td>${renderDesc(h.description, sysCtx, idx)}</td></tr>`);
+        parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorHandler(h.name))}">${escapeHTML(label)}</a></td><td>${renderDesc(h.description, devCtx, idx)}</td></tr>`);
       }
       parts.push(`</tbody></table>`);
     }
@@ -11576,9 +11576,9 @@ async function buildSpecBody(idx, progress) {
 
   // === Interfaces ===
   // Placed before the per-component chapters (matching the docx
-  // export order). System-default interfaces (Timer, Logical) are
+  // export order). Device-default interfaces (Timer, Logical) are
   // skipped — they're internal vocabulary not part of the spec.
-  // Messages live on the system-wide Model.messages array, not on the
+  // Messages live on the device-wide Model.messages array, not on the
   // interface object itself; we filter by interface name.
   const userInterfaces = Model.interfaces.filter(i => !i.isDefault);
   if (userInterfaces.length > 0) {
@@ -11591,14 +11591,14 @@ async function buildSpecBody(idx, progress) {
     // (matching how the user authored them), so the summary table
     // gives a quick reference index.
     const sortedIfaces = [...userInterfaces].sort((a, b) => a.name.localeCompare(b.name));
-    const sysCtx = { kind: "system" };
+    const devCtx = { kind: "device" };
     parts.push(`<p>The following table lists the defined interfaces.</p>`);
     parts.push(`<table><thead><tr><th>Name</th><th>Description</th></tr></thead><tbody>`);
     for (const i of sortedIfaces) {
       // Each row links to its detailed section via the same anchor
       // the H2 chapter heading carries — a bare `Card` reference and
       // a click on the summary-table row both land in the same place.
-      parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorIface(i.name))}">${escapeHTML(i.name)}</a></td><td>${renderDesc(i.description, sysCtx, idx)}</td></tr>`);
+      parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorIface(i.name))}">${escapeHTML(i.name)}</a></td><td>${renderDesc(i.description, devCtx, idx)}</td></tr>`);
     }
     parts.push(`</tbody></table>`);
     parts.push(`<p>The messages for the interfaces are specified in the following sections.</p>`);
@@ -11610,8 +11610,8 @@ async function buildSpecBody(idx, progress) {
       if ((i.description || "").length > 0) {
         parts.push(`<p>${renderProseMultiline(i.description, ifaceCtx, idx)}</p>`);
       }
-      // Messages of this interface = system-wide messages whose
-      // `interface` field matches and which aren't system defaults.
+      // Messages of this interface = device-wide messages whose
+      // `interface` field matches and which aren't device defaults.
       // Sorted alphabetically — same as the docx export.
       const msgs = Model.messages
         .filter(m => !m.isDefault && m.interface === i.name)
@@ -11660,7 +11660,7 @@ async function buildSpecBody(idx, progress) {
       parts.push(`<p>${renderProseMultiline(c.description, compCtx, idx)}</p>`);
     }
 
-    // Context diagram — the system architectural diagram filtered to
+    // Context diagram — the device architectural diagram filtered to
     // this component's neighbourhood (interfaces it speaks, handlers
     // on those interfaces, handlers it calls directly). Uses the same
     // generateComponentDiagramPlantUML + buildFocusFilter pair that
@@ -11831,7 +11831,7 @@ async function buildSpecBody(idx, progress) {
             // in the Interfaces chapter, with the same hover-tooltip
             // affordance the inline backtick references have. Fall
             // back to plain text when the entity isn't indexed (e.g.
-            // a system-default interface or a message authored before
+            // a device-default interface or a message authored before
             // its interface was renamed) so the table doesn't
             // mysteriously omit cells.
             const ifaceEntry = idx.interfaces.get(mm.interface);
@@ -11948,7 +11948,7 @@ async function buildSpecBody(idx, progress) {
 // Build the full self-contained HTML document. Returns a string.
 async function buildSpecificationHTML(progress) {
   const idx = buildSpecAnchorIndex();
-  const sysName = Model.systemDisplayName || Model.systemName || "System";
+  const devName = Model.deviceDisplayName || Model.deviceName || "Device";
   const body = await buildSpecBody(idx, progress);
   const sidebar = buildSidebarTOC();
   // Embed the editable model alongside the spec so anyone receiving
@@ -11965,7 +11965,7 @@ async function buildSpecificationHTML(progress) {
     .replace(/<\/script/gi, "<\\/script");
   // Suggested download filename: prefer the model's saved filename
   // (with .stadiae replaced by .json so it doesn't clash with the
-  // editable source) and fall back to a slugified system name when
+  // editable source) and fall back to a slugified device name when
   // the model has never been saved. Always ends with `.json`.
   let downloadName;
   if (Model.savedFilename) {
@@ -11974,7 +11974,7 @@ async function buildSpecificationHTML(progress) {
     // → "coffee-pos.json", "coffee-pos" → "coffee-pos.json".
     downloadName = Model.savedFilename.replace(/\.(stadiae|json)$/i, "") + ".json";
   } else {
-    const slug = (Model.systemName || "stadiae-model")
+    const slug = (Model.deviceName || "stadiae-model")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "stadiae-model";
@@ -11989,7 +11989,7 @@ async function buildSpecificationHTML(progress) {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>${escapeHTML(sysName)} — Specification</title>
+<title>${escapeHTML(devName)} — Specification</title>
 <base target="_self">
 <style>${buildSpecCSS()}</style>
 <script type="application/json" id="stadiae-model">
@@ -12051,7 +12051,7 @@ async function openSpecificationModal() {
   // string we pass — no fetch, no caching, no path resolution.
   iframe.srcdoc = html;
 
-  const defaultBase = nameToFilename(Model.systemDisplayName || Model.systemName) || "system";
+  const defaultBase = nameToFilename(Model.deviceDisplayName || Model.deviceName) || "device";
 
   document.getElementById("spec-dl-html").onclick = () => {
     showPrompt("Download HTML", "File name:", defaultBase + "-spec.html", null, (filename) => {
@@ -12140,38 +12140,38 @@ async function buildSpecificationDocx(d, progress) {
   const COL_5P = pct([13, 30, 15, 12, 30]);     // Name | Entity-desc | Param | Type | Param-desc
 
   // --- Title ---
-  // The H1 is the literal phrase "System specification" per the
-  // template convention; the system's own name lives in the docx
+  // The H1 is the literal phrase "Device specification" per the
+  // template convention; the device's own name lives in the docx
   // document metadata (title field, visible in file properties) and
   // implicitly through the component/handler chapter headings.
-  // A future enhancement could add the system name as a subtitle
-  // paragraph, but the template explicitly shows no system-name
+  // A future enhancement could add the device name as a subtitle
+  // paragraph, but the template explicitly shows no device-name
   // heading at the top.
-  const sysTitle = (Model.systemDisplayName && Model.systemDisplayName.length > 0)
-                    ? Model.systemDisplayName
-                    : (Model.systemName || "System");
-  children.push(mkHeading(d, "System specification", 1));
+  const devTitle = (Model.deviceDisplayName && Model.deviceDisplayName.length > 0)
+                    ? Model.deviceDisplayName
+                    : (Model.deviceName || "Device");
+  children.push(mkHeading(d, "Device specification", 1));
 
   // --- Description ---
   children.push(mkHeading(d, "Description", 2));
-  if (Model.systemSpecification && Model.systemSpecification.length > 0) {
-    for (const p of mkParas(d, Model.systemSpecification)) children.push(p);
+  if (Model.deviceSpecification && Model.deviceSpecification.length > 0) {
+    for (const p of mkParas(d, Model.deviceSpecification)) children.push(p);
   } else {
-    children.push(mkItalicPara(d, "No system specification provided."));
+    children.push(mkItalicPara(d, "No device specification provided."));
   }
 
-  // --- System architecture ---
-  children.push(mkHeading(d, "System architecture", 2));
-  // Render the full system diagram. Failures downgrade to a plain
+  // --- Device architecture ---
+  children.push(mkHeading(d, "Device architecture", 2));
+  // Render the full device diagram. Failures downgrade to a plain
   // message rather than killing the whole export — the reader still
   // gets the descriptions and tables.
-  progress.update("Rendering system diagram…");
-  const sysSrc = generateComponentDiagramPlantUML({ withSelection: false, includeSalt: false });
+  progress.update("Rendering device diagram…");
+  const devSrc = generateComponentDiagramPlantUML({ withSelection: false, includeSalt: false });
   try {
-    const img = await fetchDiagramImage(sysSrc);
+    const img = await fetchDiagramImage(devSrc);
     children.push(mkDiagramParagraph(d, img));
   } catch (err) {
-    children.push(mkItalicPara(d, "Could not render system diagram: " + err.message));
+    children.push(mkItalicPara(d, "Could not render device diagram: " + err.message));
   }
 
   // Component summary table.
@@ -12190,7 +12190,7 @@ async function buildSpecificationDocx(d, progress) {
 
   // Handler summary table (or fallback).
   if (Model.handlers.length === 0) {
-    children.push(mkItalicPara(d, "No handlers are defined for this system."));
+    children.push(mkItalicPara(d, "No handlers are defined for this device."));
   } else {
     children.push(mkPara(d, "The descriptions of the identified handlers are given in the table below."));
     children.push(mkTable(d,
@@ -12212,7 +12212,7 @@ async function buildSpecificationDocx(d, progress) {
     .filter(i => !i.isDefault)
     .sort((a, b) => a.name.localeCompare(b.name));
   if (publicIfaces.length === 0) {
-    children.push(mkItalicPara(d, "No interfaces are defined for this system."));
+    children.push(mkItalicPara(d, "No interfaces are defined for this device."));
   } else {
     children.push(mkPara(d, "The following table lists the defined interfaces."));
     children.push(mkTable(d,
@@ -12286,7 +12286,7 @@ async function buildSpecificationDocx(d, progress) {
   // --- Component deep-dives ---
   for (const c of Model.components) {
     // `\n` markers in display names are a diagram-rendering artifact
-    // (lets PlantUML wrap long labels on the system diagram) and carry
+    // (lets PlantUML wrap long labels on the device diagram) and carry
     // no meaning in prose. Flatten them to spaces wherever the label
     // reaches the document as a heading or inside a sentence.
     const label = componentDisplayLabel(c).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
@@ -12638,8 +12638,8 @@ async function buildSpecificationDocx(d, progress) {
 
   return new d.Document({
     creator: "Stadiæ",
-    title: sysTitle,
-    description: "System specification exported from Stadiæ.",
+    title: devTitle,
+    description: "Device specification exported from Stadiæ.",
     sections: [ { children } ]
   });
 }
@@ -12681,8 +12681,8 @@ function buildFocusFilter(focusComponentName) {
   }
   return { components, interfaces, handlers, connections, handlerConnections, handlerCalls,
            // Context diagrams are single-component focused views, so the
-           // outer system box adds visual noise rather than structure.
-           skipSystemWrapper: true };
+           // outer device box adds visual noise rather than structure.
+           skipDeviceWrapper: true };
 }
 
 // Look up the action text for a specific message. Returns "-" when the
@@ -12715,16 +12715,16 @@ function nodeLabelInComponent(comp, id) {
 
 
 function exportPUML() {
-  // Export what the user is looking at. In system view, the system
+  // Export what the user is looking at. In device view, the device
   // diagram becomes the exported artefact; in component view, the
   // active component's state machine (the original behaviour).
-  const inSystem = Model.activeView === "system";
-  const defaultBase = inSystem
-    ? (nameToFilename(Model.systemDisplayName || Model.systemName) || "system")
+  const inDevice = Model.activeView === "device";
+  const defaultBase = inDevice
+    ? (nameToFilename(Model.deviceDisplayName || Model.deviceName) || "device")
     : (nameToFilename(Component.name) || "diagram");
   showPrompt("Export as PlantUML", "File name:", defaultBase + ".puml", null, (filename) => {
     if (!filename.endsWith(".puml")) filename += ".puml";
-    const gen = inSystem ? generateComponentDiagramPlantUML : generatePlantUML;
+    const gen = inDevice ? generateComponentDiagramPlantUML : generatePlantUML;
     const src = gen({ withSelection: false, includeSalt: false });
     const blob = new Blob([src], { type: "text/plain" });
     const a = document.createElement("a");
@@ -12736,13 +12736,13 @@ function exportPUML() {
 }
 
 function exportPNG() {
-  const inSystem = Model.activeView === "system";
-  const defaultBase = inSystem
-    ? (nameToFilename(Model.systemDisplayName || Model.systemName) || "system")
+  const inDevice = Model.activeView === "device";
+  const defaultBase = inDevice
+    ? (nameToFilename(Model.deviceDisplayName || Model.deviceName) || "device")
     : (nameToFilename(Component.name) || "diagram");
   showPrompt("Export as PNG", "File name:", defaultBase + ".png", null, (filename) => {
     if (!filename.endsWith(".png")) filename += ".png";
-    const gen = inSystem ? generateComponentDiagramPlantUML : generatePlantUML;
+    const gen = inDevice ? generateComponentDiagramPlantUML : generatePlantUML;
     const src = gen({ withSelection: false, includeSalt: false });
     const url = plantUMLImageURL(src);
     fetch(url)
@@ -12778,15 +12778,15 @@ document.getElementById("file-input").addEventListener("change", e => {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      if (data.format !== "stadiae-v3") {
-        throw new Error("Unsupported diagram format (" + (data.format || "missing") + "); expected stadiae-v3");
+      if (data.format !== "stadiae-v4") {
+        throw new Error("Unsupported diagram format (" + (data.format || "missing") + "); expected stadiae-v4");
       }
       loadModel(data);
-      // Present the system diagram first on open. Rationale: a file is
-      // a description of a whole system, and the system diagram gives
+      // Present the device diagram first on open. Rationale: a file is
+      // a description of a whole device, and the device diagram gives
       // the user an overview — the "what does this file contain" shot
       // — before they drill into any one component's state machine.
-      Model.activeView = "system";
+      Model.activeView = "device";
       Selection.clearAll();
       History.past = []; History.future = [];
       Model.dirty = false;
@@ -12801,9 +12801,9 @@ document.getElementById("file-input").addEventListener("change", e => {
 });
 
 function loadModel(data) {
-  // Populate the Model from a `stadiae-v3` payload. Fields that might
+  // Populate the Model from a `stadiae-v4` payload. Fields that might
   // be missing from older-within-v3 files (handlers, handlerCalls,
-  // handlerConnections, per-entity displayName/description, system
+  // handlerConnections, per-entity displayName/description, device
   // name/fonts) default cleanly so a hand-edited or pared-down file
   // still loads without complaint.
   resetModel();
@@ -12979,7 +12979,7 @@ function loadModel(data) {
 
   // === Handlers (introduced post-v3; optional, missing = empty) ===
   //
-  // Handlers are system-level entities parallel to Components but with
+  // Handlers are device-level entities parallel to Components but with
   // no state machine. Three arrays carry them:
   //   handlers           — the Handlers themselves (name/displayName/description)
   //   handlerConnections — Handler wired to Interface (same shape as connections)
@@ -13074,19 +13074,19 @@ function loadModel(data) {
     }
   }
 
-  // System-level fields (post-initial-v3 addition, all optional with
+  // Device-level fields (post-initial-v3 addition, all optional with
   // defaults). Keeping the defaults in sync with the Model literal
   // above; a file that predates these fields still loads cleanly.
-  Model.systemName = (typeof data.systemName === "string" && isValidIdentifier(data.systemName))
-    ? data.systemName : "System";
-  Model.systemDisplayName = (typeof data.systemDisplayName === "string") ? data.systemDisplayName : "";
-  Model.systemComponentFontSize = (typeof data.systemComponentFontSize === "number" &&
-                                   data.systemComponentFontSize >= 6 && data.systemComponentFontSize <= 40)
-                                  ? data.systemComponentFontSize : 12;
-  Model.systemInterfaceFontSize = (typeof data.systemInterfaceFontSize === "number" &&
-                                   data.systemInterfaceFontSize >= 6 && data.systemInterfaceFontSize <= 40)
-                                  ? data.systemInterfaceFontSize : 11;
-  Model.systemSpecification = (typeof data.systemSpecification === "string") ? data.systemSpecification : "";
+  Model.deviceName = (typeof data.deviceName === "string" && isValidIdentifier(data.deviceName))
+    ? data.deviceName : "Device";
+  Model.deviceDisplayName = (typeof data.deviceDisplayName === "string") ? data.deviceDisplayName : "";
+  Model.deviceComponentFontSize = (typeof data.deviceComponentFontSize === "number" &&
+                                   data.deviceComponentFontSize >= 6 && data.deviceComponentFontSize <= 40)
+                                  ? data.deviceComponentFontSize : 12;
+  Model.deviceInterfaceFontSize = (typeof data.deviceInterfaceFontSize === "number" &&
+                                   data.deviceInterfaceFontSize >= 6 && data.deviceInterfaceFontSize <= 40)
+                                  ? data.deviceInterfaceFontSize : 11;
+  Model.deviceSpecification = (typeof data.deviceSpecification === "string") ? data.deviceSpecification : "";
   Model.types = Array.isArray(data.types) ? data.types.map(t => ({
     name: (typeof t.name === "string") ? t.name : "",
     description:   (typeof t.description === "string") ? t.description : "",
@@ -13156,20 +13156,20 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
       case "copy-transitions-md":
         showTransitionsMarkdown();
         break;
-      case "sys-change-name":
-        openSystemDialog();
+      case "dev-change-name":
+        openDeviceDialog();
         break;
-      case "sys-change-cfont":
-        showPrompt("Component/Handler label font size", "Size (pt):", String(Model.systemComponentFontSize),
+      case "dev-change-cfont":
+        showPrompt("Component/Handler label font size", "Size (pt):", String(Model.deviceComponentFontSize),
           v => (/^\d+$/.test(v) && +v>=6 && +v<=40) ? null : "Enter a number between 6 and 40",
-          v => { pushHistory(); Model.systemComponentFontSize = parseInt(v,10); refresh(); });
+          v => { pushHistory(); Model.deviceComponentFontSize = parseInt(v,10); refresh(); });
         break;
-      case "sys-change-ifont":
-        showPrompt("Interface label font size", "Size (pt):", String(Model.systemInterfaceFontSize),
+      case "dev-change-ifont":
+        showPrompt("Interface label font size", "Size (pt):", String(Model.deviceInterfaceFontSize),
           v => (/^\d+$/.test(v) && +v>=6 && +v<=40) ? null : "Enter a number between 6 and 40",
-          v => { pushHistory(); Model.systemInterfaceFontSize = parseInt(v,10); refresh(); });
+          v => { pushHistory(); Model.deviceInterfaceFontSize = parseInt(v,10); refresh(); });
         break;
-      case "sys-type-defs":
+      case "dev-type-defs":
         openTypeDefinitionsModal();
         break;
       case "manual":
@@ -13231,7 +13231,7 @@ document.getElementById("btn-edit-const").onclick   = editSelectedConstant;
 document.getElementById("btn-del-const").onclick    = deleteSelectedConstant;
 document.getElementById("btn-edit-lfn").onclick     = editSelectedLocalFunction;
 document.getElementById("btn-del-lfn").onclick      = deleteSelectedLocalFunction;
-document.getElementById("btn-system").onclick = switchToSystem;
+document.getElementById("btn-device").onclick = switchToDevice;
 document.getElementById("btn-enter-component").onclick = enterSelectedComponent;
 
 // Server-status indicator in the menubar — click opens the PlantUML
@@ -13413,7 +13413,7 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
 // Vertical resize handle between description panel and component panel.
 // Dragging down increases the description, shrinks the component panel.
 // Only meaningful in component view (where there is something below); in
-// system view CSS hides the handle.
+// device view CSS hides the handle.
 (function() {
   const handle = document.getElementById("resize-handle-desc");
   const panel = document.getElementById("desc-panel");
@@ -13473,7 +13473,7 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
   document.addEventListener("mousemove", e => {
     if (!dragging) return;
     // The panel's parent is .msgs-column, whose height is the grid
-    // cell's height (bounded by .system-panel's total height). Leave
+    // cell's height (bounded by .device-panel's total height). Leave
     // ~80px for the Messages list above (header + a row or two) so
     // users can still see what message they have bound while resizing.
     const column = panel.parentElement;
@@ -13614,7 +13614,7 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
     const actionPanel = document.getElementById("action-panel");
     const actionWidth = actionPanel ? actionPanel.getBoundingClientRect().width : 0;
     // Fall back to 300 if the Action panel hasn't been measured yet
-    // (zero-width during system view, etc.).
+    // (zero-width during device view, etc.).
     const desired = (actionWidth > 0) ? actionWidth : 300;
     // Floor: 120px to keep the column readable. Ceiling: leave at
     // least 320px for the leftTrio so the three left columns aren't
@@ -13629,10 +13629,10 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
   window.addEventListener("load", setInitialLfnsColumnWidth);
   requestAnimationFrame(setInitialLfnsColumnWidth);
   // Also re-apply the initial split when re-entering component view
-  // from system view, in case the panel was zero-width during the
+  // from device view, in case the panel was zero-width during the
   // first measurement.
   const viewObserver = new MutationObserver(() => {
-    if (!document.body.classList.contains("view-system")) {
+    if (!document.body.classList.contains("view-device")) {
       requestAnimationFrame(setInitialLfnsColumnWidth);
     }
   });
@@ -13762,14 +13762,14 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
   });
 })();
 
-// Vertical resize handle between the canvas and the system
+// Vertical resize handle between the canvas and the device
 // specification panel. Dragging grows the spec panel (and shrinks the
 // canvas, which absorbs the column's remaining space via flex:1); the
 // canvas's min-height keeps the diagram viewable. Double-click resets
 // to 140px, the default documented in the spec panel's CSS.
 (function() {
-  const handle = document.getElementById("resize-handle-sysspec");
-  const panel = document.getElementById("sysspec-panel");
+  const handle = document.getElementById("resize-handle-devspec");
+  const panel = document.getElementById("devspec-panel");
   let dragging = false;
   let startY = 0, startH = 0;
 
@@ -13806,10 +13806,10 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
   handle.addEventListener("dblclick", () => { panel.style.height = "140px"; });
 })();
 
-// Vertical resize handle between system panel and component panel
+// Vertical resize handle between device panel and component panel
 (function() {
-  const handle = document.getElementById("resize-handle-system");
-  const sys = document.getElementById("system-panel");
+  const handle = document.getElementById("resize-handle-device");
+  const sys = document.getElementById("device-panel");
   let dragging = false;
   let startY = 0, startH = 0;
 
@@ -13927,9 +13927,9 @@ function changeTransitionDirectionByKey(direction) {
     if (t.source === t.target) return false; // self-transitions are fixed
     return adjustDirection(t, transitionIdKey(t), direction);
   }
-  // Connection path — only in system view (connections aren't rendered
+  // Connection path — only in device view (connections aren't rendered
   // elsewhere, but being explicit avoids surprises).
-  if (Model.activeView !== "system") return false;
+  if (Model.activeView !== "device") return false;
   // Component-Interface wiring
   if (Selection.connections.size === 1) {
     const key = [...Selection.connections][0];
@@ -14017,7 +14017,7 @@ updateServerStatus();
 initActionPanel();
 initStepsPanel();
 initDescriptionPanel();
-initSystemSpecPanel();
+initDeviceSpecPanel();
 installLiveTooltipHandlers();
 resetModel("Component Name");
 

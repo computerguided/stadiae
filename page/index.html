@@ -500,7 +500,7 @@ footer.foot .links a + a { margin-left: 18px; }
     </ul>
 
     <div class="meta">
-      <div><span class="k">format</span> stadiae-v3</div>
+      <div><span class="k">format</span> stadiae-v4</div>
       <div><span class="k">deps</span> &lt;browser&gt;</div>
       <div><span class="k">size</span> ~1 MB</div>
       <div><span class="k">license</span> proprietary</div>
@@ -514,7 +514,7 @@ footer.foot .links a + a { margin-left: 18px; }
       <div class="crumb"><span class="accent">$</span> man stadi&aelig;</div>
       <h1>stadi&aelig; <span class="mono-accent">&mdash; state&mdash;diagrams</span></h1>
       <p class="tagline">
-        A browser-based system- and state-diagram editor for embedded systems architects. Edits the <span class="hl">domain model</span> directly &mdash; components, interfaces, messages, states, choice-points, transitions &mdash; and emits clean, diffable PlantUML. One HTML file. No install. No lock-in.
+        A browser-based device- and state-diagram editor for embedded systems architects. Edits the <span class="hl">domain model</span> directly &mdash; components, interfaces, messages, states, choice-points, transitions &mdash; and emits clean, diffable PlantUML. One HTML file. No install. No lock-in.
       </p>
 
       <div class="hero-actions">
@@ -575,13 +575,13 @@ footer.foot .links a + a { margin-left: 18px; }
         <div></div>
         <div class="content">
           <p>
-            A Stadi&aelig; file captures two levels of a design side by side: the <b>system diagram</b> &mdash; components as boxes, interfaces as lollipops, lines marking who talks to whom &mdash; and one <b>state machine</b> per component, describing its behaviour.
+            A Stadi&aelig; file captures two levels of a design side by side: the <b>device diagram</b> &mdash; components as boxes, interfaces as lollipops, lines marking who talks to whom &mdash; and one <b>state machine</b> per component, describing its behaviour.
           </p>
           <p>
-            Interfaces and messages are the shared vocabulary that binds the two levels. Rename an interface and every component's state machine, every transition message, and every connection in the system diagram updates together. There is no way for the two levels to drift apart silently.
+            Interfaces and messages are the shared vocabulary that binds the two levels. Rename an interface and every component's state machine, every transition message, and every connection in the device diagram updates together. There is no way for the two levels to drift apart silently.
           </p>
 
-          <div class="code-label"><span class="dot"></span> sample output &middot; generated PlantUML (system diagram)</div>
+          <div class="code-label"><span class="dot"></span> sample output &middot; generated PlantUML (device diagram)</div>
           <pre class="code"><span class="kw">skinparam</span> componentStyle rectangle
 
 <span class="kw">component</span> <span class="id">Mesh</span> <span class="punct">{</span>
@@ -608,7 +608,7 @@ footer.foot .links a + a { margin-left: 18px; }
 <span class="punct">}</span></pre>
 
           <p>
-            Two floating buttons on the canvas control view navigation: <code>&diams; System</code> at the top-left switches to the system diagram, and <code>Component &#9656;</code> at the top-right (system view only, enabled when one Component is selected) enters the selected component's state machine. Stadi&aelig; flags every transition that references an interface the component isn't connected to &mdash; an advisory amber <code>!</code>, not a block &mdash; so the two levels stay in sync without ceremony.
+            Two floating buttons on the canvas control view navigation: <code>&diams; Device</code> at the top-left switches to the device diagram, and <code>Component &#9656;</code> at the top-right (device view only, enabled when one Component is selected) enters the selected component's state machine. Stadi&aelig; flags every transition that references an interface the component isn't connected to &mdash; an advisory amber <code>!</code>, not a block &mdash; so the two levels stay in sync without ceremony.
           </p>
         </div>
       </div>
@@ -685,10 +685,10 @@ footer.foot .links a + a { margin-left: 18px; }
             A Stadi&aelig; file holds a list of components, all sharing one set of interfaces and messages. This matches the reality of embedded systems: components are independent state machines, but they speak a common protocol.
           </p>
 
-          <div class="code-label"><span class="dot"></span> stadiae-v3.json &middot; save format</div>
+          <div class="code-label"><span class="dot"></span> stadiae-v4.json &middot; save format</div>
           <pre class="code"><span class="punct">{</span>
-  <span class="kw">"format"</span><span class="punct">:</span> <span class="str">"stadiae-v3"</span><span class="punct">,</span>
-  <span class="kw">"systemName"</span><span class="punct">:</span> <span class="str">"Mesh"</span><span class="punct">,</span>
+  <span class="kw">"format"</span><span class="punct">:</span> <span class="str">"stadiae-v4"</span><span class="punct">,</span>
+  <span class="kw">"deviceName"</span><span class="punct">:</span> <span class="str">"Mesh"</span><span class="punct">,</span>
   <span class="kw">"interfaces"</span><span class="punct">:</span> <span class="punct">[</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">},</span> <span class="punct">{</span><span class="kw">"name"</span><span class="punct">:</span><span class="str">"Data"</span><span class="punct">}</span> <span class="punct">],</span>
   <span class="kw">"messages"</span><span class="punct">:</span>   <span class="punct">[</span> <span class="punct">{</span><span class="kw">"interface"</span><span class="punct">:</span><span class="str">"RTx"</span><span class="punct">,</span> <span class="kw">"name"</span><span class="punct">:</span><span class="str">"ConnectReq"</span><span class="punct">},</span> <span class="com">/* ... */</span> <span class="punct">],</span>
   <span class="kw">"components"</span><span class="punct">:</span> <span class="punct">[</span>
@@ -751,15 +751,15 @@ footer.foot .links a + a { margin-left: 18px; }
             <tbody>
               <tr>
                 <td class="name">.json</td>
-                <td class="desc">Full round-trip save. Every component and handler (with display names and descriptions), every handler's functions (with parameters), every component's state variables (name, type, description), every shared interface/message (with parameters), every wiring and call dependency, every action note, the system specification text, plus system-level settings like the system name and font sizes. Re-open and continue editing. Version: <code>stadiae-v3</code>.</td>
+                <td class="desc">Full round-trip save. Every component and handler (with display names and descriptions), every handler's functions (with parameters), every component's state variables (name, type, description), every shared interface/message (with parameters), every wiring and call dependency, every action note, the device specification text, plus device-level settings like the device name and font sizes. Re-open and continue editing. Version: <code>stadiae-v4</code>.</td>
               </tr>
               <tr>
                 <td class="name">.puml</td>
-                <td class="desc">Clean PlantUML source of whatever is currently on the canvas &mdash; state machine of the active component, or the whole system diagram (components + handlers + interfaces) when in system view. Feed to any PlantUML pipeline, render in CI, embed in documentation.</td>
+                <td class="desc">Clean PlantUML source of whatever is currently on the canvas &mdash; state machine of the active component, or the whole device diagram (components + handlers + interfaces) when in device view. Feed to any PlantUML pipeline, render in CI, embed in documentation.</td>
               </tr>
               <tr>
                 <td class="name">.png</td>
-                <td class="desc">Rendered diagram of the current view &mdash; state machine or system diagram &mdash; for slide decks and one-pagers. Selection highlighting is never baked in.</td>
+                <td class="desc">Rendered diagram of the current view &mdash; state machine or device diagram &mdash; for slide decks and one-pagers. Selection highlighting is never baked in.</td>
               </tr>
               <tr>
                 <td class="name">.md table</td>
@@ -767,7 +767,7 @@ footer.foot .links a + a { margin-left: 18px; }
               </tr>
               <tr>
                 <td class="name">.html spec</td>
-                <td class="desc">Full system specification as a self-contained HTML document. Sticky sidebar TOC navigates every chapter and section. Every named entity is hyperlinked &mdash; click <code>OrderManager</code>, <code>Card:Charge</code>, or <code>recomputeTotal()</code> in any prose field and jump to its definition. Hover any link to see the target's description in a tooltip. CSS inlined, diagrams embedded as inline SVG (crisp at any zoom, with searchable diagram text). The file works offline from any browser, prints cleanly to PDF.</td>
+                <td class="desc">Full device specification as a self-contained HTML document. Sticky sidebar TOC navigates every chapter and section. Every named entity is hyperlinked &mdash; click <code>OrderManager</code>, <code>Card:Charge</code>, or <code>recomputeTotal()</code> in any prose field and jump to its definition. Hover any link to see the target's description in a tooltip. CSS inlined, diagrams embedded as inline SVG (crisp at any zoom, with searchable diagram text). The file works offline from any browser, prints cleanly to PDF.</td>
               </tr>
               <tr>
                 <td class="name">.docx spec</td>
@@ -777,11 +777,11 @@ footer.foot .links a + a { margin-left: 18px; }
           </table>
 
           <p style="margin-top:22px">
-            The <code>action</code> field on each transition row is where the behavioural description lives &mdash; "post ConnectReq to RTx; arm retry timer" &mdash; stored in the JSON save, surfaced in the Markdown export, <em>omitted</em> from PlantUML so the diagram stays uncluttered. Each component also carries a free-text <code>description</code>, edited live in a panel below the system catalogue. Behaviour and visualisation, separated.
+            The <code>action</code> field on each transition row is where the behavioural description lives &mdash; "post ConnectReq to RTx; arm retry timer" &mdash; stored in the JSON save, surfaced in the Markdown export, <em>omitted</em> from PlantUML so the diagram stays uncluttered. Each component also carries a free-text <code>description</code>, edited live in a panel below the device catalogue. Behaviour and visualisation, separated.
           </p>
 
           <p>
-            Names in any prose field can be turned into <strong>cross-references</strong> by wrapping them in backticks &mdash; <code>\`Idle\`</code>, <code>\`Card:Charge\`</code>, <code>\`Connection:ConnectReq:serverId\`</code>, <code>\`recomputeTotal()\`</code>. The HTML spec resolves each one to a hyperlink to the named state, message, parameter, function, or whatever else the model knows about. Bare names use context (a backtick reference inside <code>OrderManager</code>'s actions resolves to <code>OrderManager</code>'s entities first); qualified names jump anywhere. Renames cascade automatically: rename an interface and every backtick reference to it across the model updates as one history step. Deletes leave references unresolved (warning style) so the holes are easy to spot. <strong>Live preview while editing:</strong> in the System Specification, transition Action, local-function Steps, and Description panels, references render in styled monospace (with hover tooltips, just like the spec) when the field loses focus &mdash; so you can verify your references resolve without opening the spec preview. Press <code>Esc</code> to leave the field, hover the styled span to see the description.
+            Names in any prose field can be turned into <strong>cross-references</strong> by wrapping them in backticks &mdash; <code>\`Idle\`</code>, <code>\`Card:Charge\`</code>, <code>\`Connection:ConnectReq:serverId\`</code>, <code>\`recomputeTotal()\`</code>. The HTML spec resolves each one to a hyperlink to the named state, message, parameter, function, or whatever else the model knows about. Bare names use context (a backtick reference inside <code>OrderManager</code>'s actions resolves to <code>OrderManager</code>'s entities first); qualified names jump anywhere. Renames cascade automatically: rename an interface and every backtick reference to it across the model updates as one history step. Deletes leave references unresolved (warning style) so the holes are easy to spot. <strong>Live preview while editing:</strong> in the Device Specification, transition Action, local-function Steps, and Description panels, references render in styled monospace (with hover tooltips, just like the spec) when the field loses focus &mdash; so you can verify your references resolve without opening the spec preview. Press <code>Esc</code> to leave the field, hover the styled span to see the description.
           </p>
         </div>
       </div>
@@ -807,14 +807,14 @@ footer.foot .links a + a { margin-left: 18px; }
           <div class="code-label"><span class="dot"></span> screenshot &middot; editor in use</div>
           <figure class="shot">
             <a href="screenshot.png"><img src="screenshot.png" alt="Stadiæ editor with a rendered state diagram on the left and the domain panel on the right"></a>
-            <figcaption><span class="fig">FIG. 1</span>A multi-component diagram open in Stadi&aelig;. The active component's state machine renders on the left; the system vocabulary and per-component lists are on the right.</figcaption>
+            <figcaption><span class="fig">FIG. 1</span>A multi-component diagram open in Stadi&aelig;. The active component's state machine renders on the left; the device vocabulary and per-component lists are on the right.</figcaption>
           </figure>
 
           <p>
-            Components, handlers, interfaces, and messages live in the <em>system catalogue</em> at the top of the right panel; all four are shared across the file. The Components list switches between components with one click &mdash; <code>Node</code>, <code>Gateway</code>, <code>Session</code>, whatever your subsystem contains. Each component has its own states, choice-points, transitions, and action notes, plus optional <em>state variables</em>, <em>constants</em>, and <em>local functions</em> in their own panels &mdash; all documentation-only fields that enrich the spec without touching the diagram. <strong>Handlers</strong> are system-level entities without a state machine &mdash; asynchronous edges to the outside world (radio, sockets, timers) that talk to components over interfaces or expose functions for components to call directly. Both interfaces and handlers dim in their lists when not connected to the active component, so you always see what's in scope at a glance.
+            Components, handlers, interfaces, and messages live in the <em>device catalogue</em> at the top of the right panel; all four are shared across the file. The Components list switches between components with one click &mdash; <code>Node</code>, <code>Gateway</code>, <code>Session</code>, whatever your subsystem contains. Each component has its own states, choice-points, transitions, and action notes, plus optional <em>state variables</em>, <em>constants</em>, and <em>local functions</em> in their own panels &mdash; all documentation-only fields that enrich the spec without touching the diagram. <strong>Handlers</strong> are device-level entities without a state machine &mdash; asynchronous edges to the outside world (radio, sockets, timers) that talk to components over interfaces or expose functions for components to call directly. Both interfaces and handlers dim in their lists when not connected to the active component, so you always see what's in scope at a glance.
           </p>
           <p>
-            <strong>Type definitions</strong> live one menu away under <em>System &rarr; Type definitions...</em>. They're the system-wide reference of what each domain type means &mdash; a single name, a description, a free-text specification body. Parameter and state-variable type fields auto-link to their definition in the rendered spec when the cell text exactly matches a type name.
+            <strong>Type definitions</strong> live one menu away under <em>Device &rarr; Type definitions...</em>. They're the device-wide reference of what each domain type means &mdash; a single name, a description, a free-text specification body. Parameter and state-variable type fields auto-link to their definition in the rendered spec when the cell text exactly matches a type name.
           </p>
         </div>
       </div>
@@ -979,7 +979,7 @@ footer.foot .links a + a { margin-left: 18px; }
 </div>
 
 <footer class="foot">
-  <div>stadi&aelig; &middot; &copy; computerguided systems &middot; v3</div>
+  <div>stadi&aelig; &middot; &copy; computerguided systems &middot; v4</div>
   <div class="links">
     <a href="stadiae.html">open</a>
     <a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github &#8599;</a>
