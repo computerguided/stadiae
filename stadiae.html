@@ -434,6 +434,16 @@
     justify-content: space-between;
     gap: 8px;
   }
+  /* Header buttons (the `+`, `✎`, `−` group on each list header) live
+     in a small flex group at the right edge of the header. The label
+     and the group sit at opposite ends via `justify-content: space-
+     between` on the parent, and the buttons within the group sit
+     close together. */
+  .header-btns {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
   /* The `+` button that sits in a list header (states, interfaces,
      messages, etc.) and in the params-panel header. Same visual
      language in both places — unboxed text by default, accent-filled
@@ -1730,15 +1740,12 @@
   <button id="btn-undo" title="Undo">Undo</button>
   <button id="btn-redo" title="Redo">Redo</button>
   <div class="sep"></div>
-  <button id="btn-delete" title="Delete selected">Delete</button>
   <button id="btn-copy" title="Copy selected states and choice-points (Ctrl+C)">Copy</button>
   <button id="btn-paste" title="Paste copied elements into this component (Ctrl+V)">Paste</button>
   <div class="sep"></div>
   <button id="btn-add-trans" title="Add transition">Add Transition</button>
   <button id="btn-redirect" title="Redirect selected transition rows to a new target">Redirect</button>
   <button id="btn-add-conn" title="Add a connection — component+interface, handler+interface, or component→handler call">Add Connection</button>
-  <div class="sep"></div>
-  <button id="btn-edit" title="Edit selected">Edit</button>
 </div>
 
 <div class="main">
@@ -1763,14 +1770,14 @@
         <div class="list-box">
           <div class="header">
             <span>Components</span>
-            <button class="header-add" id="btn-add-comp" title="Add component">+</button>
+            <div class="header-btns"><button class="header-add" id="btn-add-comp" title="Add component">+</button><button class="header-add" id="btn-edit-comp" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-comp" title="Delete selected" disabled>−</button></div>
           </div>
           <ul id="list-comps"></ul>
         </div>
         <div class="list-box">
           <div class="header">
             <span>Handlers</span>
-            <button class="header-add" id="btn-add-handler" title="Add handler">+</button>
+            <div class="header-btns"><button class="header-add" id="btn-add-handler" title="Add handler">+</button><button class="header-add" id="btn-edit-handler" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-handler" title="Delete selected" disabled>−</button></div>
           </div>
           <ul id="list-handlers"></ul>
         </div>
@@ -1778,7 +1785,7 @@
           <div class="list-box">
             <div class="header">
               <span>Functions</span>
-              <button class="header-add" id="btn-add-fn" title="Add function">+</button>
+              <div class="header-btns"><button class="header-add" id="btn-add-fn" title="Add function">+</button><button class="header-add" id="btn-edit-fn" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-fn" title="Delete selected" disabled>−</button></div>
             </div>
             <ul id="list-fns"></ul>
           </div>
@@ -1786,7 +1793,7 @@
           <div class="params-panel" id="fnparams-panel">
             <div class="header" id="fnparams-header">
               <span id="fnparams-header-label">Parameters</span>
-              <button class="header-add" id="btn-add-fnparam" title="Add parameter">+</button>
+              <div class="header-btns"><button class="header-add" id="btn-add-fnparam" title="Add parameter">+</button><button class="header-add" id="btn-edit-fnparam" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-fnparam" title="Delete selected" disabled>−</button></div>
             </div>
             <div class="params-body" id="fnparams-body">
               <div class="params-placeholder" id="fnparams-placeholder">
@@ -1799,7 +1806,7 @@
         <div class="list-box">
           <div class="header">
             <span>Interfaces</span>
-            <button class="header-add" id="btn-add-iface" title="Add interface">+</button>
+            <div class="header-btns"><button class="header-add" id="btn-add-iface" title="Add interface">+</button><button class="header-add" id="btn-edit-iface" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-iface" title="Delete selected" disabled>−</button></div>
           </div>
           <ul id="list-ifaces"></ul>
         </div>
@@ -1807,7 +1814,7 @@
           <div class="list-box">
             <div class="header">
               <span>Messages</span>
-              <button class="header-add" id="btn-add-msg" title="Add message">+</button>
+              <div class="header-btns"><button class="header-add" id="btn-add-msg" title="Add message">+</button><button class="header-add" id="btn-edit-msg" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-msg" title="Delete selected" disabled>−</button></div>
             </div>
             <ul id="list-msgs"></ul>
           </div>
@@ -1815,7 +1822,7 @@
           <div class="params-panel" id="params-panel">
             <div class="header" id="params-header">
               <span id="params-header-label">Parameters</span>
-              <button class="header-add" id="btn-add-param" title="Add parameter">+</button>
+              <div class="header-btns"><button class="header-add" id="btn-add-param" title="Add parameter">+</button><button class="header-add" id="btn-edit-param" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-param" title="Delete selected" disabled>−</button></div>
             </div>
             <div class="params-body" id="params-body">
               <div class="params-placeholder" id="params-placeholder">
@@ -1839,14 +1846,14 @@
         <div class="list-box">
           <div class="header">
             <span>States</span>
-            <button class="header-add" id="btn-add-state" title="Add state">+</button>
+            <div class="header-btns"><button class="header-add" id="btn-add-state" title="Add state">+</button><button class="header-add" id="btn-edit-state" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-state" title="Delete selected" disabled>−</button></div>
           </div>
           <ul id="list-states"></ul>
         </div>
         <div class="list-box">
           <div class="header">
             <span>Choice-points</span>
-            <button class="header-add" id="btn-add-cp" title="Add choice-point">+</button>
+            <div class="header-btns"><button class="header-add" id="btn-add-cp" title="Add choice-point">+</button><button class="header-add" id="btn-edit-cp" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-cp" title="Delete selected" disabled>−</button></div>
           </div>
           <ul id="list-cps"></ul>
         </div>
@@ -1854,7 +1861,7 @@
           <div class="list-box">
             <div class="header">
               <span>State variables</span>
-              <button class="header-add" id="btn-add-var" title="Add state variable">+</button>
+              <div class="header-btns"><button class="header-add" id="btn-add-var" title="Add state variable">+</button><button class="header-add" id="btn-edit-var" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-var" title="Delete selected" disabled>−</button></div>
             </div>
             <ul id="list-vars"></ul>
           </div>
@@ -1862,7 +1869,7 @@
           <div class="list-box">
             <div class="header">
               <span>Constants</span>
-              <button class="header-add" id="btn-add-const" title="Add constant">+</button>
+              <div class="header-btns"><button class="header-add" id="btn-add-const" title="Add constant">+</button><button class="header-add" id="btn-edit-const" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-const" title="Delete selected" disabled>−</button></div>
             </div>
             <ul id="list-consts"></ul>
           </div>
@@ -1871,7 +1878,7 @@
           <div class="list-box">
             <div class="header">
               <span>Local functions</span>
-              <button class="header-add" id="btn-add-lfn" title="Add local function">+</button>
+              <div class="header-btns"><button class="header-add" id="btn-add-lfn" title="Add local function">+</button><button class="header-add" id="btn-edit-lfn" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-lfn" title="Delete selected" disabled>−</button></div>
             </div>
             <ul id="list-lfns"></ul>
           </div>
@@ -4944,6 +4951,182 @@ function deleteSelectedFunction() {
   refresh();
 }
 
+// ---------- Per-list edit/delete entry points ----------
+// These functions are bound to the per-list pencil and minus buttons
+// in each list header. Each operates on the relevant Selection set
+// in isolation, so the user always knows which list is being acted
+// on regardless of what else is selected. The header buttons disable
+// when the relevant Selection has no editable / deletable item.
+
+// Components — exactly one needed for edit. Delete handles 1+.
+function editSelectedComponent() {
+  if (Selection.components.size !== 1) return;
+  const name = [...Selection.components][0];
+  const idx = Model.components.findIndex(c => c.name === name);
+  if (idx >= 0) renameComponent(idx);
+}
+function deleteSelectedComponent() {
+  if (Selection.components.size === 0) return;
+  // Delegate to actionDelete-style logic: components have cascading
+  // wiring cleanup (connections, handler calls). Build a lightweight
+  // mask of just the components to delete and run through the same
+  // path actionDelete uses.
+  const names = [...Selection.components];
+  pushHistory();
+  for (const n of names) {
+    const i = Model.components.findIndex(c => c.name === n);
+    if (i < 0) continue;
+    Model.components.splice(i, 1);
+    Model.connections = Model.connections.filter(c => c.component !== n);
+    Model.handlerCalls = Model.handlerCalls.filter(hc => hc.component !== n);
+  }
+  // Active component might have been deleted — fall back to the first.
+  if (Model.activeComponentIndex >= Model.components.length) {
+    Model.activeComponentIndex = Math.max(0, Model.components.length - 1);
+  }
+  Selection.components.clear();
+  // If the deletion left the file with no components, create a fresh
+  // empty one so the editor isn't in an empty state.
+  if (Model.components.length === 0) {
+    Model.components.push({
+      name: "Component", displayName: "", description: "",
+      states: [], choicePoints: [], transitions: [],
+      stateVariables: [], constants: [], localFunctions: []
+    });
+    Model.activeComponentIndex = 0;
+  }
+  refresh();
+}
+
+// Handlers — exactly one for edit, 1+ for delete.
+function editSelectedHandler() {
+  if (Selection.handlers.size !== 1) return;
+  const name = [...Selection.handlers][0];
+  const h = Model.handlers.find(x => x.name === name);
+  if (h) openHandlerDialog(h);
+}
+function deleteSelectedHandler() {
+  if (Selection.handlers.size === 0) return;
+  pushHistory();
+  const names = [...Selection.handlers];
+  Model.handlers = Model.handlers.filter(h => !Selection.handlers.has(h.name));
+  // Cascade: any handler-connections or handler-calls referencing the
+  // deleted handlers go too.
+  Model.handlerConnections = Model.handlerConnections.filter(hc => !names.includes(hc.handler));
+  Model.handlerCalls = Model.handlerCalls.filter(hc => !names.includes(hc.handler));
+  Selection.handlers.clear();
+  Selection.functions = new Set([...Selection.functions].filter(k => !names.includes(k.split(":")[0])));
+  Selection.functionParameters = new Set([...Selection.functionParameters].filter(k => !names.includes(k.split(":")[0])));
+  refresh();
+}
+
+// Interfaces — exactly one non-default for edit, 1+ non-defaults for delete.
+function editSelectedInterface() {
+  if (Selection.interfaces.size !== 1) return;
+  const name = [...Selection.interfaces][0];
+  const iface = Model.interfaces.find(i => i.name === name);
+  if (iface && !iface.isDefault) openInterfaceDialog(iface);
+}
+function deleteSelectedInterface() {
+  if (Selection.interfaces.size === 0) return;
+  // Filter out defaults — they're protected from deletion.
+  const targets = [...Selection.interfaces].filter(n => !isDefaultInterface(n));
+  if (targets.length === 0) return;
+  pushHistory();
+  Model.interfaces = Model.interfaces.filter(i => !targets.includes(i.name));
+  // Cascade: messages on those interfaces, connections that reference
+  // them, handler-connections, transition messages.
+  Model.messages = Model.messages.filter(m => !targets.includes(m.interface));
+  for (const n of targets) onInterfaceDeleted(n);
+  for (const c of Model.components) {
+    c.transitions.forEach(t => {
+      t.messages = t.messages.filter(m => !targets.includes(m.interface));
+    });
+    c.transitions = c.transitions.filter(t => t.messages.length > 0 || t.source === "START");
+  }
+  // Clear selections.
+  for (const n of targets) Selection.interfaces.delete(n);
+  Selection.messages = new Set([...Selection.messages].filter(k => !targets.includes(k.split(":")[0])));
+  refresh();
+}
+
+// Messages — exactly one non-default for edit, 1+ non-defaults for delete.
+function editSelectedMessage() {
+  if (Selection.messages.size !== 1) return;
+  const key = [...Selection.messages][0];
+  const [iface, name] = key.split(":");
+  const m = Model.messages.find(x => x.interface === iface && x.name === name);
+  if (m && !m.isDefault) openMessageDialog(m);
+}
+function deleteSelectedMessage() {
+  if (Selection.messages.size === 0) return;
+  // Filter out defaults and the wildcard sentinels (which aren't real
+  // messages and have nothing to delete).
+  const targets = [...Selection.messages].filter(k => {
+    const [iface, name] = k.split(":");
+    if (iface === "*" || name === "*") return false;
+    return !isDefaultMessage(iface, name);
+  });
+  if (targets.length === 0) return;
+  pushHistory();
+  for (const k of targets) {
+    const [iface, name] = k.split(":");
+    Model.messages = Model.messages.filter(m => !(m.interface === iface && m.name === name));
+    // Cascade through transitions.
+    for (const c of Model.components) {
+      c.transitions.forEach(t => {
+        t.messages = t.messages.filter(m => !(m.interface === iface && m.name === name));
+      });
+      c.transitions = c.transitions.filter(t => t.messages.length > 0 || t.source === "START");
+    }
+    Selection.messages.delete(k);
+  }
+  refresh();
+}
+
+// States — exactly one non-pseudo for edit, 1+ non-pseudo for delete.
+function editSelectedState() {
+  if (Selection.states.size !== 1) return;
+  const name = [...Selection.states][0];
+  if (name === "START" || name === "[H]" || name === "*") return;
+  const s = Component.states.find(x => x.name === name);
+  if (s) openStateDialog(s);
+}
+function deleteSelectedState() {
+  if (Selection.states.size === 0) return;
+  // Filter out pseudo-states (START, history, ANY) — they're not real
+  // entries in Component.states and can't be deleted.
+  const targets = [...Selection.states].filter(n => n !== "START" && n !== "[H]" && n !== "*");
+  if (targets.length === 0) return;
+  pushHistory();
+  Component.states = Component.states.filter(s => !targets.includes(s.name));
+  // Cascade: transitions referencing the deleted states (as source or target) are removed.
+  Component.transitions = Component.transitions.filter(t =>
+    !targets.includes(t.source) && !targets.includes(t.target));
+  for (const n of targets) Selection.states.delete(n);
+  refresh();
+}
+
+// Choice-points — exactly one for edit, 1+ for delete.
+function editSelectedChoicePoint() {
+  if (Selection.choicePoints.size !== 1) return;
+  const name = [...Selection.choicePoints][0];
+  const cp = Component.choicePoints.find(x => x.name === name);
+  if (cp) openCPDialog(cp);
+}
+function deleteSelectedChoicePoint() {
+  if (Selection.choicePoints.size === 0) return;
+  const targets = [...Selection.choicePoints];
+  pushHistory();
+  Component.choicePoints = Component.choicePoints.filter(cp => !targets.includes(cp.name));
+  // Cascade: transitions whose source or target is "CP_<name>".
+  const prefixedTargets = targets.map(n => "CP_" + n);
+  Component.transitions = Component.transitions.filter(t =>
+    !prefixedTargets.includes(t.source) && !prefixedTargets.includes(t.target));
+  for (const n of targets) Selection.choicePoints.delete(n);
+  refresh();
+}
+
 function switchToSystem() {
   if (Model.activeView === "system") return;
   Model.activeView = "system";
@@ -5937,32 +6120,9 @@ function updateToolbar() {
   document.getElementById("btn-undo").disabled = History.past.length === 0;
   document.getElementById("btn-redo").disabled = History.future.length === 0;
 
-  // Delete: some selection that is not just START/default iface/default msg
-  const anySel = Selection.states.size || Selection.choicePoints.size ||
-                 [...Selection.interfaces].some(n => !isDefaultInterface(n)) ||
-                 [...Selection.messages].some(k => {
-                    const [i,n] = k.split(":");
-                    return !isDefaultMessage(i, n);
-                 }) ||
-                 Selection.transitions.size ||
-                 Selection.connections.size ||
-                 Selection.components.size ||
-                 Selection.handlers.size ||
-                 Selection.handlerConnections.size ||
-                 Selection.handlerCalls.size ||
-                 Selection.messageParameters.size ||
-                 Selection.functions.size ||
-                 Selection.functionParameters.size ||
-                 Selection.stateVariables.size ||
-                 Selection.localFunctions.size ||
-                 Selection.constants.size;
-  const includesProtected = Selection.start ||
-                 [...Selection.interfaces].some(isDefaultInterface) ||
-                 [...Selection.messages].some(k => {
-                    const [i,n] = k.split(":");
-                    return isDefaultMessage(i, n);
-                 });
-  document.getElementById("btn-delete").disabled = !anySel || includesProtected;
+  // Delete: some selection that is not just START/default iface/default msg.
+  // Computed via canDelete() so the keyboard shortcut can use it directly
+  // now that the toolbar button is gone.
   document.getElementById("btn-copy").disabled = !canCopy();
   document.getElementById("btn-paste").disabled = !canPaste();
 
@@ -6004,8 +6164,71 @@ function updateToolbar() {
   // view switches back.
   document.getElementById("btn-enter-component").disabled = !canEnterComponent();
 
-  // Edit: depends on single selected element of editable type
-  document.getElementById("btn-edit").disabled = !canEdit();
+  // Per-list edit/delete buttons — each list's pencil and minus
+  // buttons reflect what's selected in *that* list, not the global
+  // selection. Most edit buttons require exactly one selection;
+  // delete buttons enable on 1+ selections (with default/pseudo
+  // entries excluded).
+  const setBtn = (id, disabled) => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  };
+
+  // Components — system-wide; never gated by view.
+  setBtn("btn-edit-comp", Selection.components.size !== 1);
+  setBtn("btn-del-comp",  Selection.components.size === 0);
+
+  // Handlers — system-wide.
+  setBtn("btn-edit-handler", Selection.handlers.size !== 1);
+  setBtn("btn-del-handler",  Selection.handlers.size === 0);
+
+  // Functions — handler-scoped, requires the parent handler picked.
+  setBtn("btn-edit-fn", Selection.functions.size !== 1);
+  setBtn("btn-del-fn",  Selection.functions.size === 0);
+
+  // Function parameters.
+  setBtn("btn-edit-fnparam", Selection.functionParameters.size !== 1);
+  setBtn("btn-del-fnparam",  Selection.functionParameters.size === 0);
+
+  // Interfaces — defaults excluded for both edit and delete.
+  const ifaceSel = [...Selection.interfaces].filter(n => !isDefaultInterface(n));
+  setBtn("btn-edit-iface", ifaceSel.length !== 1);
+  setBtn("btn-del-iface",  ifaceSel.length === 0);
+
+  // Messages — defaults and wildcard sentinels excluded.
+  const msgSel = [...Selection.messages].filter(k => {
+    const [iface, name] = k.split(":");
+    if (iface === "*" || name === "*") return false;
+    return !isDefaultMessage(iface, name);
+  });
+  setBtn("btn-edit-msg", msgSel.length !== 1);
+  setBtn("btn-del-msg",  msgSel.length === 0);
+
+  // Message parameters.
+  setBtn("btn-edit-param", Selection.messageParameters.size !== 1);
+  setBtn("btn-del-param",  Selection.messageParameters.size === 0);
+
+  // States — pseudo-states (START, history, ANY) excluded. Also
+  // disabled in system view since states aren't visible there.
+  const stateSel = [...Selection.states].filter(n => n !== "START" && n !== "[H]" && n !== "*");
+  setBtn("btn-edit-state", inSystem || stateSel.length !== 1);
+  setBtn("btn-del-state",  inSystem || stateSel.length === 0);
+
+  // Choice-points — disabled in system view.
+  setBtn("btn-edit-cp", inSystem || Selection.choicePoints.size !== 1);
+  setBtn("btn-del-cp",  inSystem || Selection.choicePoints.size === 0);
+
+  // State variables — component-scoped, disabled in system view.
+  setBtn("btn-edit-var", inSystem || Selection.stateVariables.size !== 1);
+  setBtn("btn-del-var",  inSystem || Selection.stateVariables.size === 0);
+
+  // Constants — same as state variables.
+  setBtn("btn-edit-const", inSystem || Selection.constants.size !== 1);
+  setBtn("btn-del-const",  inSystem || Selection.constants.size === 0);
+
+  // Local functions — same.
+  setBtn("btn-edit-lfn", inSystem || Selection.localFunctions.size !== 1);
+  setBtn("btn-del-lfn",  inSystem || Selection.localFunctions.size === 0);
 }
 
 function isDefaultInterface(name) {
@@ -6330,6 +6553,39 @@ function sourceAlreadyHandlesAnyOf(source, msgs) {
     }
   }
   return false;
+}
+
+// True if the current selection contains at least one deletable thing
+// AND no protected entries. Protected = START pseudostate, default
+// interfaces (Timer, Logical), default messages (Yes, No, Timeout).
+// Used by the Delete keyboard shortcut. Per-list delete buttons each
+// have their own scoped enable rule and don't go through this.
+function canDelete() {
+  const anySel = Selection.states.size || Selection.choicePoints.size ||
+                 [...Selection.interfaces].some(n => !isDefaultInterface(n)) ||
+                 [...Selection.messages].some(k => {
+                    const [i,n] = k.split(":");
+                    return !isDefaultMessage(i, n);
+                 }) ||
+                 Selection.transitions.size ||
+                 Selection.connections.size ||
+                 Selection.components.size ||
+                 Selection.handlers.size ||
+                 Selection.handlerConnections.size ||
+                 Selection.handlerCalls.size ||
+                 Selection.messageParameters.size ||
+                 Selection.functions.size ||
+                 Selection.functionParameters.size ||
+                 Selection.stateVariables.size ||
+                 Selection.localFunctions.size ||
+                 Selection.constants.size;
+  const includesProtected = Selection.start ||
+                 [...Selection.interfaces].some(isDefaultInterface) ||
+                 [...Selection.messages].some(k => {
+                    const [i,n] = k.split(":");
+                    return isDefaultMessage(i, n);
+                 });
+  return anySel && !includesProtected;
 }
 
 function canEdit() {
@@ -6707,14 +6963,14 @@ function manualContent() {
       <h3>Menu bar</h3>
       <p><strong>File</strong> manages diagrams (new, open, save, save as, export). <strong>Component</strong> (visible in component view) acts on the <em>active</em> component — change its name, font sizes, or copy its transition table as Markdown. <strong>System</strong> (visible in system view) acts on the system as a whole — change its name, change the label font sizes for Components/Handlers and Interfaces, and open the Type definitions dialog. <strong>Help</strong> opens this manual and the About box.</p>
       <h3>Toolbar</h3>
-      <p>All common actions are one click away. A button is greyed out when the current selection does not make the action meaningful. Hover the Add Transition or Edit button when it is disabled and check your selection — the rules in <a href="#m-rules" data-target="m-rules">Rules Reference</a> explain each enablement condition.</p>
+      <p>All common actions are one click away. A button is greyed out when the current selection does not make the action meaningful. Hover the Add Transition button or any list&apos;s <code>✎</code>/<code>−</code> when it is disabled and check your selection — the rules in <a href="#m-rules" data-target="m-rules">Rules Reference</a> explain each enablement condition.</p>
       <h3>Diagram canvas (left)</h3>
       <p>Shows the rendered PNG of the <em>active</em> component. States, choice-points, and transitions can be selected by clicking them directly on the canvas. Clicking on empty canvas clears the current selection.</p>
       <h3>System catalogue (top right)</h3>
       <p>The top section of the right panel holds four side-by-side lists for the system-wide vocabulary: <strong>Components</strong>, <strong>Handlers</strong>, <strong>Interfaces</strong>, and <strong>Messages</strong>. Every entry in these lists is shared across the whole file. Each list has a small <code>+</code> button in its header to add a new entry. Click an interface to toggle its selection; messages of the selected interface(s) then appear in the Messages list.</p>
       <p>The entry point to the <a href="#m-system-diagram" data-target="m-system-diagram">system diagram</a> view is the floating <code>◇ System</code> button in the top-left corner of the diagram canvas; the button stays accent-coloured while system view is active. To return to a state-machine view, click any component row in the Components list.</p>
       <h3>Components list</h3>
-      <p>One row per component. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas. In component view, click a row to switch the canvas and lower panels to that component. In system view, click a row to toggle selection (same as clicking the component's box on the canvas); the floating <code>Component ▸</code> button at the top-right of the canvas then enters the selected component's state machine. To rename a component, select it and click <strong>Edit</strong>; to delete it, select it and click <strong>Delete</strong>. Component names must be unique. The minimum is one component — the last one cannot be deleted.</p>
+      <p>One row per component. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas. In component view, click a row to switch the canvas and lower panels to that component. In system view, click a row to toggle selection (same as clicking the component's box on the canvas); the floating <code>Component ▸</code> button at the top-right of the canvas then enters the selected component's state machine. To rename a component, select it and click <code>✎</code>; to delete it, select it and click <strong>Delete</strong>. Component names must be unique. The minimum is one component — the last one cannot be deleted.</p>
       <h3>Component panel (bottom right)</h3>
       <p>The rest of the right panel shows the active component's <em>States</em>, <em>Choice-points</em>, <em>State variables</em> (with <em>Constants</em> beneath them in the same column), and <em>Local functions</em> lists (with the START / H / ∗ pseudo-states at the top of States), and below them the transitions table side-by-side with the Action panel. These panels are hidden in system view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. Each section is resizable via the thin bars between them — drag to adjust, double-click to reset. A separate vertical slider between the canvas and the right panel lets you shift the main left/right split, and a horizontal slider above the System Specification panel resizes that panel against the canvas.</p>
       <h3>Transition table</h3>
@@ -6730,7 +6986,7 @@ function manualContent() {
       <p>A single <code>.json</code> file can hold multiple components — one for each state machine in the system you are modelling. All components share the same pool of interfaces and messages, because those represent the contract vocabulary between components. States, choice-points, transitions, and action notes belong to a single component and cannot cross component boundaries.</p>
       <p>The <strong>Components list</strong> in the top-right catalogue is the place to see, switch, and manage components. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas; the lower panels (States, Choice-points, transitions, Action) always reflect that <em>active</em> component. The Interfaces and Messages lists alongside it are shared — editing them affects every component.</p>
       <h3>Add, rename, delete</h3>
-      <p>Click the <code>+</code> in the Components list header to add a new component. To rename one, select its row in the list and click <strong>Edit</strong>; the same dialog is available via <em>Component → Change name…</em> for the active component. To delete a component, select its row and click <strong>Delete</strong> — its states, choice-points, and transitions are removed after a confirmation, but the shared interfaces and messages are not touched. You cannot delete the last remaining component.</p>
+      <p>Click the <code>+</code> in the Components list header to add a new component. To rename one, select its row in the list and click <code>✎</code>; the same dialog is available via <em>Component → Change name…</em> for the active component. To delete a component, select its row and click <code>−</code> — its states, choice-points, and transitions are removed after a confirmation, but the shared interfaces and messages are not touched. You cannot delete the last remaining component.</p>
       <h3>Name vs. display name</h3>
       <p>Components have two name fields, exactly like states:</p>
       <ul>
@@ -6782,7 +7038,7 @@ function manualContent() {
         <li><strong>Send messages on an interface.</strong> Wire a Handler to an Interface and the Handler becomes a sender on that interface. Any Component wired to the same interface is, by elimination, a receiver; the diagram automatically flips those Component connections to directed arrows pointing <em>at</em> the Component. You do not need to mark the direction manually — it is derived from the wiring.</li>
         <li><strong>Expose functions to be called by Components.</strong> A Component that calls functions exposed by a Handler declares this with a direct Component→Handler dependency line — a dashed arrow pointing at the Handler. No interface is involved.</li>
       </ul>
-      <p>Add a Handler by clicking the <code>+</code> in the Handlers list header. Rename, add a description, or delete via <strong>Edit</strong> / <strong>Delete</strong> on a selected Handler row. A small accent-coloured dot on a row indicates the Handler has a non-empty description (same convention as Components).</p>
+      <p>Add a Handler by clicking the <code>+</code> in the Handlers list header. Rename, add a description, or delete via the <code>✎</code> / <code>−</code> buttons on a selected Handler row. A small accent-coloured dot on a row indicates the Handler has a non-empty description (same convention as Components).</p>
 
       <h3>Functions</h3>
       <p>A Handler exposes <strong>functions</strong> — its callable API. Any Component that has a call-dependency line to the Handler can invoke any of those functions. Functions are documentation only: they never appear in the generated PlantUML and they don't affect the diagram. They exist so developers can write the action of a transition against a concrete API.</p>
@@ -6802,7 +7058,7 @@ function manualContent() {
       <p>To remove a wiring or dependency line, click it on the canvas and press <kbd>Delete</kbd>.</p>
 
       <h3>Connection direction and length</h3>
-      <p>Select a connection and click <strong>Edit</strong> (or press <kbd>Enter</kbd>) to open its properties dialog. Connections use the same <em>Right / Left / Up / Down</em> + length controls as state-machine transitions. The dialog adapts its labels to the three wiring kinds (Component/Interface, Handler/Interface, Component/Handler) but the controls are identical.</p>
+      <p>Select a connection and press <kbd>Enter</kbd> (or press <kbd>Enter</kbd>) to open its properties dialog. Connections use the same <em>Right / Left / Up / Down</em> + length controls as state-machine transitions. The dialog adapts its labels to the three wiring kinds (Component/Interface, Handler/Interface, Component/Handler) but the controls are identical.</p>
       <p><strong>Shortcut:</strong> with a connection selected, the arrow keys (<kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd>) change the direction directly. Repeated <kbd>↑</kbd> or <kbd>↓</kbd> extends the length by one dash each press.</p>
 
       <h3>Consistency with state machines</h3>
@@ -6823,7 +7079,7 @@ function manualContent() {
         <li><strong>Lay out each component</strong>: click the component you want to edit in the Components list, then add states and choice-points.</li>
         <li><strong>Wire up transitions</strong>: select a source state, a target, and a message, then click Add Transition.</li>
         <li><strong>Pick the initial state</strong>: select START and the intended first state, then Add Transition.</li>
-        <li><strong>Refine</strong>: select elements and click Edit to change properties; adjust connector direction on transitions for a cleaner layout.</li>
+        <li><strong>Refine</strong>: select elements and click <code>✎</code> in the relevant list to change properties; adjust connector direction on transitions for a cleaner layout.</li>
         <li><strong>Save</strong>: <em>File → Save As</em> (JSON, reloadable). The file captures every component plus the shared vocabulary and the system diagram. Export to <code>.puml</code> or <code>.png</code> per active component when you want to share individual diagrams outside the tool.</li>
       </ol>
     </section>
@@ -6833,7 +7089,7 @@ function manualContent() {
       <p>Click <strong>Add State</strong>, fill in a <em>Name</em> and optionally a <em>Display name</em> and <em>Description</em>, then OK. The name must be a single identifier-safe word (letters, digits, underscores; must start with a letter) and must not collide with any other state, choice-point, or the reserved <code>START</code>/<code>component</code> names.</p>
       <p>The display name can span multiple lines using <code>\\n</code>. Example: <code>Server\\nConnected</code> renders as two lines.</p>
       <p>The description is free-text developer documentation — a single-line phrase explaining what the state means. It shows in the States list after the state's label, separated by an em-dash: <code>Receiving Data &mdash; Waiting for all the data to arrive.</code> Descriptions are persisted in the saved file but never written to the generated PlantUML — they're purely for humans. If a description is long enough to overflow the list's width, the States list grows a horizontal scrollbar so you can read the whole line.</p>
-      <p>To rename, change the display name, or edit the description, select the state and click <strong>Edit</strong>.</p>
+      <p>To rename, change the display name, or edit the description, select the state and click <code>✎</code> in the States list header.</p>
     </section>
 
     <section id="m-choicepoints">
@@ -6853,7 +7109,7 @@ function manualContent() {
         <li><em>Type</em> — free-text, optional. Any string works: <code>uint</code>, <code>string</code>, <code>map&lt;string, uint&gt;</code>, <code>PaymentState</code>. Empty means "type not yet decided" — render as <code>-</code> in the specification.</li>
         <li><em>Description</em> — free-text, optional, single line. A developer note explaining what the variable holds.</li>
       </ul>
-      <p>The list renders each row as <em>name</em> &middot; <em>: type</em> &middot; <em>&mdash; description</em> (type and description only when set). The list scrolls horizontally when a long description outgrows the column. Select a row and click <strong>Edit</strong> to change any field, or <strong>Delete</strong> to remove. Variables are sorted alphabetically. The specification export includes a <em>State variables</em> section in each component's chapter, with a Name / Type / Description table.</p>
+      <p>The list renders each row as <em>name</em> &middot; <em>: type</em> &middot; <em>&mdash; description</em> (type and description only when set). The list scrolls horizontally when a long description outgrows the column. Select a row and click <code>✎</code> to change any field, or <code>−</code> to remove. Variables are sorted alphabetically. The specification export includes a <em>State variables</em> section in each component's chapter, with a Name / Type / Description table.</p>
     </section>
 
     <section id="m-constants">
@@ -7017,24 +7273,27 @@ function manualContent() {
 
     <section id="m-editing">
       <h2>Editing &amp; Deleting</h2>
-      <h3>Edit</h3>
-      <p>Edit is enabled when the selection uniquely identifies a single editable thing:</p>
+      <h3>Edit and Delete</h3>
+      <p>Each list in the right-hand catalogue has its own header buttons: <code>+</code> to add, <code>✎</code> to edit, and <code>−</code> to delete. The edit and delete buttons enable based on what's selected <em>in that list</em>, so the action's scope is always unambiguous &mdash; you act on the list whose button you click, not on the global selection.</p>
+      <p>Edit (<code>✎</code>) requires exactly one editable item selected:</p>
       <ul>
-        <li>one state (not START),</li>
-        <li>one choice-point,</li>
-        <li>one non-default interface,</li>
-        <li>one non-default message,</li>
-        <li>or every message row of exactly one transition.</li>
+        <li>one state (not START), one choice-point, one component, one handler;</li>
+        <li>one non-default interface, one non-default message;</li>
+        <li>one function, one parameter (function or message);</li>
+        <li>one state variable, one constant, one local function.</li>
       </ul>
-      <p>For transitions, only connector type and length are editable — the source, target, and message set are read-only in the dialog.</p>
-      <h3>Delete</h3>
-      <p>Deletes every selected element. Cascading effects:</p>
+      <p>You can also press <kbd>Enter</kbd> to edit when the global selection uniquely identifies a single editable thing &mdash; the same dispatch logic the toolbar's old Edit button used.</p>
+      <p>Delete (<code>−</code>) enables when the list has at least one deletable item selected. The minus button on a list deletes only that list's selected items, leaving selections in other lists untouched. The <kbd>Delete</kbd> / <kbd>Backspace</kbd> shortcut deletes everything currently selected, with the same protections (default interfaces, default messages, and START are never removed).</p>
+      <h3>Cascading effects on delete</h3>
+      <p>Cascading effects:</p>
       <ul>
         <li>Deleting a state or choice-point also removes every transition that has it as source or target.</li>
         <li>Deleting an interface removes its messages, and any message from that interface is removed from transitions (transitions left empty are dropped, except the initial transition).</li>
-        <li>Deleting a single message row removes only that message from its arrow — the other messages on the arrow remain.</li>
+        <li>Deleting a single message row from a transition removes only that message from its arrow &mdash; the other messages on the arrow remain.</li>
+        <li>Deleting a component removes its connections to interfaces and its handler-call dependencies.</li>
+        <li>Deleting a handler removes any connections and calls referencing it.</li>
       </ul>
-      <p>Default interfaces, default messages, and START cannot be deleted.</p>
+      <p>Default interfaces (<code>Timer</code>, <code>Logical</code>), default messages (<code>Yes</code>, <code>No</code>, <code>Timeout</code>), and START cannot be deleted; the wildcard pseudo-rows in the Messages list are also exempt &mdash; they aren't real entries to delete. Selections that include only protected items leave the delete button disabled.</p>
       <h3>Undo / Redo</h3>
       <p>Every mutating action pushes onto the undo stack. Use the Undo/Redo buttons or <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd>.</p>
       <h3>Copy / Paste elements</h3>
@@ -12254,7 +12513,6 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
 document.getElementById("btn-save").onclick = save;
 document.getElementById("btn-undo").onclick = undo;
 document.getElementById("btn-redo").onclick = redo;
-document.getElementById("btn-delete").onclick = actionDelete;
 document.getElementById("btn-copy").onclick = actionCopy;
 document.getElementById("btn-paste").onclick = actionPaste;
 document.getElementById("btn-add-state").onclick = actionAddState;
@@ -12272,9 +12530,36 @@ document.getElementById("btn-add-handler").onclick = addHandler;
 document.getElementById("btn-add-param").onclick = addParameter;
 document.getElementById("btn-add-fn").onclick = addFunction;
 document.getElementById("btn-add-fnparam").onclick = addFnParameter;
+
+// Per-list edit (✎) and delete (−) buttons in each list header.
+// Mirror the global Edit / Delete actions but constrained to a single
+// list, so the user always knows which list is being acted on.
+document.getElementById("btn-edit-comp").onclick    = editSelectedComponent;
+document.getElementById("btn-del-comp").onclick     = deleteSelectedComponent;
+document.getElementById("btn-edit-handler").onclick = editSelectedHandler;
+document.getElementById("btn-del-handler").onclick  = deleteSelectedHandler;
+document.getElementById("btn-edit-fn").onclick      = editSelectedFunction;
+document.getElementById("btn-del-fn").onclick       = deleteSelectedFunction;
+document.getElementById("btn-edit-fnparam").onclick = editSelectedFnParameter;
+document.getElementById("btn-del-fnparam").onclick  = deleteSelectedFnParameter;
+document.getElementById("btn-edit-iface").onclick   = editSelectedInterface;
+document.getElementById("btn-del-iface").onclick    = deleteSelectedInterface;
+document.getElementById("btn-edit-msg").onclick     = editSelectedMessage;
+document.getElementById("btn-del-msg").onclick      = deleteSelectedMessage;
+document.getElementById("btn-edit-param").onclick   = editSelectedParameter;
+document.getElementById("btn-del-param").onclick    = deleteSelectedParameter;
+document.getElementById("btn-edit-state").onclick   = editSelectedState;
+document.getElementById("btn-del-state").onclick    = deleteSelectedState;
+document.getElementById("btn-edit-cp").onclick      = editSelectedChoicePoint;
+document.getElementById("btn-del-cp").onclick       = deleteSelectedChoicePoint;
+document.getElementById("btn-edit-var").onclick     = editSelectedStateVariable;
+document.getElementById("btn-del-var").onclick      = deleteSelectedStateVariable;
+document.getElementById("btn-edit-const").onclick   = editSelectedConstant;
+document.getElementById("btn-del-const").onclick    = deleteSelectedConstant;
+document.getElementById("btn-edit-lfn").onclick     = editSelectedLocalFunction;
+document.getElementById("btn-del-lfn").onclick      = deleteSelectedLocalFunction;
 document.getElementById("btn-system").onclick = switchToSystem;
 document.getElementById("btn-enter-component").onclick = enterSelectedComponent;
-document.getElementById("btn-edit").onclick = actionEdit;
 
 // Server-status indicator in the menubar — click opens the PlantUML
 // server config dialog.
@@ -12884,10 +13169,10 @@ document.addEventListener("keydown", e => {
     else if (e.key === "c") { if (canCopy()) { e.preventDefault(); actionCopy(); } }
     else if (e.key === "v") { if (canPaste()) { e.preventDefault(); actionPaste(); } }
   } else if (e.key === "Delete" || e.key === "Backspace") {
-    if (!document.getElementById("btn-delete").disabled) actionDelete();
+    if (canDelete()) actionDelete();
   } else if (e.key === "Enter") {
     // Enter opens the Edit dialog for the current selection, when valid.
-    if (!document.getElementById("btn-edit").disabled) {
+    if (canEdit()) {
       e.preventDefault();
       actionEdit();
     }

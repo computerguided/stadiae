@@ -297,7 +297,7 @@ Four operations manipulate the components array. All flow through a single dialo
 
 - **Add** (`addComponent` → `openComponentDialog(null)`): prompts for name + display name, validates, appends via `makeEmptyComponent`, switches to it, pushes history. New components get a unique identifier `name`; the optional `displayName` is rendered on the canvas via `componentDisplayLabel(c)`.
 - **Rename** (`renameComponent(idx)` → `openComponentDialog(existing)`): the same dialog with both fields pre-filled. On OK with a changed `name`, the cascade helper `onComponentRenamed` updates every entry in `Model.connections` whose `component` field referenced the old name. Selection keys keyed by component name (`Selection.components`, `Selection.connections`) are also re-keyed in place so a rename doesn't drop the user's selection. The `Component → Change name…` menu action opens the same dialog for the active component.
-- **Delete** (`deleteComponent`): triggered by selecting a component row and clicking Delete (or via the toolbar Delete keyboard shortcut, with the same single-component-selection check). Confirmation dialog quotes the display label, not the identifier (more readable). Removes the component, adjusts `activeComponentIndex` so the UI stays on a valid component, and calls `onComponentDeleted` to prune any matching connections. Deletion is blocked when only one component remains — the file must always have at least one. The toolbar `actionDelete` short-circuits to this flow when the selection contains exactly one component and nothing else, since deleting a whole state machine warrants its own confirm-first handling distinct from the bulk-delete path used for states and transitions.
+- **Delete** (`deleteSelectedComponent` and friends): triggered by clicking the Components list's `−` button (per-list scope), or via the global Delete keyboard shortcut when the selection narrows to deletable items only. Confirmation dialog quotes the display label, not the identifier (more readable). Removes the component, adjusts `activeComponentIndex` so the UI stays on a valid component, and calls `onComponentDeleted` to prune any matching connections. Deletion is blocked when only one component remains — the file must always have at least one. The global `actionDelete` short-circuits to the per-component flow when the selection contains exactly one component and nothing else, since deleting a whole state machine warrants its own confirm-first handling distinct from the bulk-delete path used for states and transitions.
 - **Switch** (`switchToComponent`): sets `activeComponentIndex`, sets `Model.activeView` to `"component"`, clears selection, triggers a refresh.
 
 All four push a history snapshot before mutating so undo correctly restores component order, names, display names, and the active-component pointer. Component-name uniqueness is essential because mask-id keys (`"comp:" + name`) and connection-cascade lookups all assume it; the validator at every entry point keeps the invariant holding.
@@ -581,15 +581,19 @@ Independent of the pattern, two cross-cutting constraints are enforced:
 
 ### 8.2 Edit
 
-Enabled when exactly one editable thing is selected:
+Editing has the same per-list / global split as Delete (§8.4). Each list has its own `✎` button that operates on items selected in that list only; pressing <kbd>Enter</kbd> triggers the global edit dispatcher (`actionEdit`) when the selection uniquely identifies a single editable thing.
 
-- one state (not START),
-- one choice-point,
-- one non-default interface,
-- one non-default message,
+The global `canEdit()` predicate (used by the Enter shortcut) returns true when exactly one editable thing is selected:
+
+- one state (not START), one choice-point, one component, one handler;
+- one non-default interface, one non-default message;
+- one function, one parameter (function or message);
+- one state variable, one constant, one local function;
 - or every row of exactly one transition (and no rows of any other).
 
 The last case is subtle: if a user selects individual message rows from two different transitions, or one row from a transition plus a state, Edit is disabled because the selection doesn't uniquely identify one transition to edit. Transition editing mutates connector type/length, which is a property of the whole arrow — not of individual messages.
+
+The earlier toolbar Edit button was removed for the same reason as the toolbar Delete (§8.4) — when the selection spans multiple lists, the action's scope was hidden behind invisible dispatch rules. The per-list `✎` buttons make scope explicit by tying the action to the list whose button you click. The Enter shortcut is preserved as the keyboard-driven multi-list path; the keyboard contract implicitly trusts the user to know what's selected.
 
 ### 8.3 Redirect
 
@@ -611,6 +615,14 @@ Permitted as long as the selection does not include any immutable element (START
 - Deleting a state or CP drops every transition touching it (source or target).
 - Deleting an interface drops its messages, and strips them from any transitions they appear in; transitions left empty are dropped (except the initial transition, which is intentionally message-less).
 - Deleting a single message **row** strips that message from its arrow without affecting the others.
+- Deleting a component drops every connection and handler-call referencing it.
+- Deleting a handler drops every handler-connection and handler-call referencing it.
+
+The earlier toolbar Delete button was removed because it became confusing once selections could span multiple lists — a click on "Delete" wouldn't make it visually clear *which* list's selection was being acted on. The button was replaced with **per-list `−` buttons** in each list header, mirroring the existing `+` add buttons. Each list's button reads only its own Selection set, so the action's scope is never ambiguous: clicking the Components header's `−` deletes the component(s) selected in that list, ignoring whatever might be selected in States or Messages.
+
+The keyboard shortcut <kbd>Delete</kbd> / <kbd>Backspace</kbd> remains and uses the global `canDelete()` predicate (extracted from what was previously inlined in `refresh()` for the toolbar button's disabled state). Keyboard shortcuts have an implicit "user knows what they have selected" contract — they don't need the same scope-advertising the visible button did. The shortcut routes through `actionDelete()`, which is the same multi-list dispatcher the toolbar button used to invoke.
+
+Per-list editors / deleters: every list has its own `editSelected{Type}` and `deleteSelected{Type}` function that operates only on its corresponding Selection set. Six were added in this refactor (Components, Handlers, Interfaces, Messages, States, Choice-points); six already existed (Functions, function parameters, message parameters, State variables, Constants, Local functions). Per-list edit buttons (`✎`) enable on exactly-one-selection-of-the-right-type; per-list delete buttons (`−`) enable on at-least-one-selection, with default and pseudo entries excluded from the count. The disabled-state computation lives in `refresh()` alongside the existing button-state logic.
 
 ### 8.5 Save
 
@@ -1344,7 +1356,7 @@ If you want to:
 
 - **Add a new element type** (e.g. an "end" pseudostate): add a flag to `Selection`, a row to the States list in `buildStateList`, emission logic in `generatePlantUML` (both modes — visible with styling, mask with id assignment), a case in `canAddTransition` if it participates in transitions, a resolution case in `nodeLabelInComponent` (for the spec transition table), a `pruneNodeOrder` case and `noteNodeSelected`/`noteNodeDeselected` calls at the new element's selection sites (if it can participate in transitions — so click-order direction inference works for it too, see §8.7), and a manual section.
 
-- **Add a new documentation-only per-component field** (like `stateVariables` or `localFunctions`): add the field to `makeEmptyComponent`, a getter/setter to the `Component` proxy (this is the step that was initially missed for `stateVariables` — without a proxy accessor the feature silently writes to a global property instead of the per-component record), to the serializer (only when non-empty to keep files from users who don't use the feature byte-minimal), to the loader (defensive normalisation), and to `snapshot()` via the component object. Build a UI list with `build{Field}List`, wire it into `refresh()`, add CRUD helpers and a dialog matching `openStateVariableDialog` / `openLocalFunctionDialog`, a Selection set + `clearAll` case + `clearSelectionForContext` case, a toolbar `+` button + enabled-state rule, `canEdit` / `actionEdit` / `actionDelete` branches. For the spec export, add an H2 section in the per-component chapter and a column-width profile if the shape is new.
+- **Add a new documentation-only per-component field** (like `stateVariables` or `localFunctions`): add the field to `makeEmptyComponent`, a getter/setter to the `Component` proxy (this is the step that was initially missed for `stateVariables` — without a proxy accessor the feature silently writes to a global property instead of the per-component record), to the serializer (only when non-empty to keep files from users who don't use the feature byte-minimal), to the loader (defensive normalisation), and to `snapshot()` via the component object. Build a UI list with `build{Field}List`, wire it into `refresh()`, add CRUD helpers and a dialog matching `openStateVariableDialog` / `openLocalFunctionDialog`, a Selection set + `clearAll` case + `clearSelectionForContext` case, a list-header button group (`+` for add, `✎` for edit, `−` for delete) with enabled-state rules in `refresh()`, per-list `editSelectedField` / `deleteSelectedField` functions, and `canEdit` / `actionEdit` / `actionDelete` branches for the keyboard-shortcut path. For the spec export, add an H2 section in the per-component chapter and a column-width profile if the shape is new.
 
 - **Add a new per-transition-row field** (like the `action` field): extend the message objects in `Component.transitions[*].messages`, add UI for viewing/editing it (following the Action panel pattern — live save with per-session history via `pushHistory`, suppressed diagram re-renders since it doesn't affect PlantUML), and surface presence in the table via an indicator column or cell. Extend the spec exporter's transition table to include it; widths in `COL_5` may need rebalancing.
 
