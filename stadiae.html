@@ -6261,7 +6261,23 @@ function buildTransitionTable() {
       }
     }
   }
+  // Row ordering convention: the START transition (the initial
+  // transition from the START pseudostate) is always the first row;
+  // ANY-source transitions (from the `*` pseudostate, catch-alls
+  // applying from any state) are always the last group. Named-state
+  // transitions sort alphabetically by source between them. Within
+  // a single source, sort by interface then by message name so the
+  // grouping is stable and easy to scan. Using the source ID (not
+  // the rendered label) for the rank keeps the convention robust
+  // against display-name choices.
+  const sourceRank = (id) => {
+    if (id === "START") return 0;
+    if (id === "*") return 2;
+    return 1;
+  };
   rows.sort((a,b) => {
+    const rA = sourceRank(a.t.source), rB = sourceRank(b.t.source);
+    if (rA !== rB) return rA - rB;
     const srcA = nodeLabel(a.t.source), srcB = nodeLabel(b.t.source);
     if (srcA !== srcB) return srcA.localeCompare(srcB);
     if (a.iface !== b.iface) return a.iface.localeCompare(b.iface);
@@ -9798,6 +9814,16 @@ function buildTransitionsMarkdown() {
     }
   }
   flat.sort((a, b) => {
+    // Same row-ordering convention as the on-screen transitions
+    // table: START first, ANY last, named-state sources alphabetic
+    // in between. See buildTransitionTable for the rationale.
+    const sourceRank = (id) => {
+      if (id === "START") return 0;
+      if (id === "*") return 2;
+      return 1;
+    };
+    const rA = sourceRank(a.t.source), rB = sourceRank(b.t.source);
+    if (rA !== rB) return rA - rB;
     const srcA = nodeLabel(a.t.source), srcB = nodeLabel(b.t.source);
     if (srcA !== srcB) return srcA.localeCompare(srcB);
     const tgtA = nodeLabel(a.t.target), tgtB = nodeLabel(b.t.target);
@@ -11664,12 +11690,23 @@ async function buildSpecBody(idx, progress) {
           return a.name.localeCompare(b.name);
         });
         return {
-          src, tgt, msgs: rawMsgs,
+          srcId: t.source, src, tgt, msgs: rawMsgs,
           firstIface: rawMsgs.length > 0 ? rawMsgs[0].interface : "",
           firstMsg:   rawMsgs.length > 0 ? rawMsgs[0].name : ""
         };
       });
+      // Row-ordering convention: START transition first, ANY-source
+      // transitions last, named-state sources alphabetic in between.
+      // Mirrors the on-screen transitions table — see
+      // buildTransitionTable for the rationale.
+      const sourceRank = (id) => {
+        if (id === "START") return 0;
+        if (id === "*") return 2;
+        return 1;
+      };
       prepared.sort((a,b) => {
+        const rA = sourceRank(a.srcId), rB = sourceRank(b.srcId);
+        if (rA !== rB) return rA - rB;
         if (a.src !== b.src) return a.src.localeCompare(b.src);
         if (a.firstIface !== b.firstIface) return a.firstIface.localeCompare(b.firstIface);
         return a.firstMsg.localeCompare(b.firstMsg);
@@ -12294,6 +12331,15 @@ async function buildSpecificationDocx(d, progress) {
         };
       });
       prepared.sort((a, b) => {
+        // Row-ordering convention: START first, ANY last, named-state
+        // sources alphabetic in between. Mirrors the on-screen table.
+        const sourceRank = (id) => {
+          if (id === "START") return 0;
+          if (id === "*") return 2;
+          return 1;
+        };
+        const rA = sourceRank(a.t.source), rB = sourceRank(b.t.source);
+        if (rA !== rB) return rA - rB;
         if (a.src !== b.src) return a.src.localeCompare(b.src);
         if (a.firstIface !== b.firstIface) return a.firstIface.localeCompare(b.firstIface);
         return a.firstMsg.localeCompare(b.firstMsg);
