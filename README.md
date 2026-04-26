@@ -30,7 +30,7 @@ It's built around the vocabulary engineers use when describing functional-compon
 - **Constants.** Per-component named values referenced by name from action text — e.g. *"Start the timer with the ADVERTISEMENT interval."* Three free-text fields (name, value, description); no type discipline so the value can be a number, string, hex literal, or any domain notation. Live in the same column as State variables, below them. Appear as their own section in the spec export.
 - **Local functions.** Per-component reusable action snippets — name plus multi-line description/steps. Reference them by name from transition action text to avoid repeating common step sequences. Take no parameters (they access the component's state variables by closure) and don't reach the generated PlantUML. Appear as the final section of each component's chapter in the spec export, with multi-line descriptions preserved.
 - **Type definitions.** System-wide named definitions of domain types (`UserId`, `Timestamp`, `Currency`) with descriptions and free-text specifications. Defined under *System → Type definitions...*. Auto-link to the type's definition wherever a parameter or state-variable type field exactly matches a type name. Appear as a dedicated chapter at the end of the spec export.
-- **Cross-references in prose.** Wrap a name in backticks inside any free-text field (System Specification, transition Actions, descriptions everywhere) to turn it into a hyperlink in the spec export. Bare references like `` `Idle` `` resolve in context; qualified references like `` `Card:Charge` `` or `` `Connection:ConnectReq:serverId` `` link to specific messages or parameters. Renames cascade automatically — change a name and references update everywhere. Hover any link in the rendered spec to see the target's description in a tooltip.
+- **Cross-references in prose.** Wrap a name in backticks inside any free-text field (System Specification, transition Actions, descriptions everywhere) to turn it into a hyperlink in the spec export. Bare references like `` `Idle` `` resolve in context; qualified references like `` `Card:Charge` `` or `` `Connection:ConnectReq:serverId` `` link to specific messages or parameters. Renames cascade automatically — change a name and references update everywhere. Hover any link in the rendered spec to see the target's description in a tooltip. **Live preview while editing:** in the System Specification, transition Action, local-function Steps, and Description panels, references render in styled monospace (with hover tooltips) when the field loses focus, so you can verify your references resolve without opening the spec preview. Press `Esc` to leave the field quickly.
 - **Descriptions everywhere.** Every component, handler, function, interface, message, state, and choice-point has an optional free-text description. A small accent-coloured dot indicates rows with a non-empty description.
 - **System specification textarea.** A free-text field for the system's overall description, used as the opening of the exported specification document.
 - **Undo / redo** for every mutating action.
@@ -54,7 +54,7 @@ Alternatively, click the [live demo link](https://htmlpreview.github.io/?https:/
 When you open Stadiæ you'll see:
 
 - A **menu bar**: File / Component / System / Help
-- A **toolbar** with Save, Undo/Redo, Delete, Add State / Choice-point / Transition / Handler / Interface / Message / Function, and Edit
+- A **toolbar** with Save, Undo/Redo, Copy/Paste, Add Transition, Redirect, Add Connection
 - A **diagram canvas** on the left showing the live render (a state machine in component view, or the system diagram in system view)
 - **Five shared lists** at the top right: Components, Handlers, Functions, Interfaces, Messages
 - A **transition table** and **Action panel** in the bottom right (component view only)
@@ -91,7 +91,11 @@ The format is forward-compatible within v3: optional fields are only written whe
 | `Ctrl+S`                 | Save             |
 | `Ctrl+Z`                 | Undo             |
 | `Ctrl+Y` / `Ctrl+Shift+Z`| Redo             |
+| `Ctrl+C` / `Ctrl+V`      | Copy / paste selected states and choice-points |
 | `Delete` / `Backspace`   | Delete selected  |
+| `Enter`                  | Edit selected (when one editable item is selected) |
+| `Esc`                    | Close dialog, or leave a free-text panel (live preview takes over) |
+| `← → ↑ ↓`                | Change direction (and length) of selected transition |
 
 ## Limitations
 

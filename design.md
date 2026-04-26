@@ -709,7 +709,7 @@ Because highlighting depends on interface and message selections, those selectio
 
 The Action panel is a free-text editor **beside** the transitions table (to its right, on the same row) that lets developers document what the component does when a specific transition fires. Actions are stored per transition message row — one per `(source, target, interface, name)` tuple — and are persisted only in the saved JSON; they are intentionally **not** written into the generated PlantUML so the diagram itself stays uncluttered.
 
-The panel and the transitions table share the bottom portion of the right column. They're wrapped in a horizontal flex container (`.trans-action-row`) with a draggable resize handle between them. The Action panel's default width is **auto-computed from the State Variables column** above it: on every viewport change (and at initial load), a small effect measures the width of the third lists-grid column and applies it to the Action panel, so the two visually align in a vertical rail. Once the user drags the handle, a sticky `userOverride` flag opts out of further auto-sync, so their chosen width survives window resizes. Double-clicking the handle re-enables auto-sync.
+The panel and the transitions table share the bottom portion of the right column. They're wrapped in a horizontal flex container (`.trans-action-row`) with a draggable resize handle between them. Action has a fixed `300px` CSS default width; Transitions takes the remaining row width via `flex: 1`. Dragging the handle reallocates between them — the drag computes both widths so the sum stays equal to the row's available width minus the 12px handle footprint. The handle is independent of the resize handle in the lists-grid above (between the State variables/Constants column and the Local functions/Steps column); each resize affects only its own row. An earlier design coupled the two, with the Trans/Action boundary auto-tracking the lists-grid's lfns-column width to keep the columns visually aligned. In practice the alignment was cosmetic, not functional, and the cross-row coupling produced surprising effects when the user dragged either handle — so the rows were decoupled.
 
 ### 10.1 Storage
 
@@ -803,6 +803,24 @@ When no local function is bound, the panel and its top resize handle carry the `
 
 **Dialog carries Description only.** The Add/Edit dialog asks for Name and Description. Steps live in the panel; putting them in the dialog too would duplicate the editing surface for that field. A newly created function starts with empty steps and is auto-selected so the Steps panel opens on it ready to type. The Edit path touches name and description; step-body changes happen live in the panel. No auto-migration: when loading a file from before the description/steps split, whatever was in `description` stays in `description` — the user can move it to `steps` manually in the rare case the old content was actually step-body text.
 
+### 10.8 Live backtick rendering
+
+The four free-text panels (System Specification, Description, Steps, Action) all contain backtick-delimited cross-references that render as hyperlinks in the spec export. Originally the editor showed only the raw backtick form — the user had to open the spec preview to see whether their references resolved. The live-rendering layer changes that: when a panel loses focus, a styled overlay replaces the textarea, showing the cooked form (backticks consumed, resolved references in monospace + accent color, unresolved references as plain monospace). Click the overlay or focus the textarea (e.g. via Tab or click on the panel area) to swap back to editing.
+
+**Architecture.** The pattern is a focus-driven swap, chosen over (a) contenteditable with inline styled spans (cursor positioning is the classic contenteditable pain point, plus pasting + IME composition lose their native fidelity) and (b) an always-rendered overlay layered on top of the textarea (font-metric drift between the two layers breaks the illusion at any zoom level). The swap loses one round-trip click for the user but preserves textarea behavior entirely while editing.
+
+**Rendering helper.** `renderLiveBackticks(text, context, idx)` mirrors `renderProse` but emits `<span class="live-ref">` for resolved references (with `data-tooltip` carrying the description) and `<span class="live-ref-plain">` for unresolved (plain monospace, no styling cue, no tooltip). Newlines are kept as `\n` (not `<br>`) since the overlay container uses `white-space: pre-wrap` for textarea-faithful rendering. The resolver is the same `resolveSpecReference()` used by the spec export — single source of truth for what counts as a valid reference.
+
+**Wiring.** `attachLiveBacktickRendering(textarea, getContext, placeholder)` creates a sibling `<div class="live-render">` placed in the same flex slot as the textarea, manages show/hide via focus/blur listeners, and exposes two methods on the textarea object: `refreshLiveOverlay()` (re-render against current value) and `hideLive()` (hide both elements; used by the panel rebuild paths when there's no binding). The `getContext` callback is called per-render and returns the reference-resolution context for the field — this varies per panel: System Specification uses `{kind:"system"}`, Steps uses `{kind:"component", componentName:Component.name}`, Description reads from the textarea's dataset (set by `buildDescriptionPanel`), Action includes `rowMessage` so the per-row `Msg:Param` shortcut resolves correctly.
+
+**Refresh discipline.** The textarea's `.value` can change from many sources: user typing, undo/redo, file open, draft restore, panel rebinding to a different entity. The pattern is: any code path that programmatically reassigns `.value` must also call `refreshLiveOverlay()`, even when the value didn't change — the binding could have changed (e.g. clicking between two local functions whose Steps content happens to match) and the overlay's previous "I'm visible" state needs re-evaluation against the current visibility rules. The rules: empty content → textarea visible (placeholder shows), active focus on textarea → textarea stays visible, otherwise → overlay renders and shows.
+
+**Esc-to-blur.** Each managed textarea has a keydown listener that calls `textarea.blur()` on Escape. This is a UX shortcut — the user types backtick references, hits Esc to "step back" and see them rendered without reaching for the mouse. Since edits are always live (typing immediately mutates the model), Esc doesn't need to handle "cancel my changes" semantics; it just exits the editing context. The event is `preventDefault`+`stopPropagation` so it doesn't bubble to the modal-close handler, which it wouldn't anyway since these textareas live in the main editor surface, not in modals.
+
+**Tooltip mechanism.** `installLiveTooltipHandlers()` (called once at startup) ports the spec's hover-tooltip script to the editor. A single `<div class="live-tooltip">` element is appended to body; document-level `mouseover`/`mouseout` listeners filter to `.live-ref[data-tooltip]` via `.closest()` and show the tooltip with a 250ms delay. Position defaults to 6px below the span, flipping above when near the viewport bottom. The visual style mirrors the spec's `.ref-tooltip` rule for consistency — editor and spec output share the same hover idiom.
+
+**The type-spec textarea is intentionally excluded.** That field lives inside the Type Definitions edit modal, where the focus-driven swap would feel jarring (the user is in a focused editing context; a swap to "cooked" view inside a modal contradicts the "I'm editing now" affordance the modal provides).
+
 ---
 
 ## 11. Dialogs and validation
@@ -883,16 +901,15 @@ The layout is a standard CSS flex/grid arrangement; no layout framework is used.
 │ (rendered PlantUML PNG of      │ │ [ free-text textarea ]           ││
 │  the active component, or      │ └──────────────────────────────────┘│
 │  the system diagram)           │ ──── resize handle ────             │
-│                                │ ┌── Component panel (active) ─────┐ │
-│  ──── resize handle ────       │ │ States + │ Choice-pts + │ Vars +│ │
-│ ┌── System specification ────┐ │ ├───────────────────────────────┬─┤ │
-│ │ [ free-text textarea ]    │ │ │                               │  │ │
-│ │                           │ │ │  Transitions table           │A │ │
-│ └───────────────────────────┘ │ │  • │ Src │ Tgt │ Iface │ Msg │c │ │
-│                                │ │                               │t │ │
-│                                │ │                               │io│ │
-│                                │ │                               │n │ │
-│                                │ └───────────────────────────────┴─┘ │
+│                                │ ┌── Component panel (active) ────────────────┐ │
+│  ──── resize handle ────       │ │ States │ Choice-pts │ Vars   │ │ LocalFns │ │
+│ ┌── System specification ────┐ │ │        │            │ Consts │↕│ Steps    │ │
+│ │ [ free-text textarea ]    │ │ │        │            │  ↕     │ │   ↕      │ │
+│ │                           │ │ ├──────────────────────────────────────────┬─┤ │
+│ │                           │ │ │  Transitions table                       │A│ │
+│ └───────────────────────────┘ │ │  • │ Src │ Tgt │ Iface │ Msg            │c│ │
+│                                │ │                                          │t│ │
+│                                │ └──────────────────────────────────────────┴─┘ │
 └────────────────────────────────┴─────────────────────────────────────┘
             ↑                                   ↑
             canvas-column                       right-panel
@@ -906,9 +923,29 @@ The right panel is vertically subdivided into three regions:
 
 - **System catalogue** at the top holds the file's shared vocabulary as five side-by-side lists: Components, Handlers, Functions, Interfaces, Messages. Each list's header has a `+` button to add an entry. A small chevron `▸` on the active row of the Components list shows which component's state machine is currently displayed below. The Functions column is filtered by the single selected Handler (empty otherwise); the Messages column is filtered by the selected Interfaces. Each of those two columns additionally nests a Parameters panel below its list, visible when exactly one function (respectively message) is selected.
 - **Description panel** sits beneath the catalogue and is always visible. It binds to the active component in component view, or to the selected component in system view (falling back to active when no component or many are selected). Live-saves to `Component.description` per keystroke; never reaches PlantUML.
-- **Component panel** at the bottom shows the active component's States + Choice-points + State variables lists (three columns, each with `+` in its header), and below them a horizontal row pairing the Transitions table with the Action panel. Hidden in system view, where the description panel grows to fill the available space.
+- **Component panel** at the bottom shows the active component's States, Choice-points, State variables/Constants (stacked in one column), and Local functions/Steps (also stacked, in their own column) — four lists across plus the Steps editor under Local functions — and below them a horizontal row pairing the Transitions table with the Action panel. Hidden in system view, where the description panel grows to fill the available space.
 
-There are four user-draggable resize handles in this stack: between the system catalogue and the description panel, between the description panel and the component panel, between the States/Choice-points/State-variables grid and the Transitions+Action row, and a **horizontal** handle inside that row between Transitions (left) and Action (right). The horizontal handle's default position is auto-aligned to the State Variables column above; double-clicking it re-applies that default after any manual drag. Each vertical handle double-clicks to reset.
+There are user-draggable resize handles in several places in this stack:
+
+- Between the system catalogue and the description panel (vertical drag).
+- Between the description panel and the component panel (vertical drag).
+- Between the lists-grid and the Transitions+Action row (vertical drag).
+- Inside the lists-grid: between the State variables list and the Constants list (vertical drag, splits the column's height).
+- Inside the lists-grid: between the Local functions list and the Steps editor (vertical drag, splits the column's height).
+- Inside the lists-grid: between the State variables/Constants column and the Local functions/Steps column (horizontal drag, gives the Steps area more width when authoring long function bodies).
+- Inside the trans-action-row: between Transitions (left) and Action (right) (horizontal drag).
+- Outside the right panel, between canvas-column and right-panel (horizontal drag, the main left/right split).
+
+The two horizontal handles inside the right panel are independent: dragging one doesn't move the other. By default, however, the Local functions/Steps column starts at the same width as the Action panel below — so on first load the column boundary aligns vertically with the Trans/Action boundary, even though subsequent drags decouple them. The default width is read from the Action panel's actual rendered width (`getBoundingClientRect`) on first paint, so the alignment is exact regardless of CSS rounding or scrollbar geometry.
+
+**Responsive behaviour.** Both horizontal-drag handles have ResizeObserver companions that keep their panels proportionally responsive when an outer container resizes (e.g. the user drags the canvas/right-panel divider, or the window resizes). The pattern is the same in both observers:
+1. Skip the first observation (the initial measurement) — set a baseline and continue.
+2. On each subsequent change, if the panel has an inline width set, scale it proportionally from the previous container width to the new one. Bounded by min/max constraints (lfns: `[120, gridWidth - 332]`; Action: `[160, available - 320]`).
+3. If the panel doesn't have an inline width yet (CSS default state, or just-reset via dblclick), snapshot the current rendered widths to inline first — this captures the "current" layout as the baseline for proportional scaling. Doing the snapshot makes the panels responsive even from the default state, not only after the user has dragged.
+
+The lfns-column observer additionally re-applies its initial sizing when re-entering component view from system view (where the lists-grid is `display: none` and the column would otherwise have zero width).
+
+Each vertical handle double-clicks to reset to its default. The horizontal Trans/Action handle's double-click clears its inline widths and lets CSS defaults take over (Action: 300px, Transitions: `flex: 1`); the lfns-column handle's double-click clears its inline width and re-applies the initial Action-aligned sizing.
 
 Design decisions worth noting:
 

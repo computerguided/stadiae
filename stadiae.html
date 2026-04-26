@@ -339,12 +339,56 @@
     min-width: 380px;
   }
   .lists-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
-    gap: 12px;
+    display: flex;
+    flex-direction: row;
+    /* No flex `gap` — the per-child `margin-right: 12px` (and the
+       scoped 12px handle in front of the lfns-column) provides the
+       visual separation. See the rule below for rationale. */
     flex: 0 0 auto;
     height: 260px;
     min-height: 80px;
+  }
+  /* Lists-grid children: the first three columns (States, Choice-points,
+     vars-column) share the left section equally; the lfns-column on the
+     right is independently sized and resizable via the handle that sits
+     between it and the vars-column. The lfns-column starts at the same
+     1/4 width the equal-grid layout used to provide; users can drag the
+     boundary to reallocate. The trans-action-row below tracks this
+     boundary so the columns stay aligned vertically. */
+  .lists-grid > .list-box, .lists-grid > .vars-column {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .lists-grid > .lfns-column {
+    flex: 0 0 auto;
+    /* Initial width set by syncListsGridLayout() to match an equal-
+       four-column split. Subsequent drags override. */
+    min-width: 120px;
+  }
+  /* The lists-grid uses explicit per-child margins instead of a flex
+     `gap` because the handle child between the third and fourth
+     columns needs precise control over its effective footprint. With
+     `gap: 12px`, adding the handle as another child would give 12px
+     of spacing on BOTH sides of the handle (24px total separation
+     between vars-column and lfns-column) — twice as wide as the gap
+     between the other column pairs.
+
+     Solution: 12px margin-right on the children that should be
+     followed by a gap; the handle itself takes 12px of layout width
+     and provides the spacing between vars-column and lfns-column
+     (mirroring the trans-action-row handle's scoped style). The
+     vars-column has NO right margin, since the handle right after
+     it provides the separation.
+
+     Selectors target the column children explicitly so the handle
+     and the lfns-column are unaffected. */
+  .lists-grid > .list-box:nth-child(1),
+  .lists-grid > .list-box:nth-child(2) {
+    margin-right: 12px;
+  }
+  .lists-grid > .resize-handle-h {
+    width: 12px;
+    margin: 0;
   }
   .list-box {
     background: var(--surface);
@@ -1056,6 +1100,78 @@
     background: var(--surface);
     box-shadow: inset 0 0 0 2px var(--accent-soft);
   }
+  /* Live-render overlay for textareas with backtick references.
+     Sits in the same flex slot as the textarea (or absolutely
+     positioned over it for textareas inside dialogs). When the
+     user isn't editing, the textarea is hidden and this div shows
+     the cooked rendering: backticks consumed, resolved references
+     styled, unresolved references rendered as plain monospace
+     without backticks. Clicking anywhere in the rendered view
+     swaps back to the editable textarea (with the cursor placed
+     near the click point when possible). The rendered view
+     preserves whitespace exactly as the textarea would render it
+     so the swap is visually seamless. */
+  .live-render {
+    flex: 1;
+    padding: 10px 14px;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--surface);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: auto;
+    cursor: text;
+  }
+  .live-render:empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  /* Resolved references in the live-render view get the same accent
+     styling the spec uses, but without the dotted underline (since
+     they're not actually clickable in this context) and without the
+     cursor change (the whole field acts as click-to-edit). */
+  .live-render .live-ref {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.92em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 0 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  /* Unresolved tokens render as plain monospace with no extra styling.
+     The user sees them as identifier-shaped text that just doesn't
+     have the accent color — the cue that something doesn't resolve. */
+  .live-render .live-ref-plain {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.92em;
+    color: var(--text);
+  }
+  /* Hover tooltip for resolved live-ref spans. Same visual style as
+     the spec's tooltips so the editor and spec output share an
+     idiom. A single tooltip element is appended to body and
+     repositioned per hover; see installLiveTooltipHandlers(). */
+  .live-tooltip {
+    position: absolute;
+    z-index: 1000;
+    max-width: 360px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.08);
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text);
+    white-space: pre-line;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s ease-out;
+  }
+  .live-tooltip.visible { opacity: 1; }
   /* The resize handle below the description is only meaningful in
      component view, where there is something below it to resize against.
      In system view the description is the last thing in the column and
@@ -1874,6 +1990,7 @@
             <ul id="list-consts"></ul>
           </div>
         </div>
+        <div class="resize-handle-h" id="resize-handle-lfns" title="Drag to resize the Local functions / Steps column"></div>
         <div class="lfns-column">
           <div class="list-box">
             <div class="header">
@@ -4163,18 +4280,28 @@ function buildActionPanel() {
     const msg = findMessageForRow(key);
     if (msg) {
       placeholder.style.display = "none";
-      textarea.style.display = "";
       // Only set .value if it differs, to avoid resetting cursor position while typing
       const current = msg.action || "";
-      if (textarea.value !== current) textarea.value = current;
+      if (textarea.value !== current) {
+        textarea.value = current;
+      }
       textarea.dataset.key = key;
       textarea.disabled = false;
+      // Let the live-overlay helper decide which of textarea/overlay
+      // to show. Always call refreshLiveOverlay — even when value
+      // didn't change, the binding may have switched (e.g. user
+      // clicked a different transition row whose action happens to
+      // match the previous one's). Without this, both textarea and
+      // overlay can end up visible at once.
+      if (textarea.refreshLiveOverlay) textarea.refreshLiveOverlay();
+      else textarea.style.display = "";
       return;
     }
     // An initial transition (no message) has no action
     placeholder.textContent = "The initial transition has no action.";
     placeholder.style.display = "";
-    textarea.style.display = "none";
+    if (textarea.hideLive) textarea.hideLive();
+    else textarea.style.display = "none";
     textarea.dataset.key = "";
     return;
   }
@@ -4185,7 +4312,8 @@ function buildActionPanel() {
     placeholder.textContent = "Select a single transition row to view or edit its action.";
   }
   placeholder.style.display = "";
-  textarea.style.display = "none";
+  if (textarea.hideLive) textarea.hideLive();
+  else textarea.style.display = "none";
   textarea.dataset.key = "";
 }
 
@@ -4222,6 +4350,24 @@ function initActionPanel() {
   textarea.addEventListener("blur", () => {
     actionEditSession = { key: null, pushed: false };
   });
+  // Live rendering — context includes rowMessage so the action's
+  // Msg:Param shortcut resolves correctly (a backtick reference like
+  // `serverId` inside an action whose row is `Connection:ConnectReq`
+  // resolves to `Connection:ConnectReq:serverId`).
+  attachLiveBacktickRendering(
+    textarea,
+    () => {
+      const key = textarea.dataset.key;
+      if (!key) return { kind: "component", componentName: Component.name };
+      const { iface, name } = parseTransRowKey(key);
+      return {
+        kind: "component",
+        componentName: Component.name,
+        rowMessage: (iface && name) ? { interface: iface, name: name } : undefined
+      };
+    },
+    "Describe the action performed when this transition fires…"
+  );
 }
 
 // Steps panel — per-local-function editor. Structurally a twin of the
@@ -4243,6 +4389,7 @@ function buildStepsPanel() {
     // pattern as params-panel when no message/function is bound.
     panel.classList.add("hidden");
     handle.classList.add("hidden");
+    if (textarea.hideLive) textarea.hideLive();
     textarea.dataset.key = "";
     return;
   }
@@ -4254,25 +4401,35 @@ function buildStepsPanel() {
     // unlikely but defensive. Treat as no-binding.
     panel.classList.add("hidden");
     handle.classList.add("hidden");
+    if (textarea.hideLive) textarea.hideLive();
     textarea.dataset.key = "";
     return;
   }
   panel.classList.remove("hidden");
   handle.classList.remove("hidden");
   placeholder.style.display = "none";
-  textarea.style.display = "";
   // Only assign .value when it differs to preserve cursor position
   // while the user types. Reads from the `steps` field — the short
   // one-line `description` lives separately and is edited via the
   // Edit dialog, not this panel.
   const current = lf.steps || "";
-  if (textarea.value !== current) textarea.value = current;
+  if (textarea.value !== current) {
+    textarea.value = current;
+  }
   // Key the textarea by the local function's name (scoped to the
   // active component — component switch clears selection so the
   // panel rebuilds anyway). On rename, the re-key flows through the
   // dialog which updates Selection.localFunctions.
   textarea.dataset.key = name;
   textarea.disabled = false;
+  // Always defer display to the live-overlay helper. Calling it
+  // unconditionally — even when value didn't change — handles the
+  // case where the user clicks a different local function whose
+  // steps happen to match the previous selection: the binding
+  // changed even though the text didn't, and the helper needs to
+  // pick the right of textarea/overlay to show.
+  if (textarea.refreshLiveOverlay) textarea.refreshLiveOverlay();
+  else textarea.style.display = "";
 }
 
 // Keystroke-level edit session for Steps, same shape as actionEditSession:
@@ -4305,6 +4462,13 @@ function initStepsPanel() {
   textarea.addEventListener("blur", () => {
     stepsEditSession = { key: null, pushed: false };
   });
+  // Live rendering — context is the active component (steps live on
+  // a local function in the active component).
+  attachLiveBacktickRendering(
+    textarea,
+    () => ({ kind: "component", componentName: Component.name }),
+    "What the function does, one step per line."
+  );
 }
 
 // Resolve which component the Description panel is currently bound to.
@@ -4382,7 +4546,10 @@ function buildDescriptionPanel() {
     const label = document.createElement("span");
     label.textContent = "Description";
     header.appendChild(label);
-    if (textarea.value !== "") textarea.value = "";
+    if (textarea.value !== "") {
+      textarea.value = "";
+      if (textarea.refreshLiveOverlay) textarea.refreshLiveOverlay();
+    }
     delete textarea.dataset.entityKind;
     delete textarea.dataset.entityName;
     textarea.placeholder = "Select a single component or handler to view or edit its description.";
@@ -4409,13 +4576,21 @@ function buildDescriptionPanel() {
   header.appendChild(target_label);
 
   const current = entity.description || "";
-  if (textarea.value !== current) textarea.value = current;
+  if (textarea.value !== current) {
+    textarea.value = current;
+    if (textarea.refreshLiveOverlay) textarea.refreshLiveOverlay();
+  }
   // Stash both the kind and the name, because the input handler needs
   // to know which Model array to find the entity in. The textarea
   // dataset is the cleanest carrier — no closure-capture races.
   textarea.dataset.entityKind = target.kind;
   textarea.dataset.entityName = entity.name;
   textarea.placeholder = "Description of the " + target.kind + " (developer documentation, saved with the diagram)";
+  // Live overlay must reset every time the bound entity changes — the
+  // textarea is being repointed at a different description, possibly
+  // with different content and a different reference-resolution
+  // context. The refreshLiveOverlay() call above re-renders against
+  // the current dataset values.
 }
 
 // Wire the description textarea once, at startup. Mirrors the Action
@@ -4452,6 +4627,21 @@ function initDescriptionPanel() {
   textarea.addEventListener("blur", () => {
     descEditSession = { entityKey: null, pushed: false };
   });
+  // Live rendering. Context comes from the textarea's dataset, which
+  // buildDescriptionPanel sets to identify the current entity. The
+  // resolver uses kind+name as context for bare-reference fallbacks.
+  attachLiveBacktickRendering(
+    textarea,
+    () => {
+      const kind = textarea.dataset.entityKind;
+      const name = textarea.dataset.entityName;
+      if (!kind || !name) return {};
+      if (kind === "component") return { kind: "component", componentName: name };
+      if (kind === "handler") return { kind: "handler", handlerName: name };
+      return {};
+    },
+    "Description of the entity (developer documentation, saved with the diagram)"
+  );
 }
 
 // Per-session history coalescing for the System Specification textarea.
@@ -4482,6 +4672,14 @@ function initSystemSpecPanel() {
   textarea.addEventListener("blur", () => {
     sysSpecEditSession = { pushed: false };
   });
+  // Live rendering — when the textarea loses focus, swap to a styled
+  // overlay that renders backtick references in cooked form. Click
+  // the overlay to swap back to editing.
+  attachLiveBacktickRendering(
+    textarea,
+    () => ({ kind: "system" }),
+    "Describe the system as a whole. This is the design guide you write your components and handlers against."
+  );
 }
 
 // Sync the textarea's value from Model. Called from refresh() so that
@@ -4491,7 +4689,13 @@ function initSystemSpecPanel() {
 function renderSystemSpecPanel() {
   const textarea = document.getElementById("sysspec-textarea");
   const current = Model.systemSpecification || "";
-  if (textarea.value !== current) textarea.value = current;
+  if (textarea.value !== current) {
+    textarea.value = current;
+    // Live overlay needs to track external value changes too (undo,
+    // redo, file open). The refresher is a no-op when the overlay
+    // isn't currently shown.
+    if (textarea.refreshLiveOverlay) textarea.refreshLiveOverlay();
+  }
 }
 
 // Resolve the message that the Parameters panel binds to. Returns the
@@ -6956,6 +7160,7 @@ function manualContent() {
       </ul>
       <h3>Cross-references in prose</h3>
       <p>Any free-text field in the model — System Specification, transition Actions, descriptions on every entity — supports <strong>backtick-delimited references</strong> to named entities elsewhere in the model. Wrap a name in backticks and the spec export turns it into a hyperlink. Bare names like <code>\`Idle\`</code> resolve in the surrounding context first; qualified names like <code>\`Card:Charge\`</code> or <code>\`Connection:ConnectReq:serverId\`</code> link to a specific message or parameter. Renames cascade automatically — change a name and references update everywhere. Hover any link in the rendered spec to see the target's description in a tooltip.</p>
+      <p><strong>Live preview while editing.</strong> Backtick references in the System Specification, transition Action, local-function Steps, and entity Description panels are rendered <em>in place</em> when you click out of the field. Resolved references show in monospace with the accent color (no backticks visible); unresolved references show as plain monospace text. Click anywhere on the rendered field to swap back to the editable text with the backticks visible. Press <kbd>Esc</kbd> to leave the field quickly without reaching for the mouse — useful for verifying that all your references resolve correctly. Hovering a resolved reference shows its description in a tooltip, the same way the rendered spec does.</p>
     </section>
 
     <section id="m-interface">
@@ -6967,12 +7172,12 @@ function manualContent() {
       <h3>Diagram canvas (left)</h3>
       <p>Shows the rendered PNG of the <em>active</em> component. States, choice-points, and transitions can be selected by clicking them directly on the canvas. Clicking on empty canvas clears the current selection.</p>
       <h3>System catalogue (top right)</h3>
-      <p>The top section of the right panel holds four side-by-side lists for the system-wide vocabulary: <strong>Components</strong>, <strong>Handlers</strong>, <strong>Interfaces</strong>, and <strong>Messages</strong>. Every entry in these lists is shared across the whole file. Each list has a small <code>+</code> button in its header to add a new entry. Click an interface to toggle its selection; messages of the selected interface(s) then appear in the Messages list.</p>
+      <p>The top section of the right panel holds five side-by-side lists for the system-wide vocabulary: <strong>Components</strong>, <strong>Handlers</strong>, <strong>Functions</strong> (under the selected handler), <strong>Interfaces</strong>, and <strong>Messages</strong> (under the selected interfaces). Every entry in these lists is shared across the whole file. Each list has a small <code>+</code> button in its header to add a new entry, plus <code>✎</code> and <code>−</code> buttons to edit and delete the selected row. Click an interface to toggle its selection; messages of the selected interface(s) then appear in the Messages list. Same idiom for handler &rarr; functions.</p>
       <p>The entry point to the <a href="#m-system-diagram" data-target="m-system-diagram">system diagram</a> view is the floating <code>◇ System</code> button in the top-left corner of the diagram canvas; the button stays accent-coloured while system view is active. To return to a state-machine view, click any component row in the Components list.</p>
       <h3>Components list</h3>
-      <p>One row per component. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas. In component view, click a row to switch the canvas and lower panels to that component. In system view, click a row to toggle selection (same as clicking the component's box on the canvas); the floating <code>Component ▸</code> button at the top-right of the canvas then enters the selected component's state machine. To rename a component, select it and click <code>✎</code>; to delete it, select it and click <strong>Delete</strong>. Component names must be unique. The minimum is one component — the last one cannot be deleted.</p>
+      <p>One row per component. A small chevron <code>▸</code> marks the row whose state machine is currently shown on the canvas. In component view, click a row to switch the canvas and lower panels to that component. In system view, click a row to toggle selection (same as clicking the component's box on the canvas); the floating <code>Component ▸</code> button at the top-right of the canvas then enters the selected component's state machine. To rename a component, select it and click <code>✎</code>; to delete it, select it and click <code>−</code>. Component names must be unique. The minimum is one component — the last one cannot be deleted.</p>
       <h3>Component panel (bottom right)</h3>
-      <p>The rest of the right panel shows the active component's <em>States</em>, <em>Choice-points</em>, <em>State variables</em> (with <em>Constants</em> beneath them in the same column), and <em>Local functions</em> lists (with the START / H / ∗ pseudo-states at the top of States), and below them the transitions table side-by-side with the Action panel. These panels are hidden in system view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. Each section is resizable via the thin bars between them — drag to adjust, double-click to reset. A separate vertical slider between the canvas and the right panel lets you shift the main left/right split, and a horizontal slider above the System Specification panel resizes that panel against the canvas.</p>
+      <p>The rest of the right panel shows the active component's <em>States</em>, <em>Choice-points</em>, <em>State variables</em> (with <em>Constants</em> beneath them in the same column), and <em>Local functions</em> (with the <em>Steps</em> editor beneath, in the same column), plus below them the transitions table side-by-side with the Action panel. These panels are hidden in system view, where the state-machine concepts don't apply. Each list has a small <code>+</code> button in its header to add an entry. The panels are resizable in several places: <em>thin horizontal bars</em> between vertically-stacked panels resize their heights (State variables ↔ Constants, Local functions ↔ Steps, the Transitions table ↔ everything above); <em>a thin vertical bar</em> between the State variables/Constants column and the Local functions/Steps column resizes the Steps area horizontally — useful when authoring long local-function bodies. The Transitions/Action row below has its own independent vertical resizer. Double-click any resize bar to reset it to its default. A separate vertical slider between the canvas and the right panel lets you shift the main left/right split, and a horizontal slider above the System Specification panel resizes that panel against the canvas.</p>
       <h3>Transition table</h3>
       <p>Lists every transition of the active component, one row per message. A grouped arrow with two messages shows as two rows — select one or both independently. A small dot in the first column marks rows that have an action description. A small amber <code>!</code> next to it marks rows whose interface isn't wired to the active component in the system diagram — see <a href="#m-system-diagram" data-target="m-system-diagram">System Diagram</a>.</p>
       <h3>Action panel</h3>
@@ -7134,7 +7339,7 @@ function manualContent() {
       </ul>
       <p>The <em>Steps</em> (the actual body of the function) are entered in the <strong>Steps panel</strong> below the list, not in the dialog. Select the newly-added function and the panel unfolds, ready for you to type the steps — one per line, using line breaks to separate them.</p>
       <p>The <strong>Steps panel</strong> sits beneath the Local functions list and is structurally identical to the Action panel beneath the transitions table: a free-text editor that is live-saved as you type. Select a single local function in the list and the panel unfolds, showing its current steps (empty for a newly-added function). Click elsewhere or select multiple rows and the panel retreats behind its placeholder. Typing in the textarea updates the function's step body per keystroke — no save button, no confirmation — and the line breaks you type are preserved when the specification is exported.</p>
-      <p>The Local functions list shows each row as <em>name</em> &middot; <em>&mdash; description</em> (the short purpose summary, not the steps), matching how State variables render. To change either field, select the row and click <strong>Edit</strong>; to change the step body, edit it live in the Steps panel. Local functions are sorted alphabetically.</p>
+      <p>The Local functions list shows each row as <em>name</em> &middot; <em>&mdash; description</em> (the short purpose summary, not the steps), matching how State variables render. To change either field, select the row and click <code>✎</code>; to change the step body, edit it live in the Steps panel. Local functions are sorted alphabetically.</p>
       <p>The specification export includes a <em>Local functions</em> section as the last H2 section of each component's chapter (after the state transition table). It renders a three-column table — <em>Name</em>, <em>Description</em>, <em>Steps</em> — with the Steps column preserving line breaks inside the cell just as typed.</p>
     </section>
 
@@ -7438,7 +7643,7 @@ function manualContent() {
         <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>Paste copied elements into the active component</td></tr>
         <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>Delete selected</td></tr>
         <tr><td><kbd>Enter</kbd></td><td>Edit the selected element (opens the same dialog as the Edit button). Inside a dialog, confirm (same as clicking OK).</td></tr>
-        <tr><td><kbd>Esc</kbd></td><td>Close the current dialog (same as clicking Cancel).</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close the current dialog (same as clicking Cancel). When typing in the System Specification, transition Action, local-function Steps, or Description panel, leave the field — same effect as clicking elsewhere; the rendered live preview takes over.</td></tr>
         <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Change the direction of the selected transition. Repeatedly pressing <kbd>↑</kbd> or <kbd>↓</kbd> also extends the arrow length.</td></tr>
         <tr><td><kbd>Ctrl</kbd>-click / <kbd>⌘</kbd>-click</td><td>Add the clicked item to the current selection (or remove it if already selected). Mainly needed when selecting multiple items <em>within the same panel</em> — clicks across different panels already add automatically.</td></tr>
       </table>
@@ -10425,6 +10630,281 @@ function renderProseMultiline(text, context, idx) {
   return str.split(/\r?\n/).map(line => renderProse(line, context, idx)).join("<br>");
 }
 
+// Render text for the live-rendering overlay shown when a textarea
+// loses focus. The output is plaintext-ish HTML — backticks consumed
+// (resolved → styled `<span class="live-ref">`, unresolved → plain
+// `<span class="live-ref-plain">`), literal text escaped, newlines
+// preserved as-is so CSS `white-space: pre-wrap` can render them
+// the same way the textarea would.
+//
+// This differs from renderProse in three ways:
+//   1. Output is wrapped in spans (.live-ref / .live-ref-plain) not
+//      hyperlinks (.ref) — the live view is read-only and clicks go
+//      to the click-to-edit handler, not to navigation.
+//   2. Newlines are kept as `\n` (no <br>) since the container uses
+//      `white-space: pre-wrap` for textarea-faithful rendering.
+//   3. Unresolved references render WITHOUT the backticks — the
+//      whole point is that the editing surface stays readable.
+//      (renderProse keeps backticks via the `<code>` styling for
+//      the spec output, where backticks are a useful tell.)
+function renderLiveBackticks(text, context, idx) {
+  const str = (text == null) ? "" : String(text);
+  if (str.length === 0) return "";
+  let out = "";
+  let i = 0;
+  while (i < str.length) {
+    const ch = str[i];
+    if (ch === "\\" && str[i+1] === "`") {
+      out += "`";  // escaped — emit literal
+      i += 2;
+      continue;
+    }
+    if (ch === "`") {
+      // Scan to closing backtick.
+      let j = i + 1;
+      let inner = "";
+      while (j < str.length) {
+        if (str[j] === "\\" && str[j+1] === "`") { inner += "`"; j += 2; continue; }
+        if (str[j] === "`") break;
+        inner += str[j];
+        j++;
+      }
+      if (j >= str.length) {
+        // Unterminated — emit verbatim, the user is mid-typing.
+        out += escapeHTML(str.slice(i));
+        break;
+      }
+      const resolved = resolveSpecReference(idx, inner, context);
+      if (resolved) {
+        // data-tooltip carries the entity's description for the
+        // hover popup — same convention as the spec output. Suppress
+        // when the description is empty so we don't show empty
+        // popups on hover. The popup listener (installed once at
+        // startup) reads the attribute via querySelector match.
+        const tipAttr = (resolved.description && resolved.description.length > 0)
+          ? ` data-tooltip="${escapeHTML(resolved.description)}"`
+          : "";
+        out += `<span class="live-ref"${tipAttr}>${escapeHTML(resolved.label)}</span>`;
+      } else {
+        out += `<span class="live-ref-plain">${escapeHTML(inner)}</span>`;
+      }
+      i = j + 1;
+      continue;
+    }
+    // Literal run.
+    let run = "";
+    while (i < str.length && str[i] !== "`" && !(str[i] === "\\" && str[i+1] === "`")) {
+      run += str[i];
+      i++;
+    }
+    out += escapeHTML(run);
+  }
+  return out;
+}
+
+// Wire a textarea up to the live-rendering overlay pattern:
+//   - Build a sibling .live-render <div> placed in the same flex slot
+//     as the textarea, normally hidden.
+//   - On blur of the textarea: render the textarea's value via
+//     renderLiveBackticks and the model's reference index, hide the
+//     textarea, show the rendered div.
+//   - On click on the rendered div: hide it, show and focus the
+//     textarea.
+//   - On model changes that affect the field's value externally
+//     (e.g. selecting a different transition): force a re-render of
+//     the live view if it's currently shown.
+//
+// `getContext()` returns the {kind, ...} reference-resolution context
+// for the field — varies by what entity the textarea is editing.
+// Caller responsibility: invoke `refreshLiveOverlay(textarea)` after
+// setting `.value` programmatically (e.g. when switching which row's
+// content is loaded into the textarea), so the overlay matches.
+function attachLiveBacktickRendering(textarea, getContext, placeholder) {
+  if (!textarea || textarea.dataset.liveAttached === "1") return;
+  textarea.dataset.liveAttached = "1";
+
+  const overlay = document.createElement("div");
+  overlay.className = "live-render";
+  if (placeholder) overlay.dataset.placeholder = placeholder;
+
+  // Insert overlay right after the textarea so they share the parent's
+  // flex layout (the textarea's `flex: 1` is mirrored on the overlay
+  // via the .live-render rule).
+  textarea.parentNode.insertBefore(overlay, textarea.nextSibling);
+
+  // Initial state: render the overlay if there's already content,
+  // hide the textarea. New empty fields stay editable so the user
+  // can just click and type.
+  const showOverlay = () => {
+    const idx = buildSpecAnchorIndex();
+    const ctx = (typeof getContext === "function") ? getContext() : {};
+    overlay.innerHTML = renderLiveBackticks(textarea.value, ctx, idx);
+    textarea.style.display = "none";
+    overlay.style.display = "";
+  };
+  const showTextarea = () => {
+    overlay.style.display = "none";
+    textarea.style.display = "";
+    textarea.focus();
+  };
+
+  // Click on the overlay: swap to editable. We don't try to position
+  // the cursor at the click point — that would require mapping click
+  // coordinates back to source-text offsets, accounting for the span
+  // markup. The cursor lands at end-of-text via .focus(), which is
+  // good enough; users continuing to type append, users who want to
+  // edit elsewhere click into the textarea after focus.
+  overlay.addEventListener("click", showTextarea);
+
+  // Blur on the textarea: render the overlay. The blur event fires
+  // when focus moves away — including to a button click, another
+  // textarea, etc. We intentionally do NOT skip rendering when blur
+  // is caused by the user clicking the overlay itself; the overlay
+  // is hidden at that moment anyway and showOverlay() is a no-op
+  // since the textarea is already hidden by showTextarea().
+  textarea.addEventListener("blur", () => {
+    // Defer slightly so any pending model commit (the textarea's
+    // input-event listener pushing to the model) runs first.
+    setTimeout(() => {
+      // Only swap to overlay if there's actual content. Empty fields
+      // stay editable so the placeholder remains visible.
+      if (textarea.value && textarea.value.length > 0) showOverlay();
+    }, 0);
+  });
+
+  // Esc blurs the textarea — quick way for the user to "step back"
+  // and see the rendered form (with backticks consumed and resolved
+  // references styled). This isn't a cancel-edits gesture: edits are
+  // already live in the model, so Esc just exits the editing context
+  // and triggers the overlay swap via the blur handler above. The
+  // event is stopped so it doesn't propagate to any modal handler
+  // that might be listening (we're not in a modal here).
+  textarea.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      textarea.blur();
+    }
+  });
+
+  // If the field already has content at attach time, start in
+  // overlay mode. Empty fields stay in textarea mode (placeholder
+  // visible, ready to type).
+  if (textarea.value && textarea.value.length > 0) {
+    showOverlay();
+  }
+
+  // Expose a refresher so callers can sync display state after
+  // programmatic changes to textarea.value or after the field
+  // becomes visible from a previously-hidden state. Sync rule:
+  //   - if current value is empty → show textarea
+  //   - else if textarea is the active focus target → keep textarea
+  //   - else → render and show overlay
+  textarea.refreshLiveOverlay = () => {
+    if (!textarea.value || textarea.value.length === 0) {
+      // Empty: textarea wins so placeholder shows.
+      overlay.style.display = "none";
+      textarea.style.display = "";
+      return;
+    }
+    if (document.activeElement === textarea) {
+      // User is actively editing — don't yank focus.
+      overlay.style.display = "none";
+      textarea.style.display = "";
+      return;
+    }
+    showOverlay();
+  };
+
+  // External-use method: hide both textarea and overlay. Used by
+  // panel rebuild paths (action panel, steps panel) when there's no
+  // current binding — neither editable nor rendered should be
+  // visible at that point. Re-bind by calling refreshLiveOverlay
+  // after restoring textarea.value and textarea.style.display.
+  textarea.hideLive = () => {
+    overlay.style.display = "none";
+    textarea.style.display = "none";
+  };
+}
+
+// Install hover-tooltip handlers for resolved live-ref spans across
+// the whole editor document. Single tooltip element appended to
+// body, repositioned per hover. 250ms delay before show so cursor
+// transit doesn't flicker tooltips on/off rapidly. Hidden on
+// scroll / resize / mouse leaving the span. Ported from the spec's
+// in-iframe tooltip script — same visual idiom, same timing, so the
+// editor and the rendered spec feel like one product.
+function installLiveTooltipHandlers() {
+  if (document.getElementById("live-tooltip")) return;  // already installed
+
+  const tip = document.createElement("div");
+  tip.className = "live-tooltip";
+  tip.id = "live-tooltip";
+  tip.setAttribute("role", "tooltip");
+  document.body.appendChild(tip);
+
+  let showTimer = null;
+  let activeRef = null;
+
+  const positionTip = (ref) => {
+    // Default: 6px below the span, left-aligned with its left edge,
+    // clamped to the viewport. Flip above when the tooltip would
+    // overflow the bottom edge.
+    const r = ref.getBoundingClientRect();
+    const margin = 8;
+    const tipR = tip.getBoundingClientRect();
+    let left = r.left + window.scrollX;
+    let top  = r.bottom + window.scrollY + 6;
+    if (r.bottom + tipR.height + margin > window.innerHeight) {
+      top = r.top + window.scrollY - tipR.height - 6;
+    }
+    const maxLeft = window.scrollX + window.innerWidth - tipR.width - margin;
+    if (left > maxLeft) left = maxLeft;
+    if (left < window.scrollX + margin) left = window.scrollX + margin;
+    tip.style.left = left + "px";
+    tip.style.top  = top  + "px";
+  };
+
+  const showTipFor = (ref) => {
+    const text = ref.getAttribute("data-tooltip");
+    if (!text) return;
+    activeRef = ref;
+    tip.textContent = text;
+    // Position once before showing so the measurement is correct,
+    // then once again after the .visible class is applied (font
+    // metrics may settle slightly differently — the second pass is
+    // cheap insurance).
+    positionTip(ref);
+    tip.classList.add("visible");
+    positionTip(ref);
+  };
+  const hideTip = () => {
+    activeRef = null;
+    tip.classList.remove("visible");
+    if (showTimer) { clearTimeout(showTimer); showTimer = null; }
+  };
+
+  document.addEventListener("mouseover", (e) => {
+    const ref = e.target.closest(".live-ref[data-tooltip]");
+    if (!ref) return;
+    if (ref === activeRef) return;
+    if (showTimer) clearTimeout(showTimer);
+    showTimer = setTimeout(() => showTipFor(ref), 250);
+  });
+  document.addEventListener("mouseout", (e) => {
+    const ref = e.target.closest(".live-ref[data-tooltip]");
+    if (!ref) return;
+    // Only hide if the new target isn't the same span or its child.
+    const to = e.relatedTarget;
+    if (to && ref.contains(to)) return;
+    hideTip();
+  });
+  // Hide on any scroll or window resize so the tooltip never floats
+  // disconnected from its anchor.
+  window.addEventListener("scroll", hideTip, true);
+  window.addEventListener("resize", hideTip);
+}
+
 // Helper: render a description string, falling back to italic
 // "No description provided." when empty. Used in table cells.
 function renderDesc(text, context, idx) {
@@ -12600,83 +13080,25 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
   handle.addEventListener("dblclick", () => { grid.style.height = "260px"; });
 })();
 
-// Horizontal resize handle between the Transitions table and the Action
-// panel (now side-by-side, not stacked). The default widths are
-// computed from the lists-grid columns above so both the Transitions
-// right edge and the Action right edge visually align with the
-// Choice-points and State Variables right edges respectively — same
-// three-way vertical rail on the right side of the app. Once the
-// user drags the handle, their chosen widths are "sticky": we stop
-// auto-syncing so future viewport changes don't undo their choice.
+// Resize handle between the Transitions table and the Action panel.
+// The two panels are siblings inside .trans-action-row. Action has
+// a 300px CSS default; Transitions takes the rest via flex: 1. The
+// user can drag the handle to reallocate width between them. The
+// drag affects only this row — the lists-grid columns above are
+// independent (the lfns-column has its own resize handle for the
+// Steps area).
 (function() {
   const handle = document.getElementById("resize-handle-action");
+  if (!handle) return;
   const panel = document.getElementById("action-panel");
   const transPanel = panel.parentElement.querySelector(".trans-panel");
   let dragging = false;
-  let startX = 0, startWAction = 0, startWTrans = 0;
-  let userOverride = false;
-
-  // Compute the target widths for Transitions and Action so their
-  // edges align with the lists-grid columns above:
-  //   - Action.left  = LocalFunctions.left    → Action_width = fourth_col
-  //   - Transitions.right = StateVariables.right → Transitions_width = leftTrio
-  // Sum: Transitions + 12px-gap + Action = grid_width. Using the grid's
-  // own rendered width as the single source of truth ensures the two
-  // values are exactly consistent, regardless of rounding.
-  function listsGridColumnWidths() {
-    const grid = document.getElementById("lists-grid");
-    if (!grid) return null;
-    if (grid.children.length < 4) return null;
-    const gridWidth = grid.getBoundingClientRect().width;
-    // Four equal columns separated by three 12px gaps:
-    //   gridWidth = 4*col + 3*gap  →  col = (gridWidth - 3*gap) / 4
-    const gap = 12;
-    const col = (gridWidth - 3 * gap) / 4;
-    // Transitions spans cols 1+2+3 plus two inter-column gaps:
-    //   leftTrio = 3*col + 2*gap
-    const leftTrio = 3 * col + 2 * gap;
-    return {
-      leftTrio: Math.round(leftTrio),
-      fourth: Math.round(col)
-    };
-  }
-  function syncPanelWidths() {
-    if (userOverride) return;
-    const w = listsGridColumnWidths();
-    if (!w) return;
-    if (w.fourth >= 120) panel.style.width = w.fourth + "px";
-    // Lock Transitions to exactly the three-column-plus-two-gaps span
-    // so its right edge sits flush with State Variables. Flex would
-    // otherwise distribute any rounding error across the two panels.
-    if (w.leftTrio >= 320) {
-      transPanel.style.flex = "0 0 auto";
-      transPanel.style.width = w.leftTrio + "px";
-    }
-  }
-  window.addEventListener("load", syncPanelWidths);
-  window.addEventListener("resize", syncPanelWidths);
-  // Use requestAnimationFrame for the initial sync so measurements are
-  // taken after the browser has completed the first layout pass —
-  // setTimeout(0) can fire before layout in some browsers, yielding
-  // zero widths. Also re-sync when the view-system class toggles off
-  // (re-entering component view) since the component-panel measures
-  // as zero-width while hidden.
-  requestAnimationFrame(syncPanelWidths);
-  // Observe the body's class attribute for system↔component flips.
-  const viewObserver = new MutationObserver(() => {
-    if (!document.body.classList.contains("view-system")) {
-      // Back to component view — re-sync on the next frame once the
-      // panel has its real width again.
-      requestAnimationFrame(syncPanelWidths);
-    }
-  });
-  viewObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  let startX = 0, startWAction = 0;
 
   handle.addEventListener("mousedown", e => {
     dragging = true;
     startX = e.clientX;
     startWAction = panel.getBoundingClientRect().width;
-    startWTrans = transPanel.getBoundingClientRect().width;
     handle.classList.add("dragging");
     document.body.classList.add("resizing-h");
     e.preventDefault();
@@ -12685,10 +13107,8 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
     if (!dragging) return;
     const row = panel.parentElement; // .trans-action-row
     const rowRect = row.getBoundingClientRect();
-    // The handle is the only flex item between Transitions and Action
-    // and its own layout width is 12px (see CSS override above). So
-    // the remaining available width for the two panels is the row
-    // minus that 12px.
+    // The handle's flex footprint is 12px (scoped CSS override). The
+    // remaining available width is the row minus that 12px.
     const handleWidth = 12;
     const available = rowRect.width - handleWidth;
     const minAction = 160;
@@ -12696,9 +13116,7 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
     // columns need room or the narrow ones collapse letter-by-letter.
     const minTrans = 320;
     // Dragging the handle right shrinks Action, grows Transitions.
-    // We set both widths explicitly on drag so the "right edge flush
-    // with Choice-points" alignment stays consistent even after the
-    // user's override — the sum stays equal to `available`.
+    // Set both widths explicitly so the sum stays equal to `available`.
     const dx = e.clientX - startX;
     let wAction = startWAction - dx;
     wAction = Math.max(minAction, Math.min(available - minTrans, wAction));
@@ -12706,7 +13124,6 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
     panel.style.width = wAction + "px";
     transPanel.style.flex = "0 0 auto";
     transPanel.style.width = wTrans + "px";
-    userOverride = true;
   });
   document.addEventListener("mouseup", () => {
     if (!dragging) return;
@@ -12714,12 +13131,90 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
     handle.classList.remove("dragging");
     document.body.classList.remove("resizing-h");
   });
-  // Double-click re-enables auto-sync and immediately re-aligns both
-  // panels to their matching lists-grid columns.
+  // Double-click resets to default: clear inline widths, let CSS
+  // defaults take over (Action: 300px, Transitions: flex 1).
   handle.addEventListener("dblclick", () => {
-    userOverride = false;
-    syncPanelWidths();
+    panel.style.width = "";
+    transPanel.style.flex = "";
+    transPanel.style.width = "";
   });
+
+  // Keep the Action panel responsive when the row width changes
+  // (e.g. user drags resize-handle-main between canvas and right
+  // panel, or the window resizes). Without this, Action stays at its
+  // pixel width and Transitions absorbs all the change. After a user
+  // drag, both panels have inline pixel widths set; on row resize
+  // we proportionally rescale them so the Trans:Action ratio is
+  // preserved.
+  //
+  // Acts on every resize, including from the default state. On the
+  // first row-width change, if the panels don't have inline widths
+  // yet (CSS defaults still in play), snapshot their current rendered
+  // widths to inline style so subsequent resizes have a baseline to
+  // scale from. This keeps the Action panel responsive even before
+  // the user touches the resize handle.
+  const row = panel.parentElement; // .trans-action-row
+  let lastRowWidth = 0;
+  const rowResizeObserver = new ResizeObserver(entries => {
+    for (const entry of entries) {
+      const newWidth = entry.contentRect.width;
+      if (newWidth <= 0) continue;
+      // Skip the first observation — only the initial measurement.
+      if (lastRowWidth === 0) { lastRowWidth = newWidth; continue; }
+      if (Math.abs(newWidth - lastRowWidth) < 1) continue;
+      // If inline widths aren't set yet (CSS default state), snapshot
+      // the current rendered widths so we have a baseline. Once
+      // inlined, both panels behave proportionally on every later
+      // resize. Double-click on the handle resets to CSS defaults
+      // again (clearing the inlines), at which point this snapshot
+      // step would re-fire on the next resize.
+      let actionInline = panel.style.width;
+      let transInline  = transPanel.style.width;
+      let oldAvailable;
+      if (!actionInline || !transInline) {
+        // Snapshot current rendered widths and compute oldAvailable
+        // directly from them. Doing it this way (rather than from
+        // lastRowWidth) makes the baseline robust against initial-
+        // layout transients in lastRowWidth: at the moment of
+        // snapshot, oldAvailable IS exactly what the panels visually
+        // occupy, regardless of any out-of-date row measurement.
+        const aRect = panel.getBoundingClientRect();
+        const tRect = transPanel.getBoundingClientRect();
+        if (aRect.width > 0 && tRect.width > 0) {
+          actionInline = aRect.width + "px";
+          transInline  = tRect.width + "px";
+          panel.style.width = actionInline;
+          transPanel.style.flex = "0 0 auto";
+          transPanel.style.width = transInline;
+          oldAvailable = aRect.width + tRect.width;
+        } else {
+          lastRowWidth = newWidth;
+          continue;
+        }
+      } else {
+        const handleWidth = 12;
+        oldAvailable = lastRowWidth - handleWidth;
+      }
+      const handleWidth = 12;
+      const newAvailable = newWidth - handleWidth;
+      if (oldAvailable <= 0 || newAvailable <= 0) {
+        lastRowWidth = newWidth;
+        continue;
+      }
+      const oldAction = parseFloat(actionInline);
+      const ratio = oldAction / oldAvailable;
+      let newAction = Math.round(newAvailable * ratio);
+      const minAction = 160;
+      const minTrans = 320;
+      newAction = Math.max(minAction, Math.min(newAvailable - minTrans, newAction));
+      const newTrans = newAvailable - newAction;
+      panel.style.width = newAction + "px";
+      transPanel.style.flex = "0 0 auto";
+      transPanel.style.width = newTrans + "px";
+      lastRowWidth = newWidth;
+    }
+  });
+  rowResizeObserver.observe(row);
 })();
 
 // Vertical resize handle between description panel and component panel.
@@ -12887,6 +13382,142 @@ document.getElementById("server-status").onclick = showPlantUMLServerDialog;
   // Double-click: clear the inline override → fall back to the CSS
   // default of `flex: 0 0 140px`.
   handle.addEventListener("dblclick", () => { panel.style.flex = ""; });
+})();
+
+// Horizontal resize handle inside the lists-grid, between the
+// vars-column (State variables + Constants) and the lfns-column
+// (Local functions + Steps). Drag this to give the Steps panel more
+// horizontal width — useful when authoring long local-function bodies.
+//
+// This handle is independent of the Trans/Action boundary in the row
+// below; each row manages its own widths. Earlier versions tried to
+// keep the columns aligned across rows, but in practice the alignment
+// is cosmetic (not functional) and the cross-row coupling produced
+// surprising side effects when the user dragged either handle.
+//
+// Double-click clears the override and restores the initial 1/4 split.
+(function() {
+  const handle = document.getElementById("resize-handle-lfns");
+  if (!handle) return;
+  const grid = document.getElementById("lists-grid");
+  const lfnsCol = grid && grid.querySelector(".lfns-column");
+  if (!grid || !lfnsCol) return;
+
+  // Set the lfns-column's initial width to match the Action panel's
+  // currently-rendered width. The Action panel's CSS default is
+  // 300px but reading the actual rendered width is more robust —
+  // accounts for borders, scrollbars, and any future CSS-default
+  // changes without needing to keep two constants in sync.
+  // This makes the lists-grid and the Trans/Action row line up
+  // vertically in the default state — Local Functions/Steps and
+  // Action share a left edge — even though the two handles are
+  // independent once dragged. Subsequent drags or window resizes
+  // don't trigger this; we set it once on load and let the user
+  // own it from there.
+  function setInitialLfnsColumnWidth() {
+    if (lfnsCol.style.width) return;
+    const gridWidth = grid.getBoundingClientRect().width;
+    if (gridWidth <= 0) return;
+    const actionPanel = document.getElementById("action-panel");
+    const actionWidth = actionPanel ? actionPanel.getBoundingClientRect().width : 0;
+    // Fall back to 300 if the Action panel hasn't been measured yet
+    // (zero-width during system view, etc.).
+    const desired = (actionWidth > 0) ? actionWidth : 300;
+    // Floor: 120px to keep the column readable. Ceiling: leave at
+    // least 320px for the leftTrio so the three left columns aren't
+    // crushed (matches the drag-time minTrio bound below).
+    const gap = 12;
+    const minTrio = 320;
+    const maxLfns = gridWidth - minTrio - gap;
+    const minLfns = 120;
+    const w = Math.max(minLfns, Math.min(maxLfns, desired));
+    if (w >= minLfns) lfnsCol.style.width = Math.round(w) + "px";
+  }
+  window.addEventListener("load", setInitialLfnsColumnWidth);
+  requestAnimationFrame(setInitialLfnsColumnWidth);
+  // Also re-apply the initial split when re-entering component view
+  // from system view, in case the panel was zero-width during the
+  // first measurement.
+  const viewObserver = new MutationObserver(() => {
+    if (!document.body.classList.contains("view-system")) {
+      requestAnimationFrame(setInitialLfnsColumnWidth);
+    }
+  });
+  viewObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+
+  // Keep the lfns-column responsive when the lists-grid width changes
+  // (e.g. user drags resize-handle-main between canvas and right
+  // panel, or the window resizes). Without this, the lfns-column
+  // stays at its pixel width and the leftTrio absorbs all the change,
+  // which makes the State variables/Steps boundary drift apart from
+  // its initial Action-aligned position. We preserve the lfns-to-grid
+  // ratio across grid-width changes — same pattern the Trans/Action
+  // observer uses for its row.
+  let lastGridWidth = 0;
+  const gridResizeObserver = new ResizeObserver(entries => {
+    for (const entry of entries) {
+      const newWidth = entry.contentRect.width;
+      if (newWidth <= 0) continue;
+      // Skip the first observation — only act on changes.
+      if (lastGridWidth === 0) { lastGridWidth = newWidth; continue; }
+      if (Math.abs(newWidth - lastGridWidth) < 1) continue;
+      const inlineWidth = lfnsCol.style.width;
+      if (!inlineWidth) {
+        lastGridWidth = newWidth;
+        continue;
+      }
+      const oldLfns = parseFloat(inlineWidth);
+      const ratio = oldLfns / lastGridWidth;
+      let newLfns = Math.round(newWidth * ratio);
+      const minLfns = 120;
+      const minTrio = 320;
+      const handleWidth = 12;
+      const maxLfns = newWidth - minTrio - handleWidth;
+      newLfns = Math.max(minLfns, Math.min(maxLfns, newLfns));
+      lfnsCol.style.width = newLfns + "px";
+      lastGridWidth = newWidth;
+    }
+  });
+  gridResizeObserver.observe(grid);
+
+  let dragging = false;
+  let startX = 0, startWLfns = 0;
+
+  handle.addEventListener("mousedown", e => {
+    dragging = true;
+    startX = e.clientX;
+    startWLfns = lfnsCol.getBoundingClientRect().width;
+    handle.classList.add("dragging");
+    document.body.classList.add("resizing-h");
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    // Dragging the handle right shrinks the lfns column, grows the
+    // left trio. Bound by the lfns column's own min-width and a
+    // minimum trio size that keeps the three left columns readable.
+    const dx = e.clientX - startX;
+    let wLfns = startWLfns - dx;
+    const gridWidth = grid.getBoundingClientRect().width;
+    const minLfns = 120;
+    const minTrio = 320;
+    const gap = 12;
+    // wLfns plus one gap plus the leftTrio sums to gridWidth.
+    const maxLfns = gridWidth - minTrio - gap;
+    wLfns = Math.max(minLfns, Math.min(maxLfns, wLfns));
+    lfnsCol.style.width = wLfns + "px";
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("dragging");
+    document.body.classList.remove("resizing-h");
+  });
+  // Double-click: clear inline width and re-apply the initial 1/4 split.
+  handle.addEventListener("dblclick", () => {
+    lfnsCol.style.width = "";
+    requestAnimationFrame(setInitialLfnsColumnWidth);
+  });
 })();
 
 // Vertical resize handle inside the State variables / Constants
@@ -13194,6 +13825,7 @@ initActionPanel();
 initStepsPanel();
 initDescriptionPanel();
 initSystemSpecPanel();
+installLiveTooltipHandlers();
 resetModel("Component Name");
 
 // If an autosaved draft from a previous session exists, restore it and
