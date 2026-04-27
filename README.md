@@ -8,7 +8,7 @@ A lightweight, zero-install graphical editor for [PlantUML](https://plantuml.com
 
 ## What is it?
 
-Stadiæ is a visual front-end for modelling **devices of communicating components**. You draw state machines, wire components to shared interfaces, declare the messages they exchange, and reference the handlers they depend on — all with point-and-click — and Stadiæ generates clean PlantUML source you can commit, hand-edit, or feed into your own toolchain.
+Stadiæ is a visual front-end for modelling **devices of communicating components**. You draw state machines, wire components to shared interfaces, declare the messages they exchange, and reference the handlers they depend on — all with point-and-click. The editor saves a compact JSON project file as the canonical model and renders the diagrams via PlantUML; PlantUML source can also be exported separately for hand-editing or feeding into your own toolchain.
 
 It's built around the vocabulary engineers use when describing functional-component behaviour:
 
@@ -21,7 +21,7 @@ It's built around the vocabulary engineers use when describing functional-compon
 
 - **Multi-component devices.** Model any number of components in a single file. Switch between them with one click; the state machine below the canvas tracks the active component. The Components list shows a chevron on the active row.
 - **Device view.** One click on the `◇ Device` button flips the canvas from a state machine to a component-level diagram showing every component, handler, interface, and their wiring. All list views stay in view — they're shared vocabulary.
-- **Live rendering.** Every edit re-generates the PlantUML and re-renders the diagram instantly, against either the public PlantUML server or one you've configured locally.
+- **Live rendering.** Every edit instantly re-renders the diagram via PlantUML, against either the public PlantUML server or one you've configured locally.
 - **Five shared catalogues.** Components, Handlers, Functions, Interfaces, Messages — five side-by-side lists at the top of the app. Select a Handler to see its Functions; select an Interface to see its Messages; select a Message or Function to see and edit its Parameters.
 - **Click-to-select on the canvas.** States, choice-points, transition arrows, components, handlers, and all wiring lines are clickable directly on the rendered image. Selected elements highlight in red across both views.
 - **Grouped transitions.** Multiple messages can share a single arrow for a cleaner diagram; each message row is individually selectable so you can edit or delete them one by one.
