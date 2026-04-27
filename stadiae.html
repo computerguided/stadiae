@@ -1321,21 +1321,103 @@
     from { opacity: 0; transform: translateY(6px) scale(0.98); }
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
-  /* Type definitions modal — wider than a form dialog so the Name and
-     Description columns of the list have space, but not as huge as
-     the spec-preview modal. The body uses a plain block layout (the
-     standard .modal .body grid is for label/input pairs which this
-     dialog doesn't have at the top level). */
+  /* Type definitions modal — two-column layout: list on the left,
+     read-only specification preview on the right. The list shows
+     name + short description per row; the spec preview shows the
+     selected type's name (heading), description (muted), and
+     specification (long-form prose with backtick references rendered
+     in styled monospace, matching the rest of the editor's live
+     preview convention). When nothing is selected, the right pane
+     shows a placeholder. Editing still happens via the Edit button
+     (or double-click on a row) which opens the existing sub-dialog. */
   .modal-type-defs {
-    width: 720px;
-    max-width: 90vw;
+    width: 960px;
+    max-width: 92vw;
   }
   .modal-type-defs .body.type-defs-body {
-    display: block;
+    display: flex;
     grid-template-columns: none;
     padding: 8px 20px 20px;
+    gap: 18px;
     max-height: 60vh;
+  }
+  .type-defs-list-pane {
+    flex: 0 0 420px;
+    min-width: 0;
     overflow: auto;
+    border-right: 1px solid var(--border);
+    padding-right: 18px;
+  }
+  .type-defs-spec-pane {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .type-defs-spec-header {
+    padding: 4px 0 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .type-defs-spec-header .name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 4px 0;
+  }
+  .type-defs-spec-header .desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.45;
+  }
+  .type-defs-spec-header .desc:empty::before {
+    content: "No description.";
+    font-style: italic;
+  }
+  .type-defs-spec-preview {
+    flex: 1 1 auto;
+    overflow: auto;
+    padding: 0;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .type-defs-spec-preview:empty::before {
+    content: "No specification.";
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  /* Resolved/unresolved backtick refs in the spec preview — same look
+     as the textarea live-render overlay so the reader sees identical
+     styling whether they're in the list view or in the edit dialog. */
+  .type-defs-spec-preview .live-ref {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.92em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 0 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .type-defs-spec-preview .live-ref-plain {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.92em;
+    color: var(--text);
+  }
+  .type-defs-spec-empty {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
   }
   .type-defs-list-wrap { min-height: 80px; }
   .type-defs-table {
@@ -1363,7 +1445,7 @@
   .type-defs-table tbody tr.selected { background: var(--accent-soft); }
   .type-defs-table td.type-defs-desc {
     color: var(--text-muted);
-    max-width: 480px;
+    max-width: 240px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -7377,7 +7459,7 @@ function manualContent() {
         <li><em>Description</em> \u2014 single-line summary. Shown in the dialog list, in the spec table, and in the hover tooltip when a parameter type cell links here.</li>
         <li><em>Specification</em> \u2014 free multi-line text. The full body \u2014 encoding, range, validity rules, examples, ABNF, JSON Schema, whatever the type actually <em>is</em>. Backtick references work here; a type's specification can reference another type, a message, or any other named entity in the model.</li>
       </ul>
-      <p>The dialog shows the existing types in a sortable list with their names and descriptions. Click a row to select it; click <strong>Add</strong>, <strong>Edit</strong>, or <strong>Delete</strong> to manage entries. Editing opens a sub-dialog with the three fields. Deleting prompts for confirmation \u2014 references to a deleted type don't auto-rewrite, they just become unresolved (warning style), so you can find and fix them by hand if needed.</p>
+      <p>The dialog has two panes side by side. The left pane lists the existing types with their names and short descriptions, sorted alphabetically. The right pane shows the selected type's full specification \u2014 name as a heading, description below it, then the long-form specification text with backtick references rendered in styled monospace (with hover tooltips) the same way they appear elsewhere in the editor. Click a row to select it; the right pane updates immediately. Click <strong>Add</strong> to create a new type, <strong>Edit</strong> (or double-click a row) to change the selected type's fields, or <strong>Delete</strong> to remove it. Editing opens a sub-dialog with the three fields for input. Deleting prompts for confirmation \u2014 references to a deleted type don't auto-rewrite, they just become unresolved (warning style), so you can find and fix them by hand if needed.</p>
       <p><strong>Auto-linking in the spec.</strong> When a parameter or state-variable's type field exactly matches a defined type name, the spec renders it as a hyperlink to the type's row in the Type definitions chapter \u2014 no backticks needed. The type cell shows a description tooltip on hover, the same way explicit backtick references do. Compound type strings (<code>Map&lt;String, int&gt;</code>, <code>int?</code>) are not auto-linked, since they aren't exact-string matches; if you want links to sub-types in those, use the backtick syntax in the surrounding description.</p>
       <p><strong>Renames cascade through everything.</strong> Rename a type and Stadi&aelig; rewrites every backtick reference to it in the model's prose, plus every parameter and state-variable type field that exact-string-matches the old name. The links keep working without you editing each row by hand.</p>
       <p>The Type definitions chapter is rendered at the end of both the HTML and docx specifications, so the reader has finished the components and handlers before encountering the reference material.</p>
@@ -8124,16 +8206,43 @@ function renderTypeDefinitionsModal() {
   const types = [...(Model.types || [])].sort((a, b) => a.name.localeCompare(b.name));
   const selName = _typeDialogSelection;
   const hasSel = selName && types.some(t => t.name === selName);
+  const selType = hasSel ? types.find(t => t.name === selName) : null;
+
+  // Right-pane content: when a type is selected, show its name as a
+  // header, its description (single-line), and its full specification
+  // rendered with backtick references resolved. When nothing is
+  // selected, show a centred placeholder. Backtick rendering uses the
+  // same renderLiveBackticks function the textarea overlays use, so
+  // the styling matches the rest of the editor.
+  let rightPaneHTML;
+  if (selType) {
+    const idx = buildSpecAnchorIndex();
+    const ctx = { kind: "type", name: selType.name };
+    const specRendered = renderLiveBackticks(selType.specification || "", ctx, idx);
+    rightPaneHTML = `
+      <div class="type-defs-spec-header">
+        <p class="name">${escapeHTML(selType.name)}</p>
+        <p class="desc">${escapeHTML(selType.description || "")}</p>
+      </div>
+      <div class="type-defs-spec-preview">${specRendered}</div>`;
+  } else {
+    rightPaneHTML = `<div class="type-defs-spec-empty">Select a type to view its specification.</div>`;
+  }
 
   modalContainer.innerHTML = `
     <div class="title">Type definitions</div>
     <div class="body type-defs-body">
-      <div class="type-defs-list-wrap">
-        <table class="type-defs-table">
-          <thead><tr><th>Name</th><th>Description</th></tr></thead>
-          <tbody id="type-defs-tbody"></tbody>
-        </table>
-        ${types.length === 0 ? `<p class="type-defs-empty">No type definitions yet. Click <strong>Add</strong> to create one.</p>` : ""}
+      <div class="type-defs-list-pane">
+        <div class="type-defs-list-wrap">
+          <table class="type-defs-table">
+            <thead><tr><th>Name</th><th>Description</th></tr></thead>
+            <tbody id="type-defs-tbody"></tbody>
+          </table>
+          ${types.length === 0 ? `<p class="type-defs-empty">No type definitions yet. Click <strong>Add</strong> to create one.</p>` : ""}
+        </div>
+      </div>
+      <div class="type-defs-spec-pane">
+        ${rightPaneHTML}
       </div>
     </div>
     <div class="actions">
