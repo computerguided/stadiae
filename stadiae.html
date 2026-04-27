@@ -271,6 +271,48 @@
     opacity: 0.45;
   }
   body.view-component .canvas-enter-btn { display: none; }
+  /* Print-diagram button in the canvas's bottom-right corner. Sits in
+     the symmetric corner to the Device button (top-left) and the
+     Component button (top-right), keeping the floating-chrome triangle
+     visually balanced. The button is icon-only so it doesn't compete
+     with the larger top-corner buttons; readers see it only when they
+     look for it. Hidden when the canvas has no diagram (loading or
+     error states), so it never offers a no-op click. */
+  .canvas-print-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 20;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    box-shadow: var(--shadow-sm);
+  }
+  .canvas-print-btn:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .canvas-print-btn svg {
+    display: block;
+  }
+  /* Hide while the diagram is loading, errored, or empty — anything
+     other than a successfully-rendered image isn't print-worthy. The
+     selector matches the canvas-content's children to detect state. */
+  .canvas-panel:has(.canvas-content > .loading) .canvas-print-btn,
+  .canvas-panel:has(.canvas-content > .error) .canvas-print-btn,
+  .canvas-panel:has(.canvas-content:empty) .canvas-print-btn {
+    display: none;
+  }
   .canvas-panel img {
     max-width: 100%;
     max-height: 100%;
@@ -1522,6 +1564,27 @@
     color: var(--text-muted);
     font-size: 12.5px;
   }
+  /* Small explanatory note inside a form modal — spans the full width
+     of the label/input grid rather than landing in one of the two
+     columns. Used for hints below an input. */
+  .modal .body .hint {
+    grid-column: 1 / -1;
+    margin: 4px 0 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+  .modal .body .hint code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    color: var(--text);
+    background: var(--surface-2);
+    padding: 0 4px;
+    border-radius: 3px;
+  }
+  .modal .body .inline-error {
+    color: #b91c1c;
+  }
   .modal .actions {
     padding: 12px 20px;
     background: var(--surface-2);
@@ -1882,6 +1945,7 @@
     <div class="dropdown">
       <div class="item" data-action="new">New</div>
       <div class="item" data-action="open">Open...</div>
+      <div class="item" data-action="open-url">Open from URL...</div>
       <div class="separator"></div>
       <div class="item" data-action="save">Save</div>
       <div class="item" data-action="saveas">Save As...</div>
@@ -1951,6 +2015,13 @@
     <div class="canvas-panel" id="canvas-panel">
       <button class="canvas-device-btn" id="btn-device" title="Show the device diagram (component view)">◇ Device</button>
       <button class="canvas-enter-btn" id="btn-enter-component" title="Enter the selected component's state machine">Component ▸</button>
+      <button class="canvas-print-btn" id="btn-print-diagram" title="Print the current diagram (or save as PDF) — useful for marking up a hard copy">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 5V2h8v3"/>
+          <rect x="2" y="5" width="12" height="7" rx="1"/>
+          <path d="M4 9h8v5H4z"/>
+        </svg>
+      </button>
       <div class="canvas-content" id="canvas-content">
         <div class="loading">Rendering diagram...</div>
       </div>
@@ -7631,7 +7702,10 @@ function manualContent() {
       <h3>Save / Save As</h3>
       <p>Stadiæ saves the entire file &mdash; every component, every handler, every shared interface and message, all wiring, every description and action note, and device-level settings like the device name and font sizes &mdash; as a compact <code>.json</code> file. Use <em>File → Save As</em> the first time; after that, <em>File → Save</em> writes to the same filename. The file format tag is <code>stadiae-v4</code>.</p>
       <h3>Open</h3>
-      <p><em>File → Open</em> loads a previously saved <code>.json</code> file. If the current diagram has unsaved edits you'll be asked whether to discard them first.</p>
+      <p><em>File → Open</em> loads a previously saved <code>.json</code> file from your computer. If the current diagram has unsaved edits you'll be asked whether to discard them first.</p>
+      <h3>Open from URL</h3>
+      <p><em>File → Open from URL…</em> loads a Stadiæ <code>.json</code> file fetched from a URL. Paste the URL of a file (typically on a static host, like <code>raw.githubusercontent.com</code>) and Stadiæ fetches and opens it. Useful for sharing example models or tutorial files: instead of asking a reader to download a file and then open it, link to the raw file and have them paste the URL.</p>
+      <p>The URL must come from a server that sends cross-origin headers (<code>Access-Control-Allow-Origin</code>); raw files on GitHub, Gist, and most CDNs do, but generic hosts may not. As a convenience, GitHub <code>github.com/&hellip;/blob/&hellip;</code> URLs are auto-rewritten to their raw equivalent before fetching, so pasting either form works. <code>file://</code> URLs and intranet hosts may be blocked by browser security policy.</p>
       <h3>Autosave</h3>
       <p>Stadiæ also keeps a working draft of the current diagram in the browser's local storage, updated automatically as you edit. If you close the tab, refresh the page, or lose the window to a crash, the draft is restored the next time you open Stadiæ. A small banner at the top of the canvas confirms the restoration and gives you a one-click <em>Discard</em> if you wanted to start over.</p>
       <p>The draft is independent of your disk saves — it is always kept up-to-date with the latest in-memory state, so even a crash right after <em>Save</em> is covered. The draft is cleared when you explicitly <em>File → New</em> or click <em>Discard</em> on the restoration banner.</p>
@@ -7640,6 +7714,8 @@ function manualContent() {
       <p>Writes the clean PlantUML source of whatever is currently showing on the canvas (no selection highlighting) to a <code>.puml</code> file. In component view this is the active component's state machine; in device view it is the device diagram (the whole component + handler + interface topology, enclosed in the outer device box). To export every component, switch the active component (one click in the Components list) and export each one; to export the device diagram, switch to device view and export. Feed the files to any PlantUML tool, check them into source control, or paste them into an online PlantUML renderer.</p>
       <h3>Export as PNG</h3>
       <p>Downloads whatever is currently rendered on the canvas as a PNG image — the active component's state machine in component view, the device diagram in device view. Useful for embedding in reports and slides.</p>
+      <h3>Print Diagram</h3>
+      <p>The small printer icon in the canvas's bottom-right corner opens the print dialog with the currently-visible diagram. The diagram prints as inline SVG, so it stays crisp at any printer DPI or zoom level when saved as PDF. Selection highlighting is suppressed in the print copy so the output is clean even if you have elements selected on screen. Convenient for working on the architecture on a hard copy — annotations, sketched changes, review notes.</p>
       <h3>Export Specification</h3>
       <p>Under <em>File → Export Specification…</em>, Stadiæ opens a preview modal containing the device's specification rendered as a navigable HTML document. The modal has three buttons: <strong>Download HTML</strong>, <strong>Download .docx</strong>, and <strong>Close</strong>. The HTML version is the primary preview format — read it inside the modal, drill into sections through the sidebar, then download as either format depending on what you need. Esc closes the modal at any point.</p>
       <p><strong>Sidebar navigation.</strong> The HTML preview has a sticky table-of-contents on the left listing every chapter and section: Device overview, Device specification, Device diagram, then a Components group (each component lists its Context, Constants, State variables, States, Choice-points, State diagram, State transitions, Local functions), Handlers, and Interfaces. Click any entry to jump there with a smooth scroll. The active section highlights as you scroll, so you always know where you are in the document.</p>
@@ -12844,6 +12920,149 @@ function exportPUML() {
   });
 }
 
+// Print the currently-visible diagram. Opens a small popup window
+// containing a clean SVG of the diagram and triggers the browser's
+// print dialog on it. Useful when an architect wants a hard copy of
+// the device diagram or a state machine to mark up by hand.
+//
+// SVG (rather than PNG) keeps the print at vector resolution — the
+// page can be saved as PDF or printed at any DPI without pixelation.
+// The diagram is regenerated without selection highlighting so the
+// printed copy is clean even if the user has elements selected on
+// screen at the time.
+function printCurrentDiagram() {
+  const inDevice = Model.activeView === "device";
+  const gen = inDevice ? generateComponentDiagramPlantUML : generatePlantUML;
+  const src = gen({ withSelection: false, includeSalt: false });
+  const url = plantUMLSVGURL(src);
+
+  // Title used as the popup window's <title> and therefore as the
+  // default print job / saved-PDF filename. Keep it informative so a
+  // batch of printed/saved diagrams sorts nicely in the user's downloads.
+  const deviceName = Model.deviceDisplayName || Model.deviceName || "Device";
+  const title = inDevice
+    ? `${deviceName} — device diagram`
+    : `${deviceName} — ${Component.name || "component"}`;
+
+  // Fetch the SVG as text so we can inline it in the popup. Inlining
+  // (rather than referencing the PlantUML URL) means the popup's print
+  // is independent of network at print time, and saved PDFs don't carry
+  // hot-linked references.
+  fetch(url)
+    .then(r => {
+      if (!r.ok) throw new Error("Server returned " + r.status);
+      return r.text();
+    })
+    .then(svgText => {
+      // Sanitise the SVG for HTML inlining — drop the XML prolog and
+      // DOCTYPE (only valid in a standalone .svg file), and strip the
+      // root <svg>'s intrinsic width/height so it scales to the CSS
+      // container in the popup. Same approach the spec exporter uses.
+      svgText = svgText.replace(/<\?xml[^?]*\?>/i, "");
+      svgText = svgText.replace(/<!DOCTYPE[^>]*>/i, "");
+      svgText = svgText.replace(/<svg\b([^>]*)>/i, (_, attrs) => {
+        const cleaned = attrs
+          .replace(/\swidth\s*=\s*"[^"]*"/i, "")
+          .replace(/\sheight\s*=\s*"[^"]*"/i, "");
+        return `<svg${cleaned}>`;
+      });
+
+      const win = window.open("", "_blank", "width=900,height=700");
+      if (!win) {
+        showAlert("Popup blocked",
+          "Your browser blocked the print window. Allow popups for this site and try again.");
+        return;
+      }
+      // Minimal print page: just the SVG, centred, with @page rules
+      // that suppress browser-default headers/footers via zero margins
+      // (same trick the spec PDF uses). The user's print dialog still
+      // lets them choose orientation; we just don't impose one.
+      win.document.open();
+      win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHTML(title)}</title>
+  <style>
+    @page { margin: 1.5cm; }
+    html, body { margin: 0; padding: 0; background: white; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .diagram-wrap {
+      max-width: 100%;
+      max-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .diagram-wrap svg {
+      max-width: 100%;
+      max-height: 100vh;
+      width: auto;
+      height: auto;
+      display: block;
+    }
+    .toolbar {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      gap: 8px;
+    }
+    .toolbar button {
+      padding: 7px 14px;
+      font: inherit;
+      font-size: 13px;
+      border: 1px solid #d1d5db;
+      background: white;
+      color: #374151;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .toolbar button.primary {
+      background: #2b2a8f;
+      color: white;
+      border-color: #2b2a8f;
+    }
+    @media print {
+      .toolbar { display: none; }
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()" class="primary">Print</button>
+    <button onclick="window.close()">Close</button>
+  </div>
+  <div class="diagram-wrap">${svgText}</div>
+</body>
+</html>`);
+      win.document.close();
+
+      // Trigger the print dialog automatically once the SVG is ready
+      // (it's already inlined, so DOMContentLoaded fires immediately).
+      // A short rAF gives the layout engine a tick to size the SVG.
+      win.addEventListener("load", () => {
+        requestAnimationFrame(() => {
+          try { win.focus(); win.print(); } catch (_) {}
+        });
+      });
+    })
+    .catch(err => {
+      showAlert("Print failed",
+        "Could not fetch the diagram for printing: " + err.message +
+        "\n\nThe PlantUML server may be unreachable.");
+    });
+}
+
 function exportPNG() {
   const inDevice = Model.activeView === "device";
   const defaultBase = inDevice
@@ -12887,20 +13106,7 @@ document.getElementById("file-input").addEventListener("change", e => {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      if (data.format !== "stadiae-v4") {
-        throw new Error("Unsupported diagram format (" + (data.format || "missing") + "); expected stadiae-v4");
-      }
-      loadModel(data);
-      // Present the device diagram first on open. Rationale: a file is
-      // a description of a whole device, and the device diagram gives
-      // the user an overview — the "what does this file contain" shot
-      // — before they drill into any one component's state machine.
-      Model.activeView = "device";
-      Selection.clearAll();
-      History.past = []; History.future = [];
-      Model.dirty = false;
-      Model.savedFilename = file.name;
-      refresh();
+      applyLoadedModel(data, file.name);
     } catch (err) {
       showAlert("Error", "The selected diagram is faulty: " + err.message);
     }
@@ -12908,6 +13114,158 @@ document.getElementById("file-input").addEventListener("change", e => {
   reader.readAsText(file);
   e.target.value = "";
 });
+
+// Open a file from a URL. Useful for sharing example models — instead
+// of "download this file then open it", a tutorial can say "paste this
+// URL". The fetch is constrained by browser CORS rules: the host must
+// send Access-Control-Allow-Origin. raw.githubusercontent.com,
+// gist.githubusercontent.com, and most CDNs work. github.com/.../blob/
+// pages return HTML and are auto-rewritten to their raw equivalent.
+// `file://` and intranet URLs are at the mercy of the browser's
+// security model.
+function openFileFromUrl() {
+  const doOpen = () => showOpenFromUrlDialog();
+  if (Model.dirty) {
+    showConfirm("Unsaved edits", "Discard unsaved edits and open another file?",
+      doOpen, () => {});
+  } else doOpen();
+}
+
+function showOpenFromUrlDialog() {
+  modalContainer.innerHTML = `
+    <div class="title">Open from URL</div>
+    <div class="body">
+      <label for="open-url-input">URL of a Stadiæ <code>.json</code> file</label>
+      <input type="url" id="open-url-input" placeholder="https://example.com/path/to/diagram.json" autocomplete="off" spellcheck="false">
+      <p class="hint">The URL must serve <code>Access-Control-Allow-Origin</code>. Raw files on <code>raw.githubusercontent.com</code> and most CDNs work. <code>github.com/&hellip;/blob/&hellip;</code> URLs are auto-rewritten to the raw equivalent.</p>
+      <p class="hint inline-error" id="open-url-error" style="display:none;"></p>
+    </div>
+    <div class="actions">
+      <button id="open-url-cancel" class="cancel">Cancel</button>
+      <button id="open-url-load">Load</button>
+    </div>`;
+  modalContainer.className = "modal";
+  modalOverlay.classList.add("show");
+
+  const input = document.getElementById("open-url-input");
+  const errorEl = document.getElementById("open-url-error");
+  input.focus();
+
+  const showInlineError = (msg) => {
+    errorEl.textContent = msg;
+    errorEl.style.display = "block";
+  };
+  const clearInlineError = () => {
+    errorEl.style.display = "none";
+    errorEl.textContent = "";
+  };
+
+  input.addEventListener("input", clearInlineError);
+
+  const submit = () => {
+    const raw = (input.value || "").trim();
+    if (!raw) {
+      input.focus();
+      return;     // refuse to submit; visible to user that input is empty
+    }
+    const normalized = normalizeFetchableUrl(raw);
+    if (!normalized) {
+      showInlineError("That doesn't look like a valid URL. URLs should start with http:// or https://.");
+      input.focus();
+      return;
+    }
+    hideModal();
+    fetchAndLoadModel(normalized);
+  };
+
+  document.getElementById("open-url-load").onclick = submit;
+  document.getElementById("open-url-cancel").onclick = hideModal;
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); submit(); }
+  });
+}
+
+// Normalise a URL string to something fetchable. Returns the canonical
+// URL string on success, or null if the input doesn't parse as an
+// http(s) URL.
+//
+// One common-case rewrite: github.com/{owner}/{repo}/blob/{ref}/{path}
+// returns HTML, not the file contents — but the same path on
+// raw.githubusercontent.com returns the raw file with permissive CORS.
+// Quietly rewriting saves users a confusing "the file isn't valid
+// JSON" error when they paste the obvious-looking blob URL.
+function normalizeFetchableUrl(raw) {
+  let u;
+  try { u = new URL(raw); }
+  catch (_) { return null; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+
+  // GitHub blob → raw rewrite.
+  // /{owner}/{repo}/blob/{ref}/{path} → raw.githubusercontent.com/{owner}/{repo}/{ref}/{path}
+  if (u.hostname === "github.com" || u.hostname === "www.github.com") {
+    const parts = u.pathname.split("/").filter(Boolean);
+    // parts[0]=owner, parts[1]=repo, parts[2]="blob"|"raw", parts[3]=ref, parts[4..]=path
+    if (parts.length >= 5 && (parts[2] === "blob" || parts[2] === "raw")) {
+      const owner = parts[0], repo = parts[1], ref = parts[3];
+      const path = parts.slice(4).join("/");
+      return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`;
+    }
+  }
+  return u.toString();
+}
+
+function fetchAndLoadModel(url) {
+  fetch(url, { method: "GET", redirect: "follow" })
+    .then(resp => {
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status} ${resp.statusText || ""}`.trim());
+      }
+      return resp.text();
+    })
+    .then(text => {
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e) {
+        throw new Error("the URL did not return valid JSON. If this is a GitHub page, check that you used a raw URL, not a blob URL.");
+      }
+      // Suggest a Save filename based on the URL's last path segment.
+      let suggested = "diagram.json";
+      try {
+        const last = new URL(url).pathname.split("/").filter(Boolean).pop();
+        if (last && /\.json$/i.test(last)) suggested = last;
+      } catch (_) {}
+      applyLoadedModel(data, suggested);
+    })
+    .catch(err => {
+      // TypeError from fetch typically means a network error or — most
+      // commonly in this context — the host didn't send CORS headers.
+      // Distinguish so the user gets a useful message.
+      const msg = (err && err.name === "TypeError")
+        ? `Could not fetch the URL. The most common cause is that the server did not send the required cross-origin headers — try a URL on raw.githubusercontent.com or another host that allows cross-origin reads. (${err.message})`
+        : `Could not load the URL: ${err.message}`;
+      showAlert("Error", msg);
+    });
+}
+
+// Shared post-parse model application. Called by both the local-file
+// reader and the URL fetcher once they have a parsed JSON object and a
+// suggested filename for subsequent Save operations.
+function applyLoadedModel(data, suggestedFilename) {
+  if (data.format !== "stadiae-v4") {
+    throw new Error("Unsupported diagram format (" + (data.format || "missing") + "); expected stadiae-v4");
+  }
+  loadModel(data);
+  // Present the device diagram first on open. Rationale: a file is
+  // a description of a whole device, and the device diagram gives
+  // the user an overview — the "what does this file contain" shot
+  // — before they drill into any one component's state machine.
+  Model.activeView = "device";
+  Selection.clearAll();
+  History.past = []; History.future = [];
+  Model.dirty = false;
+  Model.savedFilename = suggestedFilename;
+  refresh();
+}
 
 function loadModel(data) {
   // Populate the Model from a `stadiae-v4` payload. Fields that might
@@ -13240,6 +13598,7 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
     switch (a) {
       case "new": newDiagram(); break;
       case "open": openFile(); break;
+      case "open-url": openFileFromUrl(); break;
       case "save": save(); break;
       case "saveas": saveAs(); break;
       case "export-puml": exportPUML(); break;
@@ -13342,6 +13701,7 @@ document.getElementById("btn-edit-lfn").onclick     = editSelectedLocalFunction;
 document.getElementById("btn-del-lfn").onclick      = deleteSelectedLocalFunction;
 document.getElementById("btn-device").onclick = switchToDevice;
 document.getElementById("btn-enter-component").onclick = enterSelectedComponent;
+document.getElementById("btn-print-diagram").onclick = printCurrentDiagram;
 
 // Server-status indicator in the menubar — click opens the PlantUML
 // server config dialog.

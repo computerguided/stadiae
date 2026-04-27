@@ -181,7 +181,7 @@
   ],
   "components": [
     {
-      "name": "Server_Connector",
+      "name": "ServerConnector",
       "arrowFontSize": 9,
       "stateFontSize": 12,
       "states": [
@@ -720,13 +720,13 @@
   ],
   "connections": [
     {
-      "component": "Server_Connector",
+      "component": "ServerConnector",
       "interface": "Device",
       "connector": "Up",
       "length": 1
     },
     {
-      "component": "Server_Connector",
+      "component": "ServerConnector",
       "interface": "Connection",
       "connector": "Left",
       "length": 1
@@ -768,7 +768,7 @@
       "length": 1
     }
   ],
-  "activeComponentIndex": 2,
+  "activeComponentIndex": 0,
   "handlers": [
     {
       "name": "WirelessTransceiver",
@@ -952,7 +952,7 @@
   ],
   "handlerCalls": [
     {
-      "component": "Server_Connector",
+      "component": "ServerConnector",
       "handler": "WirelessTransceiver",
       "connector": "Left",
       "length": 1
@@ -982,6 +982,8 @@
       "length": 1
     }
   ],
+  "deviceDisplayName": "Wireles Interactive Networked Display (WIND)",
+  "deviceSpecification": "The device is a Wireless Interactive Networked Display (WIND) which is controlled by a central server (not in scope). It operates by creating a connection to the server and then handling requests to display content formatted as a PNG image. Some content must be interactive which is enabled by the display being touch sensitive and the server sending an indexed coordinates map of touch-squares on the display. The device must be extremely low cost, so interaction is limited by the device mapping touch coordinates to the proper id and sending that id back to the server.\n\nThe device further has a speaker for supplying audio cues, which comprises a set of indexed predefined sounds. Each square on the touch-map can have an audio cue associated with it, specified by the index of the sound. The server can update the stored audio samples.",
   "types": [
     {
       "name": "byteArray",
@@ -1005,10 +1007,8 @@
     },
     {
       "name": "uintMatrix",
-      "description": "2-dimensional array of uint",
-      "specification": "uint[][]"
+      "description": "2-dimensional array of integers.",
+      "specification": "`uint`[][]"
     }
-  ],
-  "deviceDisplayName": "Wireles Interactive Networked Display (WIND)",
-  "deviceSpecification": "The device is a Wireless Interactive Networked Display (WIND) which is controlled by a central server (not in scope). It operates by creating a connection to the server and then handling requests to display content formatted as a PNG image. Some content must be interactive which is enabled by the display being touch sensitive and the server sending an indexed coordinates map of touch-squares on the display. The device must be extremely low cost, so interaction is limited by the device mapping touch coordinates to the proper id and sending that id back to the server.\n\nThe device further has a speaker for supplying audio queues, which comprises a set of indexed predefined sounds. Each square on the touch-map can have an audio cue associated with it, specified by the index of the sound. The server can update the stored audio samples."
+  ]
 }
