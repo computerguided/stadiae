@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <title>Stadiæ - State Diagram Editor</title>
+<!-- Inline SVG favicon: state-machine glyph (brackets enclosing a node).
+     Embedded as a data: URL so the editor stays a single self-contained
+     HTML file. Uses currentColor + a prefers-color-scheme media query
+     inside the SVG so the glyph reads as black on light browser tabs
+     and white on dark ones. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><style>:root{color:black}@media(prefers-color-scheme:dark){:root{color:white}}</style><path d='M30 10L10 10L10 90L30 90' fill='none' stroke='currentColor' stroke-width='10' stroke-linecap='square' stroke-linejoin='miter'/><circle cx='50' cy='50' r='18' fill='currentColor'/><path d='M70 10L90 10L90 90L70 90' fill='none' stroke='currentColor' stroke-width='10' stroke-linecap='square' stroke-linejoin='miter'/></svg>">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 

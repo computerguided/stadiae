@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>stadiae — state-diagram editor for embedded systems architects</title>
+<!-- Inline SVG favicon: state-machine glyph (brackets enclosing a node).
+     Embedded as a data: URL so the page stays a single self-contained
+     HTML file. Uses currentColor + a prefers-color-scheme media query
+     inside the SVG so the glyph reads as black on light browser tabs
+     and white on dark ones. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><style>:root{color:black}@media(prefers-color-scheme:dark){:root{color:white}}</style><path d='M30 10L10 10L10 90L30 90' fill='none' stroke='currentColor' stroke-width='10' stroke-linecap='square' stroke-linejoin='miter'/><circle cx='50' cy='50' r='18' fill='currentColor'/><path d='M70 10L90 10L90 90L70 90' fill='none' stroke='currentColor' stroke-width='10' stroke-linecap='square' stroke-linejoin='miter'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -140,6 +146,14 @@ main.doc { padding: 56px 0 120px 0; min-width: 0; }
   line-height: 1.02;
   color: var(--ink);
   margin-bottom: 14px;
+}
+.hero h1 .title-mark {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.13em;
+  margin-right: 0.2em;
+  color: var(--ink);
+  flex-shrink: 0;
 }
 .hero h1 .mono-accent {
   font-family: var(--mono);
@@ -512,13 +526,14 @@ footer.foot .links a + a { margin-left: 18px; }
     <!-- Hero -->
     <section class="hero" id="synopsis">
       <div class="crumb"><span class="accent">$</span> man stadi&aelig;</div>
-      <h1>stadi&aelig; <span class="mono-accent">&mdash; state&mdash;diagrams</span></h1>
+      <h1><svg class="title-mark" viewBox="0 0 100 100" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M30 10L10 10L10 90L30 90" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/><circle cx="50" cy="50" r="18" fill="currentColor"/><path d="M70 10L90 10L90 90L70 90" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/></svg>Stadi&aelig;</h1>
       <p class="tagline">
         A browser-based device- and state-diagram editor for embedded systems architects. Edits the <span class="hl">domain model</span> directly &mdash; components, interfaces, messages, states, choice-points, transitions &mdash; and emits clean, diffable PlantUML. One HTML file. No install. No lock-in.
       </p>
 
       <div class="hero-actions">
         <a class="btn btn-primary" href="stadiae.html">./stadiae.html &rarr;</a>
+        <a class="btn btn-ghost" href="https://htmlpreview.github.io/?https://raw.githubusercontent.com/computerguided/FCM/refs/heads/main/fcm.html">Stadiæ is based on FCM &rarr;</a>
         <a class="btn btn-ghost" href="#what-it-is">keep reading</a>
       </div>
 

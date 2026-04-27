@@ -181,7 +181,7 @@
   ],
   "components": [
     {
-      "name": "ServerConnector",
+      "name": "Server_Connector",
       "arrowFontSize": 9,
       "stateFontSize": 12,
       "states": [
@@ -720,13 +720,13 @@
   ],
   "connections": [
     {
-      "component": "ServerConnector",
+      "component": "Server_Connector",
       "interface": "Device",
       "connector": "Up",
       "length": 1
     },
     {
-      "component": "ServerConnector",
+      "component": "Server_Connector",
       "interface": "Connection",
       "connector": "Left",
       "length": 1
@@ -768,7 +768,7 @@
       "length": 1
     }
   ],
-  "activeComponentIndex": 0,
+  "activeComponentIndex": 2,
   "handlers": [
     {
       "name": "WirelessTransceiver",
@@ -952,7 +952,7 @@
   ],
   "handlerCalls": [
     {
-      "component": "ServerConnector",
+      "component": "Server_Connector",
       "handler": "WirelessTransceiver",
       "connector": "Left",
       "length": 1
@@ -1007,8 +1007,8 @@
     },
     {
       "name": "uintMatrix",
-      "description": "2-dimensional array of integers.",
-      "specification": "`uint`[][]"
+      "description": "2-dimensional array of uint",
+      "specification": "uint[][]"
     }
   ]
 }
