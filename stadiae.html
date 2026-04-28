@@ -2370,7 +2370,7 @@ function makeEmptyComponent(name, displayName) {
     constants: [],       // {name, description, value}
     // Multiplicity marker. When non-empty, the device-view PlantUML
     // wraps this component's `component …` declaration in a
-    // `rectangle <name>xN as "<value>x" { … }` so the device diagram
+    // `rectangle <name>xN as "<value>" { … }` so the device diagram
     // shows that several instances of this component exist at runtime.
     // Free-text identifier-style — typical values are short symbols
     // like `N`, `NUM`, `i`. Empty string means "no multiplicity";
@@ -3103,7 +3103,7 @@ function generateComponentDiagramPlantUML(opts = {}) {
       return;
     }
     const mult = owner.multiplication.trim();
-    lines.push(`rectangle ${owner.name}xN as "${plantUMLEscape(mult + "x")}" {`);
+    lines.push(`rectangle ${owner.name}xN as "${plantUMLEscape(mult)}" {`);
     lines.push(emitInterface(name, true));
     lines.push("}");
   });
@@ -3120,7 +3120,7 @@ function generateComponentDiagramPlantUML(opts = {}) {
       line += ` #line:FF0000;line.bold`;
     }
     // Multiplicity wrapper. When set, the component renders inside a
-    // `rectangle <name>xN as "<value>x" { … }` to indicate that
+    // `rectangle <name>xN as "<value>" { … }` to indicate that
     // several instances of this component exist at runtime. The
     // rectangle id `<name>xN` carries a fixed `xN` suffix so the id
     // is disjoint from the inner `component <name>` id even when the
@@ -3147,7 +3147,7 @@ function generateComponentDiagramPlantUML(opts = {}) {
     // selection.
     const mult = (typeof c.multiplication === "string") ? c.multiplication.trim() : "";
     if (mult.length > 0) {
-      lines.push(`rectangle ${c.name}xN as "${plantUMLEscape(mult + "x")}" {`);
+      lines.push(`rectangle ${c.name}xN as "${plantUMLEscape(mult)}" {`);
       lines.push(line);
       lines.push("}");
     } else {
@@ -7733,7 +7733,7 @@ function manualContent() {
       <p>The Components list always shows the display name on a single line (with any <code>\\n</code> markers collapsed to spaces). The full label and, when distinct, the underlying identifier are visible on hover.</p>
       <p>Opening an older save file that stored free text directly in <em>Name</em> auto-migrates: the original text is moved into <em>Display name</em> and a slugged identifier becomes the <em>Name</em>. Connections referring to the old name are re-keyed in step. The diagram looks identical because it always reads the display label.</p>
       <h3>Multiplication</h3>
-      <p>The component <em>Edit</em> dialog also offers an optional <strong>Multiplication</strong> field — a free-text marker (typical values are short symbols like <code>N</code>, <code>NUM</code>, or <code>i</code>) that you set when the device runs several instances of the component at once. When set, the device diagram wraps the component's box in an outer <em>rectangle</em> labelled with that value followed by <code>x</code>: a multiplication of <code>N</code> renders as a wrapper labelled <code>Nx</code>. When empty (the default), the component renders plain.</p>
+      <p>The component <em>Edit</em> dialog also offers an optional <strong>Multiplication</strong> field — a free-text marker (typical values are short symbols like <code>N</code>, <code>NUM</code>, or <code>i</code>) that you set when the device runs several instances of the component at once. When set, the device diagram wraps the component's box in an outer <em>rectangle</em> labelled with that value: a multiplication of <code>N</code> renders as a wrapper labelled <code>N</code>. When empty (the default), the component renders plain.</p>
       <p>Every interface that the multiplied component is connected to is rendered inside the same wrapper, with its visible label suffixed <code>[]</code>. The model itself isn't changed: the interface still has its plain name in the catalogue and in transitions. Plain components can freely connect to a wrapped interface; only the visualisation reflects the multiplicity.</p>
       <p>Clicks on the visible component box or on an interface lollipop still select the inner entity as usual. Clicks on the wrapper rectangle itself — its frame or any empty space around the entities — resolve to nothing. The wrappers don't carry a selection of their own, and they don't show a red highlight when their contents are selected — the highlight stays on the actual entity inside.</p>
       <p><strong>Invariant.</strong> A non-default interface can have at most <em>one</em> multiplied component connected to it. Stadiæ refuses to add a connection that would put two multiplied components on the same interface, and refuses to set a multiplication that would create such a conflict on any of the component's existing interfaces. The error dialog identifies the other multiplied component so you can decide which one should keep the connection.</p>
