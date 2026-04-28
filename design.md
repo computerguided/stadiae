@@ -101,6 +101,18 @@ Model = {
       //     the Local functions list. Newlines preserved end-to-end
       //     (dialog input → JSON save → spec export cell).
       localFunctions: [ {name, description, steps} ],
+      // Optional multiplicity marker. Free-text — typical values are
+      // short symbols like `N`, `NUM`, `i`. When non-empty, the
+      // device-view PlantUML wraps this component's `component …`
+      // declaration in a `rectangle <name>xN as "<value>x" { … }` so
+      // the device diagram visually flags that several instances of
+      // the component exist at runtime. Empty (the default) = no
+      // wrapping. Documentation-only beyond that visual: state
+      // machines, connections, handler calls, the spec export's
+      // tables — none of them change. Handlers don't have this
+      // field; multiplicity is a property of the components that own
+      // a state machine.
+      multiplication: String,
       transitions:  [ {source, target, messages, connector, length} ]
     },
     ...
@@ -998,6 +1010,12 @@ Connection direction/length uses the same vocabulary as transitions, but without
 For mask and selection modes, the decoration is injected between the leading `-` and the rest of the connector using a `String.replace(/^-/, …)` — the same pattern that works for state-machine arrows.
 
 Orphan interfaces (declared in the catalogue but not wired to anything) are omitted from the component-diagram render to keep it uncluttered. They remain visible in the Interfaces list on the right.
+
+**Component multiplicity.** A component carrying a non-empty `multiplication` field renders inside an outer `rectangle <name>xN as "<value>x" { … }`, where `<value>` is the user-supplied marker (typically `N`, `NUM`, or `i`) and `<name>xN` is a derived id with a fixed `xN` suffix to keep it disjoint from the inner `component <name>` id even if the user picks `N` itself as the marker. The wrapping rectangle has no Selection of its own and no styling in either mask or visible mode — it's pure layout. The red `line:FF0000;line.bold` highlight in selection-visible mode stays on the inner `component` line only.
+
+**Interface multiplicity.** Every non-default interface that a multiplied component is wired to is also emitted inside `rectangle <Component>xN as "<value>x" { … }` — note the *same id* as the component-wrapper rectangle. PlantUML treats repeated `rectangle <id>` declarations as one rectangle, so the component and all of its interfaces end up enclosed in a single visible box. The interface's visible label is suffixed `[]` to mark the multiplicity at the rendering level only — the model's interface name is unchanged. Like the component-wrapper, the interface-wrapper carries no styling: clicks on the rectangle's frame or on empty padding inside the box resolve to background, while clicks on the visible component box or on an enclosed interface lollipop still resolve correctly via their own mask ids.
+
+**Multiplicity invariant.** A non-default interface can have AT MOST ONE multiplied component connected to it. The rule is enforced by `findMultipliedComponentConflict(ifaceName, candidateComp)` and checked in two places: (1) `actionAddConnection` rejects a `comp-iface` connection when the candidate component is multiplied and the target interface is already wired to another multiplied component; (2) `openComponentDialog`'s OK handler rejects setting a non-empty `multiplication` when any of the component's existing interfaces is already wired to another multiplied component. Plain-vs-multiplied is allowed; only multiplied-vs-multiplied is forbidden. The generator carries a defensive "first multiplied component wins" fallback so that a hand-edited file violating the rule still renders something rather than crashing.
 
 ### 14.4 Components list and the floating Device button
 

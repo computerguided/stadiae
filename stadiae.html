@@ -2310,6 +2310,31 @@ function makeEmptyComponent(name, displayName) {
     // any other notation that fits the domain. Documentation-only;
     // never reach PlantUML.
     constants: [],       // {name, description, value}
+    // Multiplicity marker. When non-empty, the device-view PlantUML
+    // wraps this component's `component …` declaration in a
+    // `rectangle <name>xN as "<value>x" { … }` so the device diagram
+    // shows that several instances of this component exist at runtime.
+    // Free-text identifier-style — typical values are short symbols
+    // like `N`, `NUM`, `i`. Empty string means "no multiplicity";
+    // file-format-wise the field is omitted from the JSON when empty
+    // so files that don't use it stay byte-identical to before the
+    // feature.
+    //
+    // Each non-default interface this component is wired to is
+    // rendered inside a rectangle declaration with the SAME id —
+    // PlantUML treats repeated `rectangle <id>` declarations as one
+    // rectangle, so the component and all of its interfaces end up
+    // enclosed in a single visible box. The interface's visible
+    // label is suffixed `[]`. The wrappers carry no styling: clicks
+    // on the inner entities still resolve, but clicks on the
+    // rectangle frame or padding select nothing.
+    //
+    // Invariant: a non-default interface can have AT MOST ONE
+    // multiplied component connected to it. Enforced by
+    // `findMultipliedComponentConflict` from both the connection-add
+    // path and the multiplication-set path. Handlers do not have
+    // this field.
+    multiplication: "",
     // transitions: {source, target, messages: [{interface,name,action?}], connector, length}
     // Source/target are state/cp names. "START" is a special source,
     // "[H]" special target, "*" special source. Each message may carry a
@@ -2953,24 +2978,76 @@ function generateComponentDiagramPlantUML(opts = {}) {
     (display && display !== name) ? ` as "${plantUMLEscape(display)}"` : "";
 
   lines.push("'== Interfaces ==");
-  wiredInterfaces.forEach(name => {
-    // Interface ids in the PlantUML source get an `if_` prefix to
-    // avoid colliding with same-named Components or Handlers. PlantUML
-    // treats all element ids as a single flat namespace regardless of
-    // shape, so without the prefix a Handler named "Test" and an
-    // Interface named "Test" would render as one entity. The user-
-    // facing name stays "Test"; the `as "..."` clause carries the
-    // visible label. Parallel to the `CP_` prefix used for choice-
-    // points for the same kind of reason.
+  // An interface that has at least one multiplied component connected
+  // to it is rendered inside that component's multiplicity rectangle,
+  // and its visible label is suffixed `[]`. The wrapper rectangle
+  // shares its ID with the component-wrapper rectangle: PlantUML
+  // treats two `rectangle <id>` declarations as the SAME rectangle,
+  // so emitting `rectangle FooxN as "Nx" { … }` once for the
+  // component and once for each of its interfaces produces one box
+  // visually enclosing the component and all of its interfaces.
+  // That's what the user-supplied example PlantUML shows and what
+  // the visual semantics call for ("the component and its interfaces
+  // are multiplied together").
+  //
+  // Mask mode: the rectangle is emitted WITHOUT a fill colour. The
+  // inner entities (the `component` and the `()` interface lines)
+  // keep their own mask ids, so clicks on visible component boxes or
+  // interface lollipops resolve correctly. Clicks on the rectangle's
+  // frame or on empty padding inside the rectangle resolve to
+  // background — a small affordance loss in exchange for clean
+  // rendering of the shared-id rectangle.
+  //
+  // The model invariant is enforced elsewhere (in actionAddConnection
+  // and openComponentDialog): a non-default interface can have AT
+  // MOST ONE multiplied component connected to it. So the lookup
+  // below is unambiguous when the model is consistent. As a
+  // defensive measure for hand-edited files that violate the rule,
+  // we pick the FIRST multiplied component (in component-list order)
+  // and ignore the rest — better to render something than to crash.
+  const wrapperOwnerByInterface = new Map(); // ifaceName -> Component (the multiplied owner, if any)
+  for (const iface of Model.interfaces) {
+    if (iface.isDefault) continue;
+    if (!wiredInterfaces.has(iface.name)) continue;
+    for (const c of Model.components) {
+      if (!allowComponent(c.name)) continue;
+      const mult = (typeof c.multiplication === "string") ? c.multiplication.trim() : "";
+      if (mult.length === 0) continue;
+      if (Model.connections.some(cn => cn.component === c.name && cn.interface === iface.name && allowConnection(cn))) {
+        wrapperOwnerByInterface.set(iface.name, c);
+        break;
+      }
+    }
+  }
+  // Helper: emit the `() if_… as "…"` line for one interface, with
+  // the visible label optionally suffixed `[]` and selection / mask
+  // styling applied.
+  const emitInterface = (name, suffixed) => {
     const id = "if_" + name;
-    let line = `() ${id} as "${plantUMLEscape(name)}"`;
+    const label = suffixed ? (name + "[]") : name;
+    let line = `() ${id} as "${plantUMLEscape(label)}"`;
     if (isMask) {
-      const maskId = idAssigner("iface:" + name, "iface");
-      line += ` #${maskId};line:${maskId}`;
+      const ifaceMaskId = idAssigner("iface:" + name, "iface");
+      line += ` #${ifaceMaskId};line:${ifaceMaskId}`;
     } else if (withSelection && Selection.interfaces.has(name)) {
       line += ` #line:FF0000;line.bold`;
     }
-    lines.push(line);
+    return line;
+  };
+  // Walk wiredInterfaces in declaration order. For each one decide:
+  // bare line, or wrapped in the multiplied owner's rectangle (using
+  // the owner's component-wrapper id so PlantUML merges the two
+  // declarations into a single visible box).
+  wiredInterfaces.forEach(name => {
+    const owner = wrapperOwnerByInterface.get(name);
+    if (!owner) {
+      lines.push(emitInterface(name, false));
+      return;
+    }
+    const mult = owner.multiplication.trim();
+    lines.push(`rectangle ${owner.name}xN as "${plantUMLEscape(mult + "x")}" {`);
+    lines.push(emitInterface(name, true));
+    lines.push("}");
   });
   lines.push("");
 
@@ -2984,7 +3061,40 @@ function generateComponentDiagramPlantUML(opts = {}) {
     } else if (withSelection && isComponentSelected(c.name)) {
       line += ` #line:FF0000;line.bold`;
     }
-    lines.push(line);
+    // Multiplicity wrapper. When set, the component renders inside a
+    // `rectangle <name>xN as "<value>x" { … }` to indicate that
+    // several instances of this component exist at runtime. The
+    // rectangle id `<name>xN` carries a fixed `xN` suffix so the id
+    // is disjoint from the inner `component <name>` id even when the
+    // user picks `N` itself as the multiplicity marker.
+    //
+    // Crucially, this same id is *also* used by the interface
+    // emission block above for every interface this component owns
+    // — PlantUML treats repeated `rectangle <id>` declarations as
+    // one rectangle, so a single visible box ends up enclosing the
+    // component AND its interfaces (matching the user-supplied
+    // example).
+    //
+    // Rectangle styling: emitted unstyled in BOTH visible and mask
+    // modes. We don't paint a fill colour in mask mode because the
+    // rectangle is shared across multiple emissions (here and in
+    // interface emission), so any colour we picked would conflict
+    // with another emission's choice. The trade-off: clicks on the
+    // rectangle's frame or on empty padding inside the rectangle
+    // resolve to background; clicks on the visible component box or
+    // on an enclosed interface lollipop still resolve correctly via
+    // their own mask ids. We don't paint a red highlight in
+    // selection-visible mode either — the highlight stays on the
+    // inner `component` line so visual focus matches the actual
+    // selection.
+    const mult = (typeof c.multiplication === "string") ? c.multiplication.trim() : "";
+    if (mult.length > 0) {
+      lines.push(`rectangle ${c.name}xN as "${plantUMLEscape(mult + "x")}" {`);
+      lines.push(line);
+      lines.push("}");
+    } else {
+      lines.push(line);
+    }
   });
   lines.push("");
 
@@ -3467,6 +3577,38 @@ function isUniqueMessageName(iface, name, excludeName=null) {
 function isUniqueComponentName(name, excludeName=null) {
   const trimmed = (name || "").trim();
   return !Model.components.some(c => c.name === trimmed && c.name !== excludeName);
+}
+
+// Multiplicity invariant: a non-default interface can have AT MOST ONE
+// multiplied component connected to it. A "multiplied component" is one
+// whose `multiplication` field is a non-empty string (after trim). The
+// rule exists because the device-view PlantUML wraps an interface in
+// the multiplied component's rectangle to visualise the multiplicity,
+// and an interface can only sit inside one rectangle.
+//
+// Returns the conflicting component (the OTHER multiplied component
+// already on this interface) or null if no conflict.
+//
+//   ifaceName     — the interface to check
+//   candidateComp — the component that would be wired (or whose
+//                   multiplication is being changed). Excluded from
+//                   the scan since we're asking "is there a different
+//                   multiplied component on this interface?"
+//
+// Used in two places: actionAddConnection (refuses to wire a multiplied
+// component to an interface that already has another), and
+// openComponentDialog's OK handler (refuses to set a multiplication
+// that would conflict on any of the component's existing interfaces).
+function findMultipliedComponentConflict(ifaceName, candidateComp) {
+  for (const cn of Model.connections) {
+    if (cn.interface !== ifaceName) continue;
+    if (cn.component === candidateComp) continue;
+    const other = Model.components.find(c => c.name === cn.component);
+    if (!other) continue;
+    const otherMult = (typeof other.multiplication === "string") ? other.multiplication.trim() : "";
+    if (otherMult.length > 0) return other;
+  }
+  return null;
 }
 
 // Visible label for a component — what shows on the canvas (component
@@ -5596,6 +5738,13 @@ function renameComponent(idx) {
 // text shown on the canvas. The display name is optional and may
 // contain `\n` for line breaks; the canvas renders it verbatim, the
 // Components list collapses `\n` to space.
+//
+// A third optional field — Multiplication — carries a free-text marker
+// (typical: `N`, `NUM`, `i`) that, when set, makes the device-view
+// diagram render the component inside a `rectangle <value>x { … }`.
+// Free text on purpose, like Constants' `value`: the user might want
+// `2..N`, `K-1`, or any domain notation. Empty (or whitespace-only)
+// means "no multiplicity" — the component renders plain.
 function openComponentDialog(existing) {
   const title = existing ? "Component properties" : "Add component";
   modalContainer.innerHTML = `
@@ -5605,6 +5754,8 @@ function openComponentDialog(existing) {
       <input type="text" id="cm-name" value="${escapeHTML(existing?.name||'')}">
       <label>Display name:</label>
       <input type="text" id="cm-dn" value="${escapeHTML(existing?.displayName||'')}">
+      <label>Multiplication:</label>
+      <input type="text" id="cm-mult" value="${escapeHTML(existing?.multiplication||'')}" placeholder="e.g. N, NUM, i — leave empty for none">
     </div>
     <div class="actions">
       <button id="ok">OK</button>
@@ -5614,6 +5765,7 @@ function openComponentDialog(existing) {
   modalOverlay.classList.add("show");
   const nameI = document.getElementById("cm-name");
   const dnI = document.getElementById("cm-dn");
+  const multI = document.getElementById("cm-mult");
   const ok = document.getElementById("ok");
   const update = () => { ok.disabled = !nameI.value.trim(); };
   nameI.addEventListener("input", update); update();
@@ -5627,6 +5779,34 @@ function openComponentDialog(existing) {
       showAlert("Error", "A component with this name already exists."); return;
     }
     const dn = dnI.value;
+    // Multiplication: free text — no validation. Whitespace-only is
+    // normalised to "" so the persisted/emitted form has a single
+    // canonical "unset" representation.
+    const multRaw = multI.value;
+    const mult = multRaw.trim().length > 0 ? multRaw : "";
+    // Multiplicity conflict check. If the user is setting (or keeping)
+    // a non-empty multiplication on this component, scan every
+    // interface this component is already wired to and reject if any
+    // of those interfaces is also wired to a DIFFERENT multiplied
+    // component. The rule is symmetric with the one in
+    // actionAddConnection: at most one multiplied component per
+    // interface. Only run when mult is being set — clearing the
+    // multiplication can never introduce a conflict.
+    if (existing && mult.length > 0) {
+      const myConnections = Model.connections.filter(cn => cn.component === existing.name);
+      for (const cn of myConnections) {
+        const other = findMultipliedComponentConflict(cn.interface, existing.name);
+        if (other) {
+          showAlert(
+            "Cannot set multiplication",
+            `This component is connected to interface "${cn.interface}", which is already used by ` +
+            `multiplied component "${other.name}". An interface can only have one multiplied component ` +
+            `connected to it. Disconnect from "${cn.interface}" first, or remove the multiplication on "${other.name}".`
+          );
+          return;
+        }
+      }
+    }
     pushHistory();
     if (existing) {
       const oldName = existing.name;
@@ -5645,6 +5825,7 @@ function openComponentDialog(existing) {
       }
       existing.name = name;
       existing.displayName = dn;
+      existing.multiplication = mult;
       if (oldName !== name) {
         // Cascade the rename through connections (and any other model
         // store that holds the component name as a reference).
@@ -5663,7 +5844,9 @@ function openComponentDialog(existing) {
         Selection.connections = newConnKeys;
       }
     } else {
-      Model.components.push(makeEmptyComponent(name, dn));
+      const c = makeEmptyComponent(name, dn);
+      c.multiplication = mult;
+      Model.components.push(c);
       Model.activeComponentIndex = Model.components.length - 1;
       Selection.clearAll();
     }
@@ -6867,6 +7050,29 @@ function canAddConnection() {
 function actionAddConnection() {
   const p = detectConnectionPattern();
   if (!p) return;
+  // Multiplicity guard: a non-default interface can carry at most one
+  // multiplied component. If the user is trying to wire a multiplied
+  // component to an interface that already has another multiplied
+  // component on it, reject with a clear message rather than silently
+  // accepting. Symmetric: if the candidate component is plain but its
+  // target interface is already wrapped by some multiplied component
+  // — that's fine; plain components are happy to coexist with the
+  // wrapper. Only the multiplied-vs-multiplied case is blocked.
+  if (p.kind === "comp-iface") {
+    const cand = Model.components.find(c => c.name === p.component);
+    const candMult = (cand && typeof cand.multiplication === "string") ? cand.multiplication.trim() : "";
+    if (candMult.length > 0) {
+      const other = findMultipliedComponentConflict(p.interface, p.component);
+      if (other) {
+        showAlert(
+          "Cannot connect",
+          `Interface "${p.interface}" is already used by multiplied component "${other.name}". ` +
+          `An interface can only have one multiplied component connected to it.`
+        );
+        return;
+      }
+    }
+  }
   pushHistory();
   if (p.kind === "comp-iface") {
     Model.connections.push({ component: p.component, interface: p.interface, connector: "Right", length: 1 });
@@ -7439,6 +7645,20 @@ function manualContent() {
       </ul>
       <p>The Components list always shows the display name on a single line (with any <code>\\n</code> markers collapsed to spaces). The full label and, when distinct, the underlying identifier are visible on hover.</p>
       <p>Opening an older save file that stored free text directly in <em>Name</em> auto-migrates: the original text is moved into <em>Display name</em> and a slugged identifier becomes the <em>Name</em>. Connections referring to the old name are re-keyed in step. The diagram looks identical because it always reads the display label.</p>
+      <h3>Multiplication</h3>
+      <p>The component <em>Edit</em> dialog also offers an optional <strong>Multiplication</strong> field — a free-text marker (typical values are short symbols like <code>N</code>, <code>NUM</code>, or <code>i</code>) that you set when the device runs several instances of the component at once. When set, the device diagram wraps the component's box in an outer <em>rectangle</em> labelled with that value followed by <code>x</code>: a multiplication of <code>N</code> renders as a wrapper labelled <code>Nx</code>. When empty (the default), the component renders plain.</p>
+      <p>Every interface that the multiplied component is connected to is rendered inside the same wrapper, with its visible label suffixed <code>[]</code>. The model itself isn't changed: the interface still has its plain name in the catalogue and in transitions. Plain components can freely connect to a wrapped interface; only the visualisation reflects the multiplicity.</p>
+      <p>Clicks on the visible component box or on an interface lollipop still select the inner entity as usual. Clicks on the wrapper rectangle itself — its frame or any empty space around the entities — resolve to nothing. The wrappers don't carry a selection of their own, and they don't show a red highlight when their contents are selected — the highlight stays on the actual entity inside.</p>
+      <p><strong>Invariant.</strong> A non-default interface can have at most <em>one</em> multiplied component connected to it. Stadiæ refuses to add a connection that would put two multiplied components on the same interface, and refuses to set a multiplication that would create such a conflict on any of the component's existing interfaces. The error dialog identifies the other multiplied component so you can decide which one should keep the connection.</p>
+      <p>The multiplicity is purely a visual annotation; it has no effect on state machines, the transitions table, or the spec export beyond the diagram itself. Handlers do not have this field.</p>
+      <h4>Indexing conventions for multiplied interfaces</h4>
+      <p>The <code>[]</code> suffix that Stadiæ draws on a wrapped interface is a reminder that this interface is now an <em>array</em> at runtime — there's one instance per copy of the multiplied component that owns it. That has consequences for anyone <em>sending</em> a message on such an interface, but Stadiæ doesn't model these conventions explicitly: it's up to you to follow them in the free-text Action note on each transition, and (for handlers) to honour them in the implementation.</p>
+      <p>Two situations come up:</p>
+      <ul>
+        <li><strong>A sender targeting a multiplied interface.</strong> The sender — any component (plain or multiplied) or any handler — must specify <em>which instance</em> of the receiver the message is for, by index. A common convention is to write the call as <code>Sensing[i].Trigger(...)</code> in the Action note, where <code>i</code> is whatever value identifies the right instance in your domain. Stadiæ doesn't validate the index expression; treat it as documentation.</li>
+        <li><strong>A multiplied component sending out on its own multiplied interface.</strong> The receiver needs to know <em>which instance of the sender</em> the message came from, so the message payload should carry the sender's identity. The usual convention is to add a parameter — typically called <code>id</code> or similar — to the relevant message, set in the sending transition's Action to the sender's own index. The parameter is just an ordinary message parameter as far as Stadiæ is concerned; what matters is that you remember to add it on messages that travel out of multiplied components.</li>
+      </ul>
+      <p>If you want to refer to the sender's own index from action text, the cleanest way is to declare a state variable on the multiplied component (e.g. <code>myIndex</code>) describing it as "this component instance's index", and reference it from action text as you would any other state variable. Stadiæ doesn't add such a variable automatically — multiplicity is a modelling decision, and the variable's name and exact meaning are yours to choose.</p>
       <h3>Switching components</h3>
       <p>In component view, clicking a row in the Components list switches the active component and <strong>clears the current selection</strong>, so you always start in a clean state in the new component. The diagram re-renders for the new component; interfaces and messages stay as they were. To enter a component from <em>device</em> view, click its row (or its box on the canvas) to select it, then click the floating <code>Component ▸</code> button at the top-right of the canvas.</p>
       <h3>Description</h3>
@@ -9966,6 +10186,12 @@ function buildSerializedModel() {
           return ko;
         });
       }
+      // Multiplication: emit only when set, so files unchanged from
+      // before the feature stay byte-identical. Trim treats whitespace-
+      // only as unset (matches the UI-side check in the Edit dialog).
+      if (typeof c.multiplication === "string" && c.multiplication.trim().length > 0) {
+        out.multiplication = c.multiplication;
+      }
       return out;
     }),
     // Device-level component diagram: {component, interface} pairs.
@@ -11071,9 +11297,16 @@ function attachLiveBacktickRendering(textarea, getContext, placeholder) {
 
   // If the field already has content at attach time, start in
   // overlay mode. Empty fields stay in textarea mode (placeholder
-  // visible, ready to type).
+  // visible, ready to type) — and we explicitly hide the overlay so
+  // its own `:empty::before` placeholder doesn't double up with the
+  // textarea's native placeholder attribute. Without this, both
+  // would render their placeholder text simultaneously on first
+  // paint, looking like a faded-italic shadow copy below the
+  // editable field.
   if (textarea.value && textarea.value.length > 0) {
     showOverlay();
+  } else {
+    overlay.style.display = "none";
   }
 
   // Expose a refresher so callers can sync display state after
@@ -13473,6 +13706,10 @@ function loadModel(data) {
           value: (typeof k.value === "string") ? k.value : "",
           description: (typeof k.description === "string") ? k.description : ""
         })),
+        // Multiplicity marker. Post-initial-v4 addition; absent or
+        // non-string loads as an empty string ("no multiplicity"),
+        // so older v4 files round-trip unchanged.
+        multiplication: (typeof c.multiplication === "string") ? c.multiplication : "",
         transitions: c.transitions || []
       };
     });
