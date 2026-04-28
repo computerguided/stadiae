@@ -1198,6 +1198,64 @@
     font-size: 0.92em;
     color: var(--text);
   }
+  /* Markdown-mode live preview. The overlay's default `pre-wrap` keeps
+     the textarea's literal whitespace, which is wrong for block-level
+     output (paragraph margins, list indents, etc.). Switching to
+     `normal` lets <p>, <ul>, <ol>, and headings space themselves
+     naturally — the same way they will in the spec export. The same
+     rules apply inside .type-defs-spec-preview.markdown so the
+     type-definitions modal shows identical formatting. */
+  .live-render.markdown,
+  .type-defs-spec-preview.markdown {
+    white-space: normal;
+  }
+  .live-render.markdown .live-md-p,
+  .type-defs-spec-preview.markdown .live-md-p {
+    margin: 0 0 8px;
+  }
+  .live-render.markdown .live-md-p:last-child,
+  .type-defs-spec-preview.markdown .live-md-p:last-child {
+    margin-bottom: 0;
+  }
+  /* Heading sizes scale roughly the same way the spec export's <h1>…
+     <h6> do, but tuned a bit smaller because the editor panel is
+     narrow and we don't want a heading to dominate the field. */
+  .live-render.markdown .live-md-h,
+  .type-defs-spec-preview.markdown .live-md-h {
+    font-weight: 600;
+    margin: 12px 0 6px;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .live-render.markdown .live-md-h:first-child,
+  .type-defs-spec-preview.markdown .live-md-h:first-child {
+    margin-top: 0;
+  }
+  .live-render.markdown .live-md-h1,
+  .type-defs-spec-preview.markdown .live-md-h1 { font-size: 1.35em; }
+  .live-render.markdown .live-md-h2,
+  .type-defs-spec-preview.markdown .live-md-h2 { font-size: 1.20em; }
+  .live-render.markdown .live-md-h3,
+  .type-defs-spec-preview.markdown .live-md-h3 { font-size: 1.08em; }
+  .live-render.markdown .live-md-h4,
+  .live-render.markdown .live-md-h5,
+  .live-render.markdown .live-md-h6,
+  .type-defs-spec-preview.markdown .live-md-h4,
+  .type-defs-spec-preview.markdown .live-md-h5,
+  .type-defs-spec-preview.markdown .live-md-h6 { font-size: 1em; }
+  .live-render.markdown .live-md-list,
+  .type-defs-spec-preview.markdown .live-md-list {
+    margin: 0 0 8px;
+    padding-left: 24px;
+  }
+  .live-render.markdown .live-md-list li,
+  .type-defs-spec-preview.markdown .live-md-list li {
+    margin: 2px 0;
+  }
+  .live-render.markdown strong,
+  .type-defs-spec-preview.markdown strong { font-weight: 600; }
+  .live-render.markdown em,
+  .type-defs-spec-preview.markdown em { font-style: italic; }
   /* Hover tooltip for resolved live-ref spans. Same visual style as
      the spec's tooltips so the editor and spec output share an
      idiom. A single tooltip element is appended to body and
@@ -4701,7 +4759,10 @@ function initActionPanel() {
   // Live rendering — context includes rowMessage so the action's
   // Msg:Param shortcut resolves correctly (a backtick reference like
   // `serverId` inside an action whose row is `Connection:ConnectReq`
-  // resolves to `Connection:ConnectReq:serverId`).
+  // resolves to `Connection:ConnectReq:serverId`). Markdown mode:
+  // transition Action is one of the four long-form fields where
+  // Markdown structure (paragraphs, lists, headings-as-bold) is
+  // honoured in the spec export, so the live overlay matches.
   attachLiveBacktickRendering(
     textarea,
     () => {
@@ -4714,7 +4775,8 @@ function initActionPanel() {
         rowMessage: (iface && name) ? { interface: iface, name: name } : undefined
       };
     },
-    "Describe the action performed when this transition fires…"
+    "Describe the action performed when this transition fires…",
+    { markdown: true }
   );
 }
 
@@ -4811,11 +4873,13 @@ function initStepsPanel() {
     stepsEditSession = { key: null, pushed: false };
   });
   // Live rendering — context is the active component (steps live on
-  // a local function in the active component).
+  // a local function in the active component). Markdown mode: same
+  // rationale as the Action panel above.
   attachLiveBacktickRendering(
     textarea,
     () => ({ kind: "component", componentName: Component.name }),
-    "What the function does, one step per line."
+    "What the function does, one step per line.",
+    { markdown: true }
   );
 }
 
@@ -5022,11 +5086,14 @@ function initDeviceSpecPanel() {
   });
   // Live rendering — when the textarea loses focus, swap to a styled
   // overlay that renders backtick references in cooked form. Click
-  // the overlay to swap back to editing.
+  // the overlay to swap back to editing. Markdown mode: the device
+  // specification is the longest-form field in the model and the
+  // primary place users will reach for headings and lists.
   attachLiveBacktickRendering(
     textarea,
     () => ({ kind: "device" }),
-    "Describe the device as a whole. This is the design guide you write your components and handlers against."
+    "Describe the device as a whole. This is the design guide you write your components and handlers against.",
+    { markdown: true }
   );
 }
 
@@ -7606,6 +7673,19 @@ function manualContent() {
       <h3>Cross-references in prose</h3>
       <p>Any free-text field in the model — Device Specification, transition Actions, descriptions on every entity — supports <strong>backtick-delimited references</strong> to named entities elsewhere in the model. Wrap a name in backticks and the spec export turns it into a hyperlink. Bare names like <code>\`Idle\`</code> resolve in the surrounding context first; qualified names like <code>\`Card:Charge\`</code> or <code>\`Connection:ConnectReq:serverId\`</code> link to a specific message or parameter. Renames cascade automatically — change a name and references update everywhere. Hover any link in the rendered spec to see the target's description in a tooltip.</p>
       <p><strong>Live preview while editing.</strong> Backtick references in the Device Specification, transition Action, local-function Steps, and entity Description panels are rendered <em>in place</em> when you click out of the field. Resolved references show in monospace with the accent color (no backticks visible); unresolved references show as plain monospace text. Click anywhere on the rendered field to swap back to the editable text with the backticks visible. Press <kbd>Esc</kbd> to leave the field quickly without reaching for the mouse — useful for verifying that all your references resolve correctly. Hovering a resolved reference shows its description in a tooltip, the same way the rendered spec does.</p>
+      <h3>Markdown formatting in long-form fields</h3>
+      <p>Four free-text fields render a curated subset of Markdown in the spec export and the live preview: the <em>Device Specification</em>, transition <em>Action</em> notes, local-function <em>Steps</em>, and type-definition <em>Specification</em>. The other description fields stay plain text, so a one-liner doesn't change behaviour.</p>
+      <p>What's supported:</p>
+      <ul>
+        <li><strong>Headings.</strong> A line beginning with one to six <code>#</code> characters followed by a space, e.g. <code># Big</code>, <code>## Smaller</code>, …, <code>###### Smallest</code>. The export adjusts the actual heading level to fit the surrounding chapter structure (so a Markdown <code>#</code> in the Device Specification doesn't compete with the chapter's own <code>&lt;h1&gt;</code>). Inside a table cell — Action notes, Steps, type Specifications — headings render as bold paragraphs instead of real headings, which keeps cell layout sane.</li>
+        <li><strong>Bullet lists.</strong> Lines beginning with <code>* </code> or <code>- </code>.</li>
+        <li><strong>Numbered lists.</strong> Lines beginning with a digit, a dot, and a space, e.g. <code>1. First</code>.</li>
+        <li><strong>Bold.</strong> <code>**bold**</code>.</li>
+        <li><strong>Italic.</strong> <code>*italic*</code> or <code>_italic_</code>.</li>
+        <li><strong>Backtick references</strong> still work the same way and can be combined freely with bold and italic — <code>**Sets the \`Idle\` flag**</code> renders bold text containing a resolved link.</li>
+      </ul>
+      <p>What's <em>not</em> supported (deliberately, to keep behaviour predictable): nested lists, fenced code blocks, blockquotes, tables, links of the form <code>[text](url)</code>, images, horizontal rules, and inline HTML. Anything not on the list above renders as literal text. If you nest emphasis, use distinct delimiters at each level — e.g. <code>**bold _italic_ inside**</code> or <code>_italic **with bold** inside_</code> — because mixing the same character at two levels confuses the simple parser.</p>
+      <p>Paragraph breaks are blank lines. Two lines with no blank line between them join into one paragraph (the standard "soft wrap" behaviour). The live preview swaps in the same rendered form when the field loses focus, so what you see in the panel is what the spec export will render.</p>
     </section>
 
     <section id="m-interface">
@@ -8584,13 +8664,18 @@ function renderTypeDefinitionsModal() {
   if (selType) {
     const idx = buildSpecAnchorIndex();
     const ctx = { kind: "type", name: selType.name };
-    const specRendered = renderLiveBackticks(selType.specification || "", ctx, idx);
+    // Markdown-aware: this preview is the user-facing "what does the
+    // specification look like once exported" view, and the spec
+    // export honours Markdown for type specifications. Keeping the
+    // two in sync avoids the surprise of editing Markdown that looks
+    // plain in the editor and stylish in the export.
+    const specRendered = renderLiveMarkdown(selType.specification || "", ctx, idx);
     rightPaneHTML = `
       <div class="type-defs-spec-header">
         <p class="name">${escapeHTML(selType.name)}</p>
         <p class="desc">${escapeHTML(selType.description || "")}</p>
       </div>
-      <div class="type-defs-spec-preview">${specRendered}</div>`;
+      <div class="type-defs-spec-preview markdown">${specRendered}</div>`;
   } else {
     rightPaneHTML = `<div class="type-defs-spec-empty">Select a type to view its specification.</div>`;
   }
@@ -10635,6 +10720,122 @@ function mkParas(d, text) {
   return str.split(/\r?\n/).map(line => mkPara(d, line));
 }
 
+// docx renderer for parsed inline Run[] (see parseMarkdownInline).
+// Walks the run tree, accumulating bold/italic state via a small
+// ambient style stack, and emits TextRun children. References
+// (backtick spans) emit a plain TextRun of their inner text — the
+// docx output never had backtick-link rendering before this change,
+// and this iteration deliberately keeps that scope unchanged.
+//
+// Returns a flat array of TextRun children suitable as a Paragraph's
+// `children`.
+function runsToTextRuns(d, runs, style = {}) {
+  const out = [];
+  for (const r of runs) {
+    if (r.type === "text") {
+      out.push(new d.TextRun({
+        text: r.text,
+        bold: !!style.bold,
+        italics: !!style.italics
+      }));
+    } else if (r.type === "bold") {
+      const child = runsToTextRuns(d, r.runs, { ...style, bold: true });
+      for (const tr of child) out.push(tr);
+    } else if (r.type === "italic") {
+      const child = runsToTextRuns(d, r.runs, { ...style, italics: true });
+      for (const tr of child) out.push(tr);
+    } else if (r.type === "ref") {
+      // Plain text — inherits surrounding style. No hyperlink in docx
+      // (parity with pre-Markdown behaviour for backtick refs in the
+      // docx output).
+      out.push(new d.TextRun({
+        text: r.inner,
+        bold: !!style.bold,
+        italics: !!style.italics
+      }));
+    }
+  }
+  return out;
+}
+
+// Markdown-aware multi-paragraph builder for docx. Same scope as
+// renderProseMarkdown — used for the long-form fields where Markdown
+// is honoured (Device Specification, type-definition specifications,
+// transition Actions, local-function Steps).
+//
+// `headingOffset` shifts every heading down N levels so a Markdown
+// `# Foo` inside an already-Heading-2 section renders as Heading 3.
+// `inTableCell: true` switches headings to bold paragraphs (cells
+// look terrible with mid-cell HEADING_N paragraphs).
+//
+// Returns a flat Paragraph[] suitable for splicing into a children
+// list (matches mkParas's return shape).
+function mkProseParas(d, text, opts = {}) {
+  const headingOffset = opts.headingOffset || 0;
+  const inTableCell = !!opts.inTableCell;
+  const blocks = parseMarkdownBlocks(text);
+  if (blocks.length === 0) return [ mkPara(d, "") ];
+  const paras = [];
+  for (const b of blocks) {
+    if (b.type === "heading") {
+      const inline = parseMarkdownInline(b.text);
+      if (inTableCell) {
+        // Bold paragraph in lieu of real heading.
+        const children = runsToTextRuns(d, inline, { bold: true });
+        paras.push(new d.Paragraph({ children }));
+      } else {
+        const lvl = Math.min(6, b.level + headingOffset);
+        const heading = lvl === 1 ? d.HeadingLevel.HEADING_1
+                      : lvl === 2 ? d.HeadingLevel.HEADING_2
+                      : lvl === 3 ? d.HeadingLevel.HEADING_3
+                      : lvl === 4 ? d.HeadingLevel.HEADING_4
+                      : lvl === 5 ? d.HeadingLevel.HEADING_5
+                      : d.HeadingLevel.HEADING_6;
+        // d.Paragraph supports a plain `text` field for headings, but
+        // we have inline runs (possibly bold/italic/refs), so go via
+        // children. Heading style still applies via `heading: ...`.
+        paras.push(new d.Paragraph({
+          heading,
+          children: runsToTextRuns(d, inline)
+        }));
+      }
+    } else if (b.type === "paragraph") {
+      const inline = parseMarkdownInline(b.text);
+      paras.push(new d.Paragraph({ children: runsToTextRuns(d, inline) }));
+    } else if (b.type === "ul" || b.type === "ol") {
+      // List paragraphs use the docx library's `bullet` (for ul) or
+      // `numbering` (for ol). The `bullet: { level: 0 }` shape is
+      // the standard library convention; numbered lists need a
+      // numbering reference, which Stadiæ's docx export doesn't
+      // currently set up — so to keep this self-contained we use a
+      // simple manual prefix ("1. ", "2. ", …) for ordered lists and
+      // a real bullet for unordered ones. Users get visually
+      // correct output without us shipping a numbering definition.
+      let n = 1;
+      for (const item of b.items) {
+        const inline = parseMarkdownInline(item);
+        const itemRuns = runsToTextRuns(d, inline);
+        if (b.type === "ul") {
+          paras.push(new d.Paragraph({
+            bullet: { level: 0 },
+            children: itemRuns
+          }));
+        } else {
+          // Prepend "n. " as plain text. This is a minor concession
+          // to scope — proper docx numbering would need a Numbering
+          // configuration in the document, which is significant
+          // additional plumbing. The rendered output looks the same
+          // to a reader.
+          const prefix = new d.TextRun({ text: n + ". " });
+          paras.push(new d.Paragraph({ children: [ prefix, ...itemRuns ] }));
+          n++;
+        }
+      }
+    }
+  }
+  return paras;
+}
+
 // Italic placeholder paragraph — used for empty-section fallbacks
 // ("No handlers are defined.", etc.). Matches the Markdown template's
 // `_italic_` convention visually.
@@ -10678,12 +10879,25 @@ function mkHeading(d, text, level) {
 //   belong), but callers can pass `preserveNewlines: true` to keep
 //   them — the cell then emits one paragraph per line, which Word
 //   renders as visible line breaks inside the cell.
+//
+// `markdown: true` — Markdown-aware path. Replaces the per-line
+// passthrough with full block parsing (paragraphs, lists, headings-
+// as-bold) plus inline bold/italic/refs. Used for the long-form
+// Markdown-honouring fields (transition Actions, local-function
+// Steps, type-definition specifications). Implies cell layout, so
+// headings always render as bold paragraphs.
 function mkCell(d, text, opts = {}) {
   const raw = text == null ? "" : String(text);
   // Always drop the literal `\n` diagram-wrap marker.
   const unwrapped = raw.replace(/\\n/g, " ");
   let children;
-  if (opts.preserveNewlines) {
+  if (opts.markdown) {
+    // Markdown path: hand off to mkProseParas with cell semantics.
+    // The unwrap still applied above (to drop the diagram-label \n
+    // convention) — the Markdown parser then sees a clean string.
+    children = mkProseParas(d, unwrapped, { inTableCell: true });
+    if (children.length === 0) children = [ new d.Paragraph({ children: [ new d.TextRun("") ] }) ];
+  } else if (opts.preserveNewlines) {
     // Split on real newlines, one paragraph per line, preserving
     // blank lines as empty paragraphs (Word shows a blank gap).
     // Each line's whitespace is trimmed and runs collapsed, but
@@ -11138,6 +11352,338 @@ function renderProseMultiline(text, context, idx) {
   return str.split(/\r?\n/).map(line => renderProse(line, context, idx)).join("<br>");
 }
 
+// ----------------------------------------------------------------
+// Markdown rendering for long-form prose fields (Device Specification,
+// type-definition specifications, local-function steps, transition
+// Actions). Honours a CURATED SUBSET of Markdown:
+//
+//   - Headings: lines starting with `#` to `######` followed by a
+//     space. Levels deeper than 6 are clamped.
+//   - Unordered lists: `* ` or `- ` line prefix.
+//   - Ordered lists: `<digits>. ` line prefix.
+//   - Paragraphs: any other non-empty line; consecutive paragraph
+//     lines join into one paragraph (joined with a space, the
+//     classic Markdown "soft wrap" behaviour).
+//   - Inline bold (`**bold**`) and italic (`*italic*` or `_italic_`).
+//   - Backtick references (`Name`, `Iface:Msg`, etc.) — the EXISTING
+//     reference resolution semantics, unchanged. Backticks in the
+//     Markdown layer don't mean "inline code" — they mean "entity
+//     reference", per Stadiæ convention.
+//
+// What is NOT supported: nested lists, code blocks (fenced or
+// indented), blockquotes, links, images, tables, horizontal rules,
+// strikethrough, inline HTML. Anything not on the supported list is
+// either ignored (e.g. `~~text~~` renders as literal `~~text~~`) or
+// rendered as plain prose. The user-question explicitly asked for a
+// "curated subset" — keeping the surface small keeps behaviour
+// predictable.
+//
+// The pipeline has three stages:
+//   1. parseMarkdownBlocks(text) — split into a Block[] AST.
+//   2. parseMarkdownInline(line) — within each block's text, parse
+//      a Run[] tree honouring **/*/_/backticks. Backtick handling
+//      is recursive-aware: `**foo `Bar` baz**` correctly nests bold
+//      around an entity reference.
+//   3. Two backends: renderRunsToHtml (for HTML output) and
+//      runsToTextRuns (for docx). Backends consume the same AST so
+//      HTML and docx outputs stay in sync.
+// ----------------------------------------------------------------
+
+// Block parser. Returns:
+//   { type: "heading", level: 1-6, text }
+//   { type: "paragraph", text }            // text is already line-joined
+//   { type: "ul", items: string[] }
+//   { type: "ol", items: string[] }
+// Paragraph and list-item text strings are post-trim and join multi-
+// line wrap-soft inputs with a single space (CommonMark soft-break
+// behaviour). The inline parser is run separately by each backend.
+function parseMarkdownBlocks(text) {
+  const lines = String(text == null ? "" : text).split(/\r?\n/);
+  const blocks = [];
+  let i = 0;
+  // Local helper: classify a single line.
+  const classify = (line) => {
+    const m1 = line.match(/^(#{1,6})\s+(.*)$/);
+    if (m1) return { kind: "heading", level: m1[1].length, text: m1[2].trim() };
+    const m2 = line.match(/^[*-]\s+(.*)$/);
+    if (m2) return { kind: "ul-item", text: m2[1] };
+    const m3 = line.match(/^\d+\.\s+(.*)$/);
+    if (m3) return { kind: "ol-item", text: m3[1] };
+    if (line.trim().length === 0) return { kind: "blank" };
+    return { kind: "para-line", text: line };
+  };
+  while (i < lines.length) {
+    const c = classify(lines[i]);
+    if (c.kind === "blank") {
+      i++;
+      continue;
+    }
+    if (c.kind === "heading") {
+      blocks.push({ type: "heading", level: c.level, text: c.text });
+      i++;
+      continue;
+    }
+    if (c.kind === "ul-item" || c.kind === "ol-item") {
+      // Gather a run of same-kind items. A different kind, a blank
+      // line, or any other block ends the list. (No nested lists,
+      // no continuation lines — keeps the parser predictable.)
+      const items = [];
+      const wantKind = c.kind;
+      while (i < lines.length) {
+        const ci = classify(lines[i]);
+        if (ci.kind !== wantKind) break;
+        items.push(ci.text);
+        i++;
+      }
+      blocks.push({ type: wantKind === "ul-item" ? "ul" : "ol", items });
+      continue;
+    }
+    // Paragraph: gather consecutive para-lines, join with single
+    // spaces. Stops at blank line or any other block kind.
+    const paraLines = [];
+    while (i < lines.length) {
+      const ci = classify(lines[i]);
+      if (ci.kind !== "para-line") break;
+      paraLines.push(ci.text.trim());
+      i++;
+    }
+    blocks.push({ type: "paragraph", text: paraLines.join(" ") });
+  }
+  return blocks;
+}
+
+// Inline parser. Walks a string, emitting a Run[] tree:
+//   { type: "text", text }
+//   { type: "bold", runs: Run[] }
+//   { type: "italic", runs: Run[] }
+//   { type: "ref", inner }               // backtick contents, raw
+//
+// Recognises:
+//   `…`              → ref (raw inner string, resolved by backend)
+//   \`               → literal backtick (escape, same as renderProse)
+//   **…**            → bold
+//   *…*              → italic
+//   _…_              → italic
+//
+// Nesting is supported within bold/italic — a `Foo` inside a
+// **bold** run is a bold ref. To keep the parser simple we use a
+// single forward walk with a small lookahead; we do NOT do the
+// CommonMark-strict left/right flanking check (overkill here, and
+// users who need surgical emphasis can use HTML in a future pass).
+//
+// Unmatched openers (e.g. `**foo` with no closing `**`) render as
+// literal text — the user is most likely mid-typing, and clobbering
+// their text would be unhelpful in a live preview.
+function parseMarkdownInline(text) {
+  const str = String(text == null ? "" : text);
+  const runs = [];
+  let i = 0;
+  let buf = "";
+  const flush = () => { if (buf.length > 0) { runs.push({ type: "text", text: buf }); buf = ""; } };
+  // Helper: scan for a closing delimiter starting at position `from`.
+  // Returns the index of the FIRST char of the delimiter, or -1.
+  // Respects backtick spans (so a `*` inside `…` doesn't count as
+  // emphasis closing).
+  const findClose = (from, delim) => {
+    let j = from;
+    while (j < str.length) {
+      if (str[j] === "\\" && str[j+1] === delim[0]) { j += 2; continue; }
+      if (str[j] === "`") {
+        // Skip past the backtick span.
+        let k = j + 1;
+        while (k < str.length) {
+          if (str[k] === "\\" && str[k+1] === "`") { k += 2; continue; }
+          if (str[k] === "`") { k++; break; }
+          k++;
+        }
+        j = k;
+        continue;
+      }
+      if (str.startsWith(delim, j)) return j;
+      j++;
+    }
+    return -1;
+  };
+  while (i < str.length) {
+    const ch = str[i];
+    // Backslash-escape for backticks (carry over the existing
+    // renderProse convention). Other backslashes pass through.
+    if (ch === "\\" && str[i+1] === "`") {
+      buf += "`";
+      i += 2;
+      continue;
+    }
+    // Backtick reference. Same scanning rules as renderProse.
+    if (ch === "`") {
+      let j = i + 1;
+      let inner = "";
+      while (j < str.length) {
+        if (str[j] === "\\" && str[j+1] === "`") { inner += "`"; j += 2; continue; }
+        if (str[j] === "`") break;
+        inner += str[j];
+        j++;
+      }
+      if (j >= str.length) {
+        // Unterminated — emit literal, the user is mid-typing.
+        buf += str.slice(i);
+        i = str.length;
+        continue;
+      }
+      flush();
+      runs.push({ type: "ref", inner });
+      i = j + 1;
+      continue;
+    }
+    // Bold (**…**). Two-char opener; check before single-char emphasis.
+    if (ch === "*" && str[i+1] === "*") {
+      const close = findClose(i + 2, "**");
+      if (close > 0) {
+        flush();
+        runs.push({ type: "bold", runs: parseMarkdownInline(str.slice(i + 2, close)) });
+        i = close + 2;
+        continue;
+      }
+      // Fall through — literal `**`.
+    }
+    // Italic via `*…*`. Skip if this is part of a `**` we just
+    // failed to close (handled by fall-through above).
+    if (ch === "*") {
+      const close = findClose(i + 1, "*");
+      if (close > 0 && close !== i + 1) {  // empty `*` isn't italic
+        flush();
+        runs.push({ type: "italic", runs: parseMarkdownInline(str.slice(i + 1, close)) });
+        i = close + 1;
+        continue;
+      }
+    }
+    // Italic via `_…_`. Same rules.
+    if (ch === "_") {
+      const close = findClose(i + 1, "_");
+      if (close > 0 && close !== i + 1) {
+        flush();
+        runs.push({ type: "italic", runs: parseMarkdownInline(str.slice(i + 1, close)) });
+        i = close + 1;
+        continue;
+      }
+    }
+    // Default: literal char.
+    buf += ch;
+    i++;
+  }
+  flush();
+  return runs;
+}
+
+// HTML backend for inline runs. `refRenderer` decides how a backtick
+// ref renders — pass `renderProseRef` for the spec output (turns into
+// `<a class="ref">`) or `renderLiveRef` for the editor live preview
+// (turns into `<span class="live-ref">`).
+function renderRunsToHtml(runs, refRenderer) {
+  let out = "";
+  for (const run of runs) {
+    if (run.type === "text") {
+      out += escapeHTML(run.text);
+    } else if (run.type === "bold") {
+      out += "<strong>" + renderRunsToHtml(run.runs, refRenderer) + "</strong>";
+    } else if (run.type === "italic") {
+      out += "<em>" + renderRunsToHtml(run.runs, refRenderer) + "</em>";
+    } else if (run.type === "ref") {
+      out += refRenderer(run.inner);
+    }
+  }
+  return out;
+}
+
+// Single-ref renderers used by renderRunsToHtml. These mirror the
+// per-mode logic that lived inside renderProse / renderLiveBackticks.
+function specRefHtml(inner, context, idx) {
+  const resolved = resolveSpecReference(idx, inner, context);
+  if (resolved) {
+    const tipAttr = (resolved.description && resolved.description.length > 0)
+      ? ` data-tooltip="${escapeHTML(resolved.description)}"`
+      : "";
+    return `<a class="ref" href="#${escapeHTML(resolved.anchor)}"${tipAttr}>${escapeHTML(resolved.label)}</a>`;
+  }
+  return `<code class="ref-unresolved" title="Unresolved reference">${escapeHTML(inner)}</code>`;
+}
+function liveRefHtml(inner, context, idx) {
+  const resolved = resolveSpecReference(idx, inner, context);
+  if (resolved) {
+    const tipAttr = (resolved.description && resolved.description.length > 0)
+      ? ` data-tooltip="${escapeHTML(resolved.description)}"`
+      : "";
+    return `<span class="live-ref"${tipAttr}>${escapeHTML(resolved.label)}</span>`;
+  }
+  return `<span class="live-ref-plain">${escapeHTML(inner)}</span>`;
+}
+
+// Render a Markdown-formatted string as HTML for the spec export.
+// `headingOffset` shifts every Markdown heading down N levels so the
+// generated <hN> doesn't collide with the surrounding chapter
+// structure (e.g. the Device Specification is already inside an <h2>
+// section, so its `# Foo` should become <h3>, requiring offset 2).
+// `inTableCell: true` switches headings to bold paragraphs instead of
+// real <hN> elements — placing real headings inside a table cell
+// inflates the cell's row height disproportionately and disrupts
+// table layout in Word and the browser. Bold paragraphs preserve the
+// visual emphasis without the layout fallout.
+function renderProseMarkdown(text, context, idx, opts = {}) {
+  const headingOffset = opts.headingOffset || 0;
+  const inTableCell = !!opts.inTableCell;
+  const blocks = parseMarkdownBlocks(text);
+  const refRenderer = (inner) => specRefHtml(inner, context, idx);
+  const renderInline = (s) => renderRunsToHtml(parseMarkdownInline(s), refRenderer);
+  let out = "";
+  for (const b of blocks) {
+    if (b.type === "heading") {
+      if (inTableCell) {
+        // Cell-friendly: bold paragraph rather than real heading.
+        out += `<p><strong>${renderInline(b.text)}</strong></p>`;
+      } else {
+        const lvl = Math.min(6, b.level + headingOffset);
+        out += `<h${lvl}>${renderInline(b.text)}</h${lvl}>`;
+      }
+    } else if (b.type === "paragraph") {
+      out += `<p>${renderInline(b.text)}</p>`;
+    } else if (b.type === "ul" || b.type === "ol") {
+      const tag = b.type === "ul" ? "ul" : "ol";
+      out += `<${tag}>`;
+      for (const item of b.items) out += `<li>${renderInline(item)}</li>`;
+      out += `</${tag}>`;
+    }
+  }
+  return out;
+}
+
+// Same pipeline, but emit live-preview HTML (spans, not links). The
+// in-editor overlay uses this. Same headingOffset / inTableCell
+// option set; the editor's Description / Action / Steps / Spec
+// panels all sit outside any table so inTableCell stays false.
+function renderLiveMarkdown(text, context, idx) {
+  const blocks = parseMarkdownBlocks(text);
+  const refRenderer = (inner) => liveRefHtml(inner, context, idx);
+  const renderInline = (s) => renderRunsToHtml(parseMarkdownInline(s), refRenderer);
+  let out = "";
+  for (const b of blocks) {
+    if (b.type === "heading") {
+      // Visual heading in live preview — use h-classes that match
+      // the typography of the panel rather than real hN tags
+      // (which would inherit the document-level h-margins). We
+      // map levels 1-6 to a small set of classes.
+      const lvl = Math.min(6, b.level);
+      out += `<div class="live-md-h live-md-h${lvl}">${renderInline(b.text)}</div>`;
+    } else if (b.type === "paragraph") {
+      out += `<p class="live-md-p">${renderInline(b.text)}</p>`;
+    } else if (b.type === "ul" || b.type === "ol") {
+      const tag = b.type === "ul" ? "ul" : "ol";
+      out += `<${tag} class="live-md-list">`;
+      for (const item of b.items) out += `<li>${renderInline(item)}</li>`;
+      out += `</${tag}>`;
+    }
+  }
+  return out;
+}
+
 // Render text for the live-rendering overlay shown when a textarea
 // loses focus. The output is plaintext-ish HTML — backticks consumed
 // (resolved → styled `<span class="live-ref">`, unresolved → plain
@@ -11227,12 +11773,20 @@ function renderLiveBackticks(text, context, idx) {
 // Caller responsibility: invoke `refreshLiveOverlay(textarea)` after
 // setting `.value` programmatically (e.g. when switching which row's
 // content is loaded into the textarea), so the overlay matches.
-function attachLiveBacktickRendering(textarea, getContext, placeholder) {
+function attachLiveBacktickRendering(textarea, getContext, placeholder, opts = {}) {
   if (!textarea || textarea.dataset.liveAttached === "1") return;
   textarea.dataset.liveAttached = "1";
+  // Markdown mode: when true, the overlay uses renderLiveMarkdown
+  // (block-aware: paragraphs, lists, headings) and gets a `markdown`
+  // CSS class that flips white-space from pre-wrap to normal so
+  // block-level elements render with natural margins. Used for the
+  // four long-form fields (Device Specification, transition Action,
+  // local-function Steps, type-definition Specification). All other
+  // call-sites keep the original line-faithful rendering.
+  const isMarkdown = !!opts.markdown;
 
   const overlay = document.createElement("div");
-  overlay.className = "live-render";
+  overlay.className = isMarkdown ? "live-render markdown" : "live-render";
   if (placeholder) overlay.dataset.placeholder = placeholder;
 
   // Insert overlay right after the textarea so they share the parent's
@@ -11246,7 +11800,9 @@ function attachLiveBacktickRendering(textarea, getContext, placeholder) {
   const showOverlay = () => {
     const idx = buildSpecAnchorIndex();
     const ctx = (typeof getContext === "function") ? getContext() : {};
-    overlay.innerHTML = renderLiveBackticks(textarea.value, ctx, idx);
+    overlay.innerHTML = isMarkdown
+      ? renderLiveMarkdown(textarea.value, ctx, idx)
+      : renderLiveBackticks(textarea.value, ctx, idx);
     textarea.style.display = "none";
     overlay.style.display = "";
   };
@@ -12001,7 +12557,11 @@ async function buildSpecBody(idx, progress) {
   if ((Model.deviceSpecification || "").length > 0) {
     parts.push(`<section id="device-spec" class="entity-anchor">`);
     parts.push(`<h2>Device specification</h2>`);
-    parts.push(`<p>${renderProseMultiline(Model.deviceSpecification, { kind: "device" }, idx)}</p>`);
+    // Markdown-aware rendering. The section is inside the <h1> body
+    // and uses <h2> for its own header, so Markdown headings start
+    // at <h3> via headingOffset 2. Output already contains block-
+    // level elements (<p>, <h3>, <ul>) so we don't wrap in <p>.
+    parts.push(renderProseMarkdown(Model.deviceSpecification, { kind: "device" }, idx, { headingOffset: 2 }));
     parts.push(`</section>`);
   }
 
@@ -12313,7 +12873,7 @@ async function buildSpecBody(idx, progress) {
             // interface for two-segment Message:Parameter references.
             const rowCtx = { kind: "component", componentName: c.name, rowMessage: { interface: mm.interface, name: mm.name } };
             const action = (mm.action && mm.action.length > 0)
-              ? renderProseMultiline(mm.action, rowCtx, idx)
+              ? renderProseMarkdown(mm.action, rowCtx, idx, { inTableCell: true })
               : `<em class="muted">—</em>`;
             // Cells for Interface and Message link to their definition
             // in the Interfaces chapter, with the same hover-tooltip
@@ -12353,7 +12913,7 @@ async function buildSpecBody(idx, progress) {
       parts.push(`<table><thead><tr><th>Name</th><th>Description</th><th>Steps</th></tr></thead><tbody>`);
       for (const lf of lfns) {
         const id = anchorLfn(c.name, lf.name);
-        parts.push(`<tr id="${escapeHTML(id)}" class="entity-anchor"><td>${escapeHTML(lf.name)}</td><td>${renderDesc(lf.description, compCtx, idx)}</td><td class="cell-multiline">${(lf.steps && lf.steps.length>0) ? renderProseMultiline(lf.steps, compCtx, idx) : `<em class="muted">—</em>`}</td></tr>`);
+        parts.push(`<tr id="${escapeHTML(id)}" class="entity-anchor"><td>${escapeHTML(lf.name)}</td><td>${renderDesc(lf.description, compCtx, idx)}</td><td class="cell-multiline">${(lf.steps && lf.steps.length>0) ? renderProseMarkdown(lf.steps, compCtx, idx, { inTableCell: true }) : `<em class="muted">—</em>`}</td></tr>`);
       }
       parts.push(`</tbody></table>`);
     }
@@ -12420,9 +12980,11 @@ async function buildSpecBody(idx, progress) {
       const id = anchorType(t.name);
       const typeCtx = { kind: "type", name: t.name };
       // Specification can reference other types via backticks — same
-      // resolver pipeline as everywhere else. Multi-line preserved.
+      // resolver pipeline as everywhere else. Markdown structure
+      // (paragraphs, lists, headings-as-bold) is honoured. The cell
+      // is a table cell so headings collapse to bold paragraphs.
       const spec = (t.specification && t.specification.length > 0)
-        ? renderProseMultiline(t.specification, typeCtx, idx)
+        ? renderProseMarkdown(t.specification, typeCtx, idx, { inTableCell: true })
         : `<em class="muted">—</em>`;
       parts.push(`<tr id="${escapeHTML(id)}" class="entity-anchor"><td>${escapeHTML(t.name)}</td><td>${renderDesc(t.description, typeCtx, idx)}</td><td class="cell-multiline">${spec}</td></tr>`);
     }
@@ -12643,7 +13205,10 @@ async function buildSpecificationDocx(d, progress) {
   // --- Description ---
   children.push(mkHeading(d, "Description", 2));
   if (Model.deviceSpecification && Model.deviceSpecification.length > 0) {
-    for (const p of mkParas(d, Model.deviceSpecification)) children.push(p);
+    // Markdown-aware. The section already lives under Heading 2
+    // (Description), so a Markdown `# Foo` should land at Heading 3
+    // — same offset (2) as the HTML render.
+    for (const p of mkProseParas(d, Model.deviceSpecification, { headingOffset: 2 })) children.push(p);
   } else {
     children.push(mkItalicPara(d, "No device specification provided."));
   }
@@ -13004,13 +13569,13 @@ async function buildSpecificationDocx(d, progress) {
             mkCell(d, tgt, { rowSpan: span, width: COL_5[1] }),
             mkCell(d, msgs[0].interface, { width: COL_5[2] }),
             mkCell(d, msgs[0].name, { width: COL_5[3] }),
-            mkCell(d, actionOf(msgs[0]), { width: COL_5[4], preserveNewlines: true })
+            mkCell(d, actionOf(msgs[0]), { width: COL_5[4], markdown: true })
           ]}));
           for (let k = 1; k < msgs.length; k++) {
             rows.push(new d.TableRow({ children: [
               mkCell(d, msgs[k].interface, { width: COL_5[2] }),
               mkCell(d, msgs[k].name, { width: COL_5[3] }),
-              mkCell(d, actionOf(msgs[k]), { width: COL_5[4], preserveNewlines: true })
+              mkCell(d, actionOf(msgs[k]), { width: COL_5[4], markdown: true })
             ]}));
           }
         }
@@ -13042,7 +13607,7 @@ async function buildSpecificationDocx(d, progress) {
         sortedLfns.map(lf => new d.TableRow({ children: [
           mkCell(d, lf.name,              { width: COL_3S[0] }),
           mkCell(d, desc(lf.description), { width: COL_3S[1] }),
-          mkCell(d, desc(lf.steps),       { width: COL_3S[2], preserveNewlines: true })
+          mkCell(d, desc(lf.steps),       { width: COL_3S[2], markdown: true })
         ]})),
         COL_3S
       ));
@@ -13115,10 +13680,11 @@ async function buildSpecificationDocx(d, progress) {
       sortedTypes.map(t => new d.TableRow({ children: [
         mkCell(d, t.name, { width: COL_3S[0] }),
         mkCell(d, desc(t.description), { width: COL_3S[1] }),
-        // The Specification cell preserves newlines so multi-paragraph
-        // type bodies (an enum's value list, a struct's field
-        // breakdown) read as the user wrote them.
-        mkCell(d, desc(t.specification), { width: COL_3S[2], preserveNewlines: true })
+        // Specification cell honours Markdown structure (paragraphs,
+        // lists, headings-as-bold) — same as the HTML render — so a
+        // multi-paragraph type body (e.g. enum value list, struct
+        // field breakdown) reads as authored.
+        mkCell(d, desc(t.specification), { width: COL_3S[2], markdown: true })
       ]})),
       COL_3S
     ));
