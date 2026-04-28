@@ -2152,14 +2152,14 @@
             <span>Components</span>
             <div class="header-btns"><button class="header-add" id="btn-add-comp" title="Add component">+</button><button class="header-add" id="btn-edit-comp" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-comp" title="Delete selected" disabled>−</button></div>
           </div>
-          <ul id="list-comps"></ul>
+          <ul id="list-comps" translate="no"></ul>
         </div>
         <div class="list-box">
           <div class="header">
             <span>Handlers</span>
             <div class="header-btns"><button class="header-add" id="btn-add-handler" title="Add handler">+</button><button class="header-add" id="btn-edit-handler" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-handler" title="Delete selected" disabled>−</button></div>
           </div>
-          <ul id="list-handlers"></ul>
+          <ul id="list-handlers" translate="no"></ul>
         </div>
         <div class="fns-column">
           <div class="list-box">
@@ -2167,7 +2167,7 @@
               <span>Functions</span>
               <div class="header-btns"><button class="header-add" id="btn-add-fn" title="Add function">+</button><button class="header-add" id="btn-edit-fn" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-fn" title="Delete selected" disabled>−</button></div>
             </div>
-            <ul id="list-fns"></ul>
+            <ul id="list-fns" translate="no"></ul>
           </div>
           <div class="resize-handle" id="resize-handle-fnparams" title="Drag to resize"></div>
           <div class="params-panel" id="fnparams-panel">
@@ -2179,7 +2179,7 @@
               <div class="params-placeholder" id="fnparams-placeholder">
                 Select a single function to view or edit its parameters.
               </div>
-              <ul class="params-list" id="fnparams-list" style="display:none;"></ul>
+              <ul class="params-list" id="fnparams-list" translate="no" style="display:none;"></ul>
             </div>
           </div>
         </div>
@@ -2188,7 +2188,7 @@
             <span>Interfaces</span>
             <div class="header-btns"><button class="header-add" id="btn-add-iface" title="Add interface">+</button><button class="header-add" id="btn-edit-iface" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-iface" title="Delete selected" disabled>−</button></div>
           </div>
-          <ul id="list-ifaces"></ul>
+          <ul id="list-ifaces" translate="no"></ul>
         </div>
         <div class="msgs-column">
           <div class="list-box">
@@ -2196,7 +2196,7 @@
               <span>Messages</span>
               <div class="header-btns"><button class="header-add" id="btn-add-msg" title="Add message">+</button><button class="header-add" id="btn-edit-msg" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-msg" title="Delete selected" disabled>−</button></div>
             </div>
-            <ul id="list-msgs"></ul>
+            <ul id="list-msgs" translate="no"></ul>
           </div>
           <div class="resize-handle" id="resize-handle-params" title="Drag to resize"></div>
           <div class="params-panel" id="params-panel">
@@ -2208,7 +2208,7 @@
               <div class="params-placeholder" id="params-placeholder">
                 Select a single message to view or edit its parameters.
               </div>
-              <ul class="params-list" id="params-list" style="display:none;"></ul>
+              <ul class="params-list" id="params-list" translate="no" style="display:none;"></ul>
             </div>
           </div>
         </div>
@@ -2228,14 +2228,14 @@
             <span>States</span>
             <div class="header-btns"><button class="header-add" id="btn-add-state" title="Add state">+</button><button class="header-add" id="btn-edit-state" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-state" title="Delete selected" disabled>−</button></div>
           </div>
-          <ul id="list-states"></ul>
+          <ul id="list-states" translate="no"></ul>
         </div>
         <div class="list-box">
           <div class="header">
             <span>Choice-points</span>
             <div class="header-btns"><button class="header-add" id="btn-add-cp" title="Add choice-point">+</button><button class="header-add" id="btn-edit-cp" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-cp" title="Delete selected" disabled>−</button></div>
           </div>
-          <ul id="list-cps"></ul>
+          <ul id="list-cps" translate="no"></ul>
         </div>
         <div class="vars-column">
           <div class="list-box">
@@ -2243,7 +2243,7 @@
               <span>State variables</span>
               <div class="header-btns"><button class="header-add" id="btn-add-var" title="Add state variable">+</button><button class="header-add" id="btn-edit-var" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-var" title="Delete selected" disabled>−</button></div>
             </div>
-            <ul id="list-vars"></ul>
+            <ul id="list-vars" translate="no"></ul>
           </div>
           <div class="resize-handle" id="resize-handle-consts" title="Drag to resize"></div>
           <div class="list-box">
@@ -2251,7 +2251,7 @@
               <span>Constants</span>
               <div class="header-btns"><button class="header-add" id="btn-add-const" title="Add constant">+</button><button class="header-add" id="btn-edit-const" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-const" title="Delete selected" disabled>−</button></div>
             </div>
-            <ul id="list-consts"></ul>
+            <ul id="list-consts" translate="no"></ul>
           </div>
         </div>
         <div class="resize-handle-h" id="resize-handle-lfns" title="Drag to resize the Local functions / Steps column"></div>
@@ -2261,7 +2261,7 @@
               <span>Local functions</span>
               <div class="header-btns"><button class="header-add" id="btn-add-lfn" title="Add local function">+</button><button class="header-add" id="btn-edit-lfn" title="Edit selected" disabled>✎</button><button class="header-add" id="btn-del-lfn" title="Delete selected" disabled>−</button></div>
             </div>
-            <ul id="list-lfns"></ul>
+            <ul id="list-lfns" translate="no"></ul>
           </div>
           <div class="resize-handle" id="resize-handle-steps" title="Drag to resize"></div>
           <div class="steps-panel" id="steps-panel">
@@ -2286,7 +2286,7 @@
                   <th></th><th>Source</th><th>Target</th><th>Interface</th><th>Message</th>
                 </tr>
               </thead>
-              <tbody id="trans-tbody"></tbody>
+              <tbody id="trans-tbody" translate="no"></tbody>
             </table>
           </div>
         </div>
@@ -4980,6 +4980,13 @@ function buildDescriptionPanel() {
   header.appendChild(label);
   const target_label = document.createElement("span");
   target_label.className = "desc-target";
+  // The label is a model identifier (component or handler display
+  // name). Browser translation extensions occasionally treat short
+  // English-looking names as natural-language content of a different
+  // language and "translate" them — e.g. a Dutch-language browser
+  // turns "Door Controller" into "By Controller". `translate="no"`
+  // tells Chrome/Edge/Safari to leave it alone.
+  target_label.setAttribute("translate", "no");
   const displayClean = target.label.replace(/\\n/g, " ");
   target_label.textContent = displayClean;
   target_label.title = (target.label === entity.name)
@@ -8207,6 +8214,8 @@ function manualContent() {
       <p>This should not happen. If the rendered diagram on the canvas shows rounded choice-points, your PlantUML server may not support the modern <code>&lt;style&gt;</code> block. Exporting to <code>.puml</code> and rendering with an up-to-date PlantUML installation gives the intended appearance.</p>
       <h3>My browser warns about leaving the page</h3>
       <p>The warning appears whenever there are unsaved edits in the current diagram. Save the diagram (or discard the edits) to close the page without a warning.</p>
+      <h3>A component or handler name shows the wrong text in a list</h3>
+      <p>If your browser is set to translate web pages — Chrome, Edge, and Safari can do this automatically when the page language doesn't match your preferred languages — model identifiers and display names that happen to look like words in another language may be silently translated. The classic symptom: a component named <code>Door Controller</code> appears as <code>By Controller</code> in the list because <em>door</em> is also a Dutch preposition meaning <em>by</em>. The diagram canvas is unaffected (its text is rendered as an image by the PlantUML server). Stadiæ marks the lists, the transitions table, and the parameter panels with <code>translate="no"</code>, which suppresses translation in modern browsers; if a translation is still happening, disable the page-translation feature for this site or for the host serving Stadiæ.</p>
     </section>
   `;
 }
