@@ -11057,9 +11057,32 @@ function buildSpecAnchorIndex() {
   // generous — 360 chars is roughly four lines at the tooltip's
   // ~360px width — and the truncation marker tells the reader there
   // is more to read by clicking through.
+  // Build a tooltip-suitable summary from a free-text description.
+  // Convention: the FIRST LINE of the description is the short summary,
+  // anything below is body documentation that belongs in the spec page,
+  // not in a hover popup. Authors who want a distinct summary write it
+  // on line 1 followed by the rest; authors writing a single-paragraph
+  // description get the whole thing as the tooltip.
+  //
+  // Pipeline:
+  //   1. Take everything up to the first real newline (\r or \n). This
+  //      is the load-bearing step — the rest of the pipeline used to
+  //      flatten newlines, so the length-cap below was the only
+  //      protection against a runaway multi-paragraph description
+  //      filling the popup.
+  //   2. Replace the diagram-label wrap marker `\n` (literal backslash
+  //      plus n) with a space. This is a model convention used by some
+  //      labels and is unrelated to actual paragraph structure.
+  //   3. Collapse remaining whitespace runs and trim. Cleans up odd
+  //      formatting in the source line.
+  //   4. Cap length at 360 chars with an `…` marker as a final
+  //      safety net for users who write very long single lines.
   const tipFor = (s) => {
     if (s == null) return "";
-    let t = String(s).replace(/\\n/g, " ").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+    const raw = String(s);
+    const nl = raw.search(/\r?\n/);
+    const firstLine = (nl === -1) ? raw : raw.slice(0, nl);
+    let t = firstLine.replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
     if (t.length > 360) t = t.slice(0, 357) + "…";
     return t;
   };
@@ -11287,6 +11310,38 @@ function resolveSpecReference(idx, token, context) {
   return null;
 }
 
+// First line of a description, for use as a hover tooltip. Components
+// and handlers (and other entities) often have rich multi-paragraph
+// descriptions — a behavioural overview, a list of state variables it
+// owns, edge-case notes — none of which fits in a hover popup. The
+// convention adopted here: the FIRST LINE of the description is the
+// short summary, and that's what tooltips show. Authors who want a
+// short summary distinct from longer body documentation should put the
+// summary on line 1 followed by a blank line and then the rest.
+//
+// In practice the heavy lifting happens in `tipFor` inside
+// buildSpecAnchorIndex — every consumer below pulls description
+// strings from the index, where `tipFor` has already truncated to the
+// first line, normalised whitespace, and capped the length. This
+// helper is kept as belt-and-braces for any future site that
+// bypasses the index.
+//
+// Returns "" for nullish, empty, or whitespace-only descriptions —
+// caller-side guards (`description && description.length > 0`) still
+// work because the empty string is still falsy in the boolean tests.
+//
+// The split looks at `\r?\n` (real newlines, the same separator the
+// editor's textareas produce) — NOT `\\n` (the diagram-label wrap
+// marker, two-character backslash-n), which is a different concern
+// and keeps showing through to the tooltip as written.
+function tooltipFromDescription(text) {
+  if (text == null) return "";
+  const str = String(text);
+  const nl = str.search(/\r?\n/);
+  const firstLine = (nl === -1) ? str : str.slice(0, nl);
+  return firstLine.trim();
+}
+
 // Render a free-text string with backtick references resolved to
 // links. Backslash-escaped backticks (\`) are literal backticks; this
 // gives users an out for prose that legitimately contains backticks.
@@ -11330,8 +11385,13 @@ function renderProse(text, context, idx) {
         // hover popup. Suppressed when the description is empty —
         // we don't want empty popups appearing on hover. The popup
         // listener reads the attribute; absence means no popup.
-        const tipAttr = (resolved.description && resolved.description.length > 0)
-          ? ` data-tooltip="${escapeHTML(resolved.description)}"`
+        // Only the FIRST LINE of the description is used (see
+        // tooltipFromDescription) so authors can write multi-
+        // paragraph behavioural docs in the description field
+        // without flooding the tooltip.
+        const tip = tooltipFromDescription(resolved.description);
+        const tipAttr = tip.length > 0
+          ? ` data-tooltip="${escapeHTML(tip)}"`
           : "";
         out += `<a class="ref" href="#${escapeHTML(resolved.anchor)}"${tipAttr}>${escapeHTML(resolved.label)}</a>`;
       } else {
@@ -11605,11 +11665,14 @@ function renderRunsToHtml(runs, refRenderer) {
 
 // Single-ref renderers used by renderRunsToHtml. These mirror the
 // per-mode logic that lived inside renderProse / renderLiveBackticks.
+// The tooltip uses only the first line of the description, see
+// tooltipFromDescription.
 function specRefHtml(inner, context, idx) {
   const resolved = resolveSpecReference(idx, inner, context);
   if (resolved) {
-    const tipAttr = (resolved.description && resolved.description.length > 0)
-      ? ` data-tooltip="${escapeHTML(resolved.description)}"`
+    const tip = tooltipFromDescription(resolved.description);
+    const tipAttr = tip.length > 0
+      ? ` data-tooltip="${escapeHTML(tip)}"`
       : "";
     return `<a class="ref" href="#${escapeHTML(resolved.anchor)}"${tipAttr}>${escapeHTML(resolved.label)}</a>`;
   }
@@ -11618,8 +11681,9 @@ function specRefHtml(inner, context, idx) {
 function liveRefHtml(inner, context, idx) {
   const resolved = resolveSpecReference(idx, inner, context);
   if (resolved) {
-    const tipAttr = (resolved.description && resolved.description.length > 0)
-      ? ` data-tooltip="${escapeHTML(resolved.description)}"`
+    const tip = tooltipFromDescription(resolved.description);
+    const tipAttr = tip.length > 0
+      ? ` data-tooltip="${escapeHTML(tip)}"`
       : "";
     return `<span class="live-ref"${tipAttr}>${escapeHTML(resolved.label)}</span>`;
   }
@@ -11744,8 +11808,11 @@ function renderLiveBackticks(text, context, idx) {
         // when the description is empty so we don't show empty
         // popups on hover. The popup listener (installed once at
         // startup) reads the attribute via querySelector match.
-        const tipAttr = (resolved.description && resolved.description.length > 0)
-          ? ` data-tooltip="${escapeHTML(resolved.description)}"`
+        // Only the first line of the description is used as the
+        // tooltip — see tooltipFromDescription.
+        const tip = tooltipFromDescription(resolved.description);
+        const tipAttr = tip.length > 0
+          ? ` data-tooltip="${escapeHTML(tip)}"`
           : "";
         out += `<span class="live-ref"${tipAttr}>${escapeHTML(resolved.label)}</span>`;
       } else {
@@ -12003,8 +12070,9 @@ function renderTypeCell(typeStr, idx) {
   if (typeStr == null || typeStr.length === 0) return "—";
   const entry = idx.types.get(typeStr);
   if (!entry) return escapeHTML(typeStr);
-  const tipAttr = (entry.description && entry.description.length > 0)
-    ? ` data-tooltip="${escapeHTML(entry.description)}"`
+  const tip = tooltipFromDescription(entry.description);
+  const tipAttr = tip.length > 0
+    ? ` data-tooltip="${escapeHTML(tip)}"`
     : "";
   return `<a class="ref" href="#${escapeHTML(entry.anchor)}"${tipAttr}>${escapeHTML(typeStr)}</a>`;
 }
@@ -12892,13 +12960,15 @@ async function buildSpecBody(idx, progress) {
             // its interface was renamed) so the table doesn't
             // mysteriously omit cells.
             const ifaceEntry = idx.interfaces.get(mm.interface);
+            const ifaceTip = ifaceEntry ? tooltipFromDescription(ifaceEntry.description) : "";
             const ifaceCell = ifaceEntry
-              ? `<a class="ref" href="#${escapeHTML(ifaceEntry.anchor)}"${ifaceEntry.description ? ` data-tooltip="${escapeHTML(ifaceEntry.description)}"` : ""}>${escapeHTML(mm.interface)}</a>`
+              ? `<a class="ref" href="#${escapeHTML(ifaceEntry.anchor)}"${ifaceTip.length > 0 ? ` data-tooltip="${escapeHTML(ifaceTip)}"` : ""}>${escapeHTML(mm.interface)}</a>`
               : escapeHTML(mm.interface);
             const ifaceSub = idx.perInterface.get(mm.interface);
             const msgEntry = ifaceSub ? ifaceSub.messages.get(mm.name) : null;
+            const msgTip = msgEntry ? tooltipFromDescription(msgEntry.description) : "";
             const msgCell = msgEntry
-              ? `<a class="ref" href="#${escapeHTML(msgEntry.anchor)}"${msgEntry.description ? ` data-tooltip="${escapeHTML(msgEntry.description)}"` : ""}>${escapeHTML(mm.name)}</a>`
+              ? `<a class="ref" href="#${escapeHTML(msgEntry.anchor)}"${msgTip.length > 0 ? ` data-tooltip="${escapeHTML(msgTip)}"` : ""}>${escapeHTML(mm.name)}</a>`
               : escapeHTML(mm.name);
             if (k === 0) {
               parts.push(`<tr><td rowspan="${p.msgs.length}">${escapeHTML(p.src)}</td><td rowspan="${p.msgs.length}">${escapeHTML(p.tgt)}</td><td>${ifaceCell}</td><td>${msgCell}</td><td class="cell-multiline">${action}</td></tr>`);
