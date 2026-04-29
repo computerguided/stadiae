@@ -5049,6 +5049,12 @@ function initDescriptionPanel() {
   // Live rendering. Context comes from the textarea's dataset, which
   // buildDescriptionPanel sets to identify the current entity. The
   // resolver uses kind+name as context for bare-reference fallbacks.
+  // Markdown mode: component and handler descriptions are the natural
+  // home for behavioural documentation (multi-paragraph notes, lists
+  // of message-handling rules, edge cases) — Markdown structure makes
+  // them readable both in the editor and in the spec export. Only
+  // these two entity kinds bind to this textarea (interfaces, etc.
+  // don't reach this panel), so Markdown applies unconditionally.
   attachLiveBacktickRendering(
     textarea,
     () => {
@@ -5059,7 +5065,8 @@ function initDescriptionPanel() {
       if (kind === "handler") return { kind: "handler", handlerName: name };
       return {};
     },
-    "Description of the entity (developer documentation, saved with the diagram)"
+    "Description of the entity (developer documentation, saved with the diagram)",
+    { markdown: true }
   );
 }
 
@@ -7681,7 +7688,7 @@ function manualContent() {
       <p>Any free-text field in the model — Device Specification, transition Actions, descriptions on every entity — supports <strong>backtick-delimited references</strong> to named entities elsewhere in the model. Wrap a name in backticks and the spec export turns it into a hyperlink. Bare names like <code>\`Idle\`</code> resolve in the surrounding context first; qualified names like <code>\`Card:Charge\`</code> or <code>\`Connection:ConnectReq:serverId\`</code> link to a specific message or parameter. Renames cascade automatically — change a name and references update everywhere. Hover any link in the rendered spec to see the target's description in a tooltip.</p>
       <p><strong>Live preview while editing.</strong> Backtick references in the Device Specification, transition Action, local-function Steps, and entity Description panels are rendered <em>in place</em> when you click out of the field. Resolved references show in monospace with the accent color (no backticks visible); unresolved references show as plain monospace text. Click anywhere on the rendered field to swap back to the editable text with the backticks visible. Press <kbd>Esc</kbd> to leave the field quickly without reaching for the mouse — useful for verifying that all your references resolve correctly. Hovering a resolved reference shows its description in a tooltip, the same way the rendered spec does.</p>
       <h3>Markdown formatting in long-form fields</h3>
-      <p>Four free-text fields render a curated subset of Markdown in the spec export and the live preview: the <em>Device Specification</em>, transition <em>Action</em> notes, local-function <em>Steps</em>, and type-definition <em>Specification</em>. The other description fields stay plain text, so a one-liner doesn't change behaviour.</p>
+      <p>Six free-text fields render a curated subset of Markdown in the spec export and the live preview: the <em>Device Specification</em>, the <em>component</em> and <em>handler</em> descriptions, transition <em>Action</em> notes, local-function <em>Steps</em>, and type-definition <em>Specification</em>. The other description fields (interface, message, parameter, state, and so on) stay plain text — they're typically one-liners.</p>
       <p>What's supported:</p>
       <ul>
         <li><strong>Headings.</strong> A line beginning with one to six <code>#</code> characters followed by a space, e.g. <code># Big</code>, <code>## Smaller</code>, …, <code>###### Smallest</code>. The export adjusts the actual heading level to fit the surrounding chapter structure (so a Markdown <code>#</code> in the Device Specification doesn't compete with the chapter's own <code>&lt;h1&gt;</code>). Inside a table cell — Action notes, Steps, type Specifications — headings render as bold paragraphs instead of real headings, which keeps cell layout sane.</li>
@@ -12060,6 +12067,24 @@ function renderDesc(text, context, idx) {
   return renderProse(s, context, idx);
 }
 
+// First line of a description, plain string. Used by summary tables in
+// the Device architecture chapter where the *full* multi-paragraph
+// component or handler description would crowd the layout — only the
+// summary line belongs there. The detailed chapter further down keeps
+// the full prose. Same first-line convention as the hover tooltip
+// (line 1 = summary, rest = body documentation), so authors only have
+// to think about the convention once. Empty input → empty string,
+// matching the renderDesc fallback path. Real newlines (`\r?\n`) split
+// — NOT the diagram-label `\\n` marker, which has no business in
+// summary text but would not be present in the kind of free-text
+// description fields that reach this helper anyway.
+function firstLineDesc(text) {
+  if (text == null) return "";
+  const raw = String(text);
+  const nl = raw.search(/\r?\n/);
+  return (nl === -1) ? raw : raw.slice(0, nl);
+}
+
 // Render a parameter or state-variable type cell. When the string
 // exactly matches a defined type name, wrap in a hyperlink to the
 // Type definitions chapter, with a description tooltip when the type
@@ -12146,6 +12171,12 @@ function buildSidebarTOC() {
       html += `<li class="toc-comp"><a href="#${escapeHTML(anchorComp(c.name))}">${escapeHTML(componentDisplayLabel(c).replace(/\\n/g, " "))}</a>`;
       html += `<ul class="toc-sub">`;
       html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-context">Context</a></li>`;
+      // Description sub-entry only when the component actually has a
+      // description — same condition the body uses to emit the
+      // section. Listed after Context to match the body order.
+      if ((c.description || "").length > 0) {
+        html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-description">Description</a></li>`;
+      }
       html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-constants">Constants</a></li>`;
       html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-statevars">State variables</a></li>`;
       html += `<li><a href="#${escapeHTML(anchorComp(c.name))}-states">States</a></li>`;
@@ -12679,7 +12710,13 @@ async function buildSpecBody(idx, progress) {
       // Mirrors the interfaces summary table's behaviour. The link
       // target is the component's stable identifier; the reader sees
       // the display label.
-      parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorComp(c.name))}">${escapeHTML(label)}</a></td><td>${renderDesc(c.description, devCtx, idx)}</td></tr>`);
+      //
+      // Description is truncated to its FIRST LINE: components and
+      // handlers may carry rich multi-paragraph descriptions for the
+      // detailed chapter further down, but the architecture summary
+      // table wants a one-line summary so the table stays readable.
+      // Same convention as the hover tooltip.
+      parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorComp(c.name))}">${escapeHTML(label)}</a></td><td>${renderDesc(firstLineDesc(c.description), devCtx, idx)}</td></tr>`);
     }
     parts.push(`</tbody></table>`);
 
@@ -12691,7 +12728,8 @@ async function buildSpecBody(idx, progress) {
       parts.push(`<table><thead><tr><th>Handler</th><th>Description</th></tr></thead><tbody>`);
       for (const h of Model.handlers) {
         const label = handlerDisplayLabel(h).replace(/\\n/g, " ");
-        parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorHandler(h.name))}">${escapeHTML(label)}</a></td><td>${renderDesc(h.description, devCtx, idx)}</td></tr>`);
+        // Same first-line truncation as the component summary above.
+        parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorHandler(h.name))}">${escapeHTML(label)}</a></td><td>${renderDesc(firstLineDesc(h.description), devCtx, idx)}</td></tr>`);
       }
       parts.push(`</tbody></table>`);
     }
@@ -12781,16 +12819,15 @@ async function buildSpecBody(idx, progress) {
     const compCtx = { kind: "component", componentName: c.name };
     parts.push(`<section id="${escapeHTML(anchorComp(c.name))}" class="entity-anchor">`);
     parts.push(`<h1>${escapeHTML(compLabel)}</h1>`);
-    if ((c.description || "").length > 0) {
-      parts.push(`<p>${renderProseMultiline(c.description, compCtx, idx)}</p>`);
-    }
 
     // Context diagram — the device architectural diagram filtered to
     // this component's neighbourhood (interfaces it speaks, handlers
     // on those interfaces, handlers it calls directly). Uses the same
     // generateComponentDiagramPlantUML + buildFocusFilter pair that
     // the docx export uses so both formats produce the identical
-    // contextual subset.
+    // contextual subset. Placed BEFORE the description so the reader
+    // sees the component's wiring at a glance before reading the
+    // behavioural text.
     parts.push(`<section id="${escapeHTML(anchorComp(c.name))}-context" class="entity-anchor">`);
     parts.push(`<h2>Context</h2>`);
     if (progress) progress.update(`Rendering ${compLabel} context…`);
@@ -12805,6 +12842,20 @@ async function buildSpecBody(idx, progress) {
       parts.push(`<div class="diagram-missing">Context diagram could not be rendered.</div>`);
     }
     parts.push(`</section>`);
+
+    // Description — the behavioural prose for this component, with
+    // its own H2 heading so the chapter outline reads Component →
+    // Context → Description → Constants → … rather than dumping the
+    // description text directly under the H1. Markdown-aware: the
+    // description sits inside the chapter's <h1> body, so Markdown
+    // headings start at <h3> via headingOffset 2 (one for the H1,
+    // one for the Description H2 above).
+    if ((c.description || "").length > 0) {
+      parts.push(`<section id="${escapeHTML(anchorComp(c.name))}-description" class="entity-anchor">`);
+      parts.push(`<h2>Description</h2>`);
+      parts.push(renderProseMarkdown(c.description, compCtx, idx, { headingOffset: 2 }));
+      parts.push(`</section>`);
+    }
 
     // Constants (before State variables, matching docx export order)
     parts.push(`<section id="${escapeHTML(anchorComp(c.name))}-constants" class="entity-anchor">`);
@@ -13003,19 +13054,33 @@ async function buildSpecBody(idx, progress) {
 
   // === Handlers ===
   if (Model.handlers.length > 0) {
-    parts.push(`<section><h1>Handlers</h1>`);
+    // Note no umbrella <h1>Handlers</h1>: handler chapters are each
+    // their own <h1>, parallel to the way component chapters are
+    // structured. The "Handlers" TOC group label is independent of
+    // the body and still appears in the sidebar.
     parts.push(`<p>Handlers wrap external resources (timers, network endpoints, hardware peripherals) so the components can interact with them through interfaces and function calls.</p>`);
     for (const h of Model.handlers) {
       const handlerLabel = handlerDisplayLabel(h).replace(/\\n/g, " ");
       const handlerCtx = { kind: "handler", handlerName: h.name };
       parts.push(`<section id="${escapeHTML(anchorHandler(h.name))}" class="entity-anchor">`);
-      parts.push(`<h2>${escapeHTML(handlerLabel)}</h2>`);
+      parts.push(`<h1>${escapeHTML(handlerLabel)}</h1>`);
+      // Description gets its own <h2>, parallel to the component
+      // chapter structure (Description as a sibling sub-section of
+      // the chapter). Markdown-aware: chapter is <h1>, Description
+      // heading is <h2>, so Markdown headings start at <h3> via
+      // headingOffset 2.
       if ((h.description || "").length > 0) {
-        parts.push(`<p>${renderProseMultiline(h.description, handlerCtx, idx)}</p>`);
+        parts.push(`<h2>Description</h2>`);
+        parts.push(renderProseMarkdown(h.description, handlerCtx, idx, { headingOffset: 2 }));
       }
+      // Interface functions — what the components can call on this
+      // handler. Owns its own <h2> heading so the chapter outline
+      // reads Handler → Description → Interface functions, the
+      // same shape as the per-component chapters.
+      parts.push(`<h2>Interface functions</h2>`);
       const fns = Array.isArray(h.functions) ? [...h.functions].sort((a,b)=>a.name.localeCompare(b.name)) : [];
       if (fns.length === 0) {
-        parts.push(`<p class="no-content">This handler has no functions.</p>`);
+        parts.push(`<p class="no-content">This handler has no interface functions.</p>`);
       } else {
         parts.push(`<table><thead><tr><th>Function</th><th>Function description</th><th>Parameter</th><th>Type</th><th>Parameter description</th></tr></thead><tbody>`);
         for (const f of fns) {
@@ -13039,7 +13104,6 @@ async function buildSpecBody(idx, progress) {
       }
       parts.push(`</section>`);
     }
-    parts.push(`</section>`);
   }
 
   // === Type definitions ===
@@ -13313,7 +13377,9 @@ async function buildSpecificationDocx(d, progress) {
     Model.components.map(c => new d.TableRow({
       children: [
         mkCell(d, componentDisplayLabel(c), { width: COL_2[0] }),
-        mkCell(d, desc(c.description), { width: COL_2[1] })
+        // Summary table — first line of the description only. Full
+        // prose lives in the per-component chapter further down.
+        mkCell(d, desc(firstLineDesc(c.description)), { width: COL_2[1] })
       ]
     })),
     COL_2
@@ -13330,7 +13396,8 @@ async function buildSpecificationDocx(d, progress) {
       Model.handlers.map(h => new d.TableRow({
         children: [
           mkCell(d, handlerDisplayLabel(h), { width: COL_2[0] }),
-          mkCell(d, desc(h.description), { width: COL_2[1] })
+          // Summary — first line only, see component summary above.
+          mkCell(d, desc(firstLineDesc(h.description)), { width: COL_2[1] })
         ]
       })),
       COL_2
@@ -13423,9 +13490,9 @@ async function buildSpecificationDocx(d, progress) {
     // reaches the document as a heading or inside a sentence.
     const label = componentDisplayLabel(c).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
     children.push(mkHeading(d, label, 1));
-    for (const p of mkParas(d, desc(c.description))) children.push(p);
 
-    // Context diagram (filtered).
+    // Context diagram (filtered). Placed BEFORE the description so
+    // the reader sees the wiring before reading the behavioural prose.
     children.push(mkHeading(d, "Context", 2));
     children.push(mkPara(d, `The context of the ${label} is given below.`));
     progress.update(`Rendering context diagram for ${label}…`);
@@ -13438,6 +13505,20 @@ async function buildSpecificationDocx(d, progress) {
       children.push(mkDiagramParagraph(d, img));
     } catch (err) {
       children.push(mkItalicPara(d, "Could not render context diagram: " + err.message));
+    }
+
+    // Description — own Heading 2, mirrors the HTML structure. Only
+    // emitted when there is a description; the placeholder
+    // "No description provided." is suppressed here because a
+    // promised section with no content reads worse than no section
+    // at all (parity with the HTML side).
+    //
+    // Markdown-aware: chapter heading is Heading 1, the Description
+    // heading itself is Heading 2, so Markdown headings start at
+    // Heading 3 via headingOffset 2.
+    if ((c.description || "").length > 0) {
+      children.push(mkHeading(d, "Description", 2));
+      for (const p of mkProseParas(d, c.description, { headingOffset: 2 })) children.push(p);
     }
 
     // Constants. Per-component documentation-only — named values
@@ -13697,14 +13778,22 @@ async function buildSpecificationDocx(d, progress) {
   for (const h of Model.handlers) {
     const label = handlerDisplayLabel(h).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
     children.push(mkHeading(d, label, 1));
-    for (const p of mkParas(d, desc(h.description))) children.push(p);
-    children.push(mkHeading(d, "Functions", 2));
+    // Description gets its own Heading 2, parallel to the component
+    // chapter structure. Skipped entirely when there's no description
+    // (parity with the HTML side). Markdown-aware: chapter is
+    // Heading 1, the Description heading is Heading 2, so Markdown
+    // headings start at Heading 3 via headingOffset 2.
+    if ((h.description || "").length > 0) {
+      children.push(mkHeading(d, "Description", 2));
+      for (const p of mkProseParas(d, h.description, { headingOffset: 2 })) children.push(p);
+    }
+    children.push(mkHeading(d, "Interface functions", 2));
     const fns = Array.isArray(h.functions) ? [...h.functions] : [];
     fns.sort((a, b) => a.name.localeCompare(b.name));
     if (fns.length === 0) {
-      children.push(mkPara(d, `The ${label} exposes no functions.`));
+      children.push(mkPara(d, `The ${label} exposes no interface functions.`));
     } else {
-      children.push(mkPara(d, `The functions for the ${label} are given in the table below.`));
+      children.push(mkPara(d, `The interface functions of the ${label} are given in the table below.`));
       const rows = [];
       for (const f of fns) {
         const params = Array.isArray(f.parameters) ? [...f.parameters] : [];
