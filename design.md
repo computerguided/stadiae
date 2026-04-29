@@ -65,7 +65,7 @@ Model = {
   // identifier, unique within the message), optional type, and
   // optional description.
   messages:   [ {interface, name, isDefault, description,
-                 parameters: [ {name, type, description} ]} ],
+                 parameters: [ {name, type, description, isDefault?} ]} ],
   // Components
   components: [
     {
@@ -133,12 +133,16 @@ Model = {
   // — documentation-only, never reach PlantUML. Each function has
   // identifier-safe name (unique within its handler), optional
   // description, and a list of parameters with the same shape as
-  // message parameters.
+  // message parameters. Default handlers (TimerHandler) carry
+  // `isDefault: true`; default-handler functions and their parameters
+  // carry the same flag. Default handlers don't render on the device
+  // diagram and are locked from edit/delete in the UI.
   handlers: [
     { name: String, displayName: String, description: String,
+      isDefault?: Boolean,
       functions: [
-        { name: String, description: String,
-          parameters: [ {name, type, description} ] }
+        { name: String, description: String, isDefault?: Boolean,
+          parameters: [ {name, type, description, isDefault?} ] }
       ]
     }
   ],
@@ -183,7 +187,7 @@ Model = {
   // end of the document; parameter and state-variable type cells
   // auto-link to the matching type when the cell's string exactly
   // equals a defined type name.
-  types: [ {name, description, specification} ],
+  types: [ {name, description, specification, isDefault?} ],
   // Which view the canvas is rendering: "component" shows the active
   // component's state machine, "device" shows the component diagram.
   activeView: "component"|"device",
@@ -210,7 +214,7 @@ The `messages` array inside each transition holds `{interface, name, action?}` o
 
 Some subtleties worth noting:
 
-- **Default interfaces and messages are explicit in the list.** `Timer`, `Logical`, `Timeout`, `Yes`, `No` all appear as entries with `isDefault: true`. This keeps list-building and message-lookup code uniform (no special cases) and makes it easy to render them in italics/grey in the UI. The PlantUML emitter filters them out when writing the `Interfaces` / `Messages` sections, because defaults are hard-coded in the PlantUML output.
+- **Default vocabulary is explicit in the model.** `Timer`, `Logical` (interfaces), `Timeout`, `Yes`, `No` (messages), `TimerHandler` (handler) with its `setTimeout` and `cancelTimeout` functions, and `Time`, `TimerID` (types) all appear as entries with `isDefault: true`. The single source of truth is `getDefaultModelEntries()`; the initial Model literal, `resetModel()`, and the file-load path all start from these entries. This keeps list-building, lookup, and rendering code uniform (no per-built-in special cases) and makes it easy to render defaults in italics/grey in the UI. The save path filters `isDefault: true` out of every relevant array — interfaces, messages, message-parameters via the message filter, handlers, functions and function-parameters via the handler filter, and types — so saved files contain only user-defined entries. The load path appends user entries on top of the freshly-injected defaults; a hand-edited file naming an entity after a default (e.g. a handler named "TimerHandler" or a type named "Time") gets the duplicate silently dropped to keep the defaults canonical. The PlantUML emitter additionally filters defaults from the device diagram: default interfaces, default messages, and default handlers (TimerHandler) never appear visually because they're conceptually always available, the same way primitive operations don't appear in a class diagram.
 
 - **Interfaces and messages are device-wide.** They live on `Model` rather than in each component. Every component references the same interfaces and messages by name. Rename/delete of an interface or message cascades to every component's transitions — see the cascade-handling in `openInterfaceDialog`, `openMessageDialog` and `actionDelete`. This models the real-world semantic: an interface like `RTx` is a contract between components, not a per-component detail.
 

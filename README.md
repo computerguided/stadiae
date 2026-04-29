@@ -17,6 +17,8 @@ It's built around the vocabulary engineers use when describing functional-compon
 - **Interfaces** carrying **messages** with typed parameters, shared across components.
 - The **device diagram** tying it all together: components, handlers, interface wiring, and call dependencies.
 
+A handful of built-in entities come with every model: the `Logical` interface (with its `Yes`/`No` messages, used for choice-point branching), the `Timer` interface (with `Timeout(timerId: TimerID)`), the `TimerHandler` (exposing `setTimeout(timeout: Time, timerId: TimerID)` and `cancelTimeout(timerId: TimerID)`), and the `Time` and `TimerID` types. These appear in the lists in muted italic to mark them as built-in, can't be edited or deleted, and don't show up in the device diagram — they're conceptually always available, the same way primitive operations are in a programming language. They're also stripped from saved files, so they don't bloat the JSON, and re-injected on load.
+
 ## Features
 
 - **Multi-component devices.** Model any number of components in a single file. Switch between them with one click; the state machine below the canvas tracks the active component. The Components list shows a chevron on the active row.

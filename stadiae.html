@@ -2311,6 +2311,14 @@
 
 <input type="file" id="file-input" accept=".json,.puml,.txt" style="display:none">
 
+<!-- Shared datalist for type-name suggestions on parameter and state-
+     variable Type inputs. Populated lazily by refreshTypesDatalist()
+     just before each relevant dialog opens — the dialog is modal so
+     the type list can't change between repopulation and the user's
+     selection. The list lives at the top level so any input in any
+     dialog can reference it via list="types-datalist". -->
+<datalist id="types-datalist"></datalist>
+
 <script>
 /* =============================================================
  * Stadiæ - State Diagram Editor
@@ -2402,18 +2410,88 @@ function makeEmptyComponent(name, displayName) {
   };
 }
 
-const Model = {
+// Returns the device's built-in default vocabulary — the entries that
+// every Stadiæ model carries implicitly: the Logical and Timer
+// interfaces with their messages, the TimerHandler with its functions,
+// and the Time and TimerID type definitions referenced by those
+// functions. Centralised so the initial Model literal, resetModel(),
+// and loadModel() all start from the same set; the file format treats
+// these as understood-by-default and omits them from saved JSON.
+//
+// Each default entry carries `isDefault: true`. The save path filters
+// these out (along with a default message's parameters), and the load
+// path re-injects them after a `resetModel()` so the Model state is
+// always consistent. Handlers / functions / function-parameters /
+// types didn't previously support isDefault — the affected save and
+// load code paths are extended to honour the same convention.
+function getDefaultModelEntries() {
+  return {
+    interfaces: [
+      { name: "Timer", isDefault: true },
+      { name: "Logical", isDefault: true }
+    ],
+    // The Timer:Timeout message gets a default `timerId` parameter so
+    // that callers handling a Timeout know which of multiple in-flight
+    // timers fired. The parameter is locked from edit/delete the same
+    // way the message itself is. Logical:Yes and Logical:No carry no
+    // parameters.
+    messages: [
+      {
+        interface: "Timer", name: "Timeout", isDefault: true,
+        parameters: [
+          { name: "timerId", type: "TimerID", description: "Identifier of the timer that fired.", isDefault: true }
+        ]
+      },
+      { interface: "Logical", name: "Yes", isDefault: true, parameters: [] },
+      { interface: "Logical", name: "No", isDefault: true, parameters: [] }
+    ],
+    // TimerHandler is the system-provided handler that components use
+    // to schedule and cancel timers. Excluded from the device diagram
+    // (mirroring the way default interfaces are excluded), and locked
+    // from edit/delete. Its two functions take a TimerID so the same
+    // handler can host any number of in-flight timers.
+    handlers: [
+      {
+        name: "TimerHandler", isDefault: true, displayName: "", description: "",
+        functions: [
+          {
+            name: "setTimeout", isDefault: true, description: "Start a timer that will fire `Timer:Timeout` after `timeout` elapses.",
+            parameters: [
+              { name: "timeout", type: "Time",    description: "How long until the timer fires.", isDefault: true },
+              { name: "timerId", type: "TimerID", description: "Identifier the caller assigns to this timer; echoed back in the Timeout message.", isDefault: true }
+            ]
+          },
+          {
+            name: "cancelTimeout", isDefault: true, description: "Cancel a previously-started timer so it never fires.",
+            parameters: [
+              { name: "timerId", type: "TimerID", description: "Identifier of the timer to cancel.", isDefault: true }
+            ]
+          }
+        ]
+      }
+    ],
+    // Default types referenced by the TimerHandler / Timeout signature.
+    // The user-defined types pool is on top of these.
+    types: [
+      { name: "Time",    isDefault: true, description: "Duration value used when scheduling a timer.", specification: "" },
+      { name: "TimerID", isDefault: true, description: "Identifier of a scheduled timer.", specification: "" }
+    ]
+  };
+}
+
+const Model = (() => {
+  // Construct the initial Model populated with the default entries so
+  // every fresh editor session has Logical / Timer / TimerHandler /
+  // Time / TimerID available without the user thinking about it.
+  // resetModel() and loadModel() rebuild these from the same helper;
+  // the save path filters them out so unchanged defaults aren't
+  // written to disk.
+  const defaults = getDefaultModelEntries();
+  return {
   // Device-wide data (shared across all components)
-  // START is implicit. Default interfaces: Timer, Logical. Default messages: Timeout, Yes, No
-  interfaces: [
-    { name: "Timer", isDefault: true },
-    { name: "Logical", isDefault: true }
-  ],
-  messages: [
-    { interface: "Timer", name: "Timeout", isDefault: true },
-    { interface: "Logical", name: "Yes", isDefault: true },
-    { interface: "Logical", name: "No", isDefault: true }
-  ],
+  // START is implicit. Default interfaces: Timer, Logical. Default messages: Timeout (with timerId), Yes, No
+  interfaces: defaults.interfaces,
+  messages: defaults.messages,
   // Components
   components: [ makeEmptyComponent("Component Name") ],
   activeComponentIndex: 0,
@@ -2449,7 +2527,7 @@ const Model = {
   //                            // Components ∪ Handlers
   //     displayName: String,   // optional free text
   //     description: String }  // optional developer documentation
-  handlers: [],
+  handlers: defaults.handlers,
   // Device-level component diagram. Each entry is a connection between a
   // component and an interface — the component "touches" that interface.
   // Default interfaces (Timer, Logical) are intentionally excluded from
@@ -2480,7 +2558,7 @@ const Model = {
   //     description:   String,   // one-line summary
   //     specification: String }  // free multi-line prose (encoding,
   //                              // range, validity, examples, etc.)
-  types: [],
+  types: defaults.types,
   // Which view is showing on the canvas: the device-level component
   // diagram ("device") or the state machine of the active component
   // ("component"). The leftmost pinned tab sets "device"; clicking any
@@ -2489,7 +2567,8 @@ const Model = {
   // Save metadata
   dirty: false,
   savedFilename: null
-};
+  };
+})();
 
 // Active-component proxy. Reading/writing Component.states is equivalent
 // to reading/writing Model.components[Model.activeComponentIndex].states.
@@ -2955,7 +3034,20 @@ function generateComponentDiagramPlantUML(opts = {}) {
   // the full-device rendering behaviour. When focus is set, only the
   // entries in each allowed-set pass.
   const allowComponent = focus ? (name => focus.components.has(name)) : (() => true);
-  const allowHandler = focus ? (name => focus.handlers.has(name)) : (() => true);
+  // Default handlers (TimerHandler) are device-wide built-in services
+  // — like the Logical and Timer interfaces, they're conceptually
+  // always present, never wired explicitly, and don't belong on the
+  // device diagram. The veto here folds the rule into a single
+  // chokepoint so every consumer of allowHandler (the handlers list,
+  // handler connections, handler calls, focus filters) inherits the
+  // same exclusion.
+  const isDefaultHandler = (name) => {
+    const h = Model.handlers.find(x => x.name === name);
+    return !!(h && h.isDefault);
+  };
+  const allowHandler = focus
+    ? (name => focus.handlers.has(name) && !isDefaultHandler(name))
+    : (name => !isDefaultHandler(name));
   const allowInterface = focus ? (name => focus.interfaces.has(name)) : (() => true);
   const allowConnection = focus ? (c => focus.connections.has(c.component + "|" + c.interface)) : (() => true);
   const allowHandlerConnection = focus ? (hc => focus.handlerConnections.has(hc.handler + "|" + hc.interface)) : (() => true);
@@ -5189,9 +5281,17 @@ function resolveBoundFunction() {
 //   clickContext  — selectClick context name ("params" / "fnparams")
 //   keyPrefix     — prefix string for parameter selection keys
 //                   (e.g. "Interface:Message" or "Handler:Function")
+//   locked        — when true, the panel renders read-only: the add
+//                   button is disabled and the empty-state placeholder
+//                   says "No parameters." rather than inviting +.
+//                   Used for default-handler functions and the
+//                   default-message Timer:Timeout, whose parameters
+//                   are part of the built-in vocabulary. Per-row
+//                   edit/delete buttons are gated by setEntityActionButtons,
+//                   not here.
 function renderParamsPanel(panelId, handleId, placeholderId, listId,
                            addBtnId, owner, selectionSet,
-                           clickContext, keyPrefix) {
+                           clickContext, keyPrefix, locked = false) {
   const panel = document.getElementById(panelId);
   const handle = document.getElementById(handleId);
   const placeholder = document.getElementById(placeholderId);
@@ -5220,15 +5320,17 @@ function renderParamsPanel(panelId, handleId, placeholderId, listId,
 
   const params = Array.isArray(owner.parameters) ? owner.parameters : [];
   if (params.length === 0) {
-    placeholder.textContent = "No parameters. Click + to add one.";
+    placeholder.textContent = locked
+      ? "No parameters."
+      : "No parameters. Click + to add one.";
     placeholder.style.display = "";
     list.style.display = "none";
-    addBtn.disabled = false;
+    addBtn.disabled = locked;
     return;
   }
   placeholder.style.display = "none";
   list.style.display = "";
-  addBtn.disabled = false;
+  addBtn.disabled = locked;
 
   // Render alphabetically by name. Same visual structure as
   // buildStateVariableList: label span + optional `: type` span +
@@ -5240,6 +5342,12 @@ function renderParamsPanel(panelId, handleId, placeholderId, listId,
   for (const p of sorted) {
     const li = document.createElement("li");
     const paramKey = keyPrefix + ":" + p.name;
+    // Default parameters (e.g. Timer:Timeout:timerId, or any param of
+    // a default-handler function) render in muted italic. The owner-
+    // driven `locked` mode already prevents add; the per-row buttons
+    // are gated separately via setEntityActionButtons. The class is
+    // purely cosmetic here.
+    if (p.isDefault) li.classList.add("default-item");
     if (selectionSet.has(paramKey)) li.classList.add("selected");
     const labelSpan = document.createElement("span");
     labelSpan.textContent = p.name;
@@ -5267,40 +5375,63 @@ function renderParamsPanel(panelId, handleId, placeholderId, listId,
   }
 }
 
-// Message-parameter panel: visible when exactly one message is bound.
+// Message-parameter panel: visible when exactly one message is bound,
+// AND either the message is user-defined OR the message is a default
+// message that carries parameters (Timer:Timeout). Logical:Yes/No
+// have no parameters and the panel stays hidden — there's nothing
+// to show. For default messages with parameters, the panel renders
+// read-only: the + button greys out, edit/delete on individual
+// parameters are gated by setEntityActionButtons.
 function buildParamsPanel() {
   const msg = resolveBoundMessage();
-  const keyPrefix = msg ? (msg.interface + ":" + msg.name) : "";
+  const isDefaultMsg = !!(msg && msg.isDefault);
+  const hasParams = !!(msg && Array.isArray(msg.parameters) && msg.parameters.length > 0);
+  // Show owner only when: not a default, OR default-with-parameters
+  // (so a default message with no parameters still hides the panel).
+  const owner = (!isDefaultMsg || hasParams) ? msg : null;
+  const locked = isDefaultMsg && hasParams;
+  const keyPrefix = owner ? (owner.interface + ":" + owner.name) : "";
   renderParamsPanel(
     "params-panel", "resize-handle-params",
     "params-placeholder", "params-list",
     "btn-add-param",
-    msg, Selection.messageParameters, "params", keyPrefix
+    owner, Selection.messageParameters, "params", keyPrefix, locked
   );
 }
 
 // Function-parameter panel: visible when exactly one function is bound.
+// For default-handler functions (TimerHandler:setTimeout etc.), the
+// panel renders read-only — same convention as the default-message
+// path above.
 function buildFunctionParamsPanel() {
   const bound = resolveBoundFunction();
+  const locked = !!(bound && isDefaultFunction(bound.handler.name, bound.fn.name));
   const keyPrefix = bound ? (bound.handler.name + ":" + bound.fn.name) : "";
   renderParamsPanel(
     "fnparams-panel", "resize-handle-fnparams",
     "fnparams-placeholder", "fnparams-list",
     "btn-add-fnparam",
     bound ? bound.fn : null, Selection.functionParameters,
-    "fnparams", keyPrefix
+    "fnparams", keyPrefix, locked
   );
 }
 
 function addParameter() {
   const msg = resolveBoundMessage();
   if (!msg) return;
+  // Default messages (Logical:Yes/No, Timer:Timeout) carry a fixed
+  // parameter set; the panel renders read-only and the + click is a
+  // no-op as a defensive belt-and-braces (the button is also disabled
+  // by the panel's locked state).
+  if (msg.isDefault) return;
   openParameterDialog(msg, null, "message");
 }
 
 function addFnParameter() {
   const bound = resolveBoundFunction();
   if (!bound) return;
+  // Default-handler functions are locked from edit; can't add params.
+  if (isDefaultFunction(bound.handler.name, bound.fn.name)) return;
   openParameterDialog(bound.fn, null, "function", bound.handler);
 }
 
@@ -5310,6 +5441,10 @@ function addFnParameter() {
 // on save. `ownerContext` is the parent entity (interface for messages,
 // handler for functions) — used only for the static labels.
 function openParameterDialog(owner, existing, kind, ownerContext) {
+  // Refresh the type-name autocomplete just before rendering — the
+  // datalist is a single shared instance, so we keep it in sync with
+  // Model.types at every dialog open.
+  refreshTypesDatalist();
   const title = existing ? "Parameter properties" : "Add parameter";
   // Top labels show the scope so the user knows what they're editing.
   let scopeLabels;
@@ -5333,7 +5468,7 @@ function openParameterDialog(owner, existing, kind, ownerContext) {
       <label>Name:</label>
       <input type="text" id="param-name" value="${escapeHTML(existing?.name||'')}">
       <label>Type:</label>
-      <input type="text" id="param-type" value="${escapeHTML(existing?.type||'')}">
+      <input type="text" id="param-type" list="types-datalist" value="${escapeHTML(existing?.type||'')}">
       <label>Description:</label>
       <input type="text" id="param-desc" value="${escapeHTML(existing?.description||'')}">
     </div>
@@ -5408,6 +5543,8 @@ function editSelectedParameter() {
   const prefix = msg.interface + ":" + msg.name + ":";
   if (!key.startsWith(prefix)) return;
   const paramName = key.slice(prefix.length);
+  // Default message parameters (Timer:Timeout:timerId) are locked.
+  if (isDefaultMessageParam(msg.interface, msg.name, paramName)) return;
   const existing = (msg.parameters || []).find(p => p.name === paramName);
   if (!existing) return;
   openParameterDialog(msg, existing, "message");
@@ -5421,6 +5558,8 @@ function editSelectedFnParameter() {
   const prefix = bound.handler.name + ":" + bound.fn.name + ":";
   if (!key.startsWith(prefix)) return;
   const paramName = key.slice(prefix.length);
+  // Default-handler function parameters are locked.
+  if (isDefaultFunctionParam(bound.handler.name, bound.fn.name, paramName)) return;
   const existing = (bound.fn.parameters || []).find(p => p.name === paramName);
   if (!existing) return;
   openParameterDialog(bound.fn, existing, "function", bound.handler);
@@ -5434,6 +5573,8 @@ function deleteSelectedParameter() {
   const prefix = msg.interface + ":" + msg.name + ":";
   if (!key.startsWith(prefix)) return;
   const paramName = key.slice(prefix.length);
+  // Default message parameters are locked.
+  if (isDefaultMessageParam(msg.interface, msg.name, paramName)) return;
   pushHistory();
   msg.parameters = (msg.parameters || []).filter(p => p.name !== paramName);
   Selection.messageParameters.delete(key);
@@ -5448,6 +5589,8 @@ function deleteSelectedFnParameter() {
   const prefix = bound.handler.name + ":" + bound.fn.name + ":";
   if (!key.startsWith(prefix)) return;
   const paramName = key.slice(prefix.length);
+  // Default-handler function parameters are locked.
+  if (isDefaultFunctionParam(bound.handler.name, bound.fn.name, paramName)) return;
   pushHistory();
   bound.fn.parameters = (bound.fn.parameters || []).filter(p => p.name !== paramName);
   Selection.functionParameters.delete(key);
@@ -5459,6 +5602,9 @@ function deleteSelectedFnParameter() {
 function addFunction() {
   if (Selection.handlers.size !== 1) return;
   const handlerName = [...Selection.handlers][0];
+  // Default handlers (TimerHandler) are built-in and locked — no
+  // adding new functions to them.
+  if (isDefaultHandlerName(handlerName)) return;
   const handler = Model.handlers.find(h => h.name === handlerName);
   if (!handler) return;
   openFunctionDialog(handler, null);
@@ -5556,6 +5702,8 @@ function editSelectedFunction() {
   if (firstColon < 0) return;
   const handlerName = key.slice(0, firstColon);
   const fnName = key.slice(firstColon + 1);
+  // Default-handler functions are built-in and not editable.
+  if (isDefaultFunction(handlerName, fnName)) return;
   const handler = Model.handlers.find(h => h.name === handlerName);
   if (!handler || !Array.isArray(handler.functions)) return;
   const fn = handler.functions.find(f => f.name === fnName);
@@ -5570,6 +5718,8 @@ function deleteSelectedFunction() {
   if (firstColon < 0) return;
   const handlerName = key.slice(0, firstColon);
   const fnName = key.slice(firstColon + 1);
+  // Default-handler functions are built-in and not deletable.
+  if (isDefaultFunction(handlerName, fnName)) return;
   const handler = Model.handlers.find(h => h.name === handlerName);
   if (!handler || !Array.isArray(handler.functions)) return;
   pushHistory();
@@ -5636,20 +5786,27 @@ function editSelectedHandler() {
   if (Selection.handlers.size !== 1) return;
   const name = [...Selection.handlers][0];
   const h = Model.handlers.find(x => x.name === name);
-  if (h) openHandlerDialog(h);
+  // Default handlers (TimerHandler) are built-in and never edited.
+  if (h && !h.isDefault) openHandlerDialog(h);
 }
 function deleteSelectedHandler() {
   if (Selection.handlers.size === 0) return;
+  // Filter out defaults — protected from deletion the same way default
+  // interfaces are.
+  const names = [...Selection.handlers].filter(n => !isDefaultHandlerName(n));
+  if (names.length === 0) return;
   pushHistory();
-  const names = [...Selection.handlers];
-  Model.handlers = Model.handlers.filter(h => !Selection.handlers.has(h.name));
+  const namesSet = new Set(names);
+  Model.handlers = Model.handlers.filter(h => !namesSet.has(h.name));
   // Cascade: any handler-connections or handler-calls referencing the
   // deleted handlers go too.
-  Model.handlerConnections = Model.handlerConnections.filter(hc => !names.includes(hc.handler));
-  Model.handlerCalls = Model.handlerCalls.filter(hc => !names.includes(hc.handler));
-  Selection.handlers.clear();
-  Selection.functions = new Set([...Selection.functions].filter(k => !names.includes(k.split(":")[0])));
-  Selection.functionParameters = new Set([...Selection.functionParameters].filter(k => !names.includes(k.split(":")[0])));
+  Model.handlerConnections = Model.handlerConnections.filter(hc => !namesSet.has(hc.handler));
+  Model.handlerCalls = Model.handlerCalls.filter(hc => !namesSet.has(hc.handler));
+  // Drop only the deleted handlers from the selection — the user may
+  // have selected a default alongside; keep the default selected.
+  for (const n of names) Selection.handlers.delete(n);
+  Selection.functions = new Set([...Selection.functions].filter(k => !namesSet.has(k.split(":")[0])));
+  Selection.functionParameters = new Set([...Selection.functionParameters].filter(k => !namesSet.has(k.split(":")[0])));
   refresh();
 }
 
@@ -6339,6 +6496,11 @@ function buildHandlerList() {
   Model.handlers.forEach((h) => {
     const li = document.createElement("li");
     li.classList.add("handler-row");
+    // Default handlers (TimerHandler) render in muted italic — same
+    // visual treatment as default interfaces and their messages,
+    // signalling that they're built-in and the +/edit/delete buttons
+    // won't apply.
+    if (h.isDefault) li.classList.add("default-item");
     if (Selection.handlers.has(h.name)) li.classList.add("selected");
 
     const label = document.createElement("span");
@@ -6359,9 +6521,9 @@ function buildHandlerList() {
     // Dim the row when the handler isn't linked to the active component
     // (no direct call dependency and no shared interface). Parallel to
     // the interface "unwired" treatment in buildInterfaceList. Default
-    // handlers (none currently) would be exempt; today every handler is
-    // user-defined so the conditional is purely view-scoped.
-    if (inComponentView && !isHandlerLinkedToComponent(h.name, activeCompName)) {
+    // handlers (TimerHandler) are exempt — they're conceptually
+    // available to every component without explicit wiring.
+    if (inComponentView && !h.isDefault && !isHandlerLinkedToComponent(h.name, activeCompName)) {
       li.classList.add("unwired");
       li.title = `Not connected to "${activeCompName}" in the device diagram.`;
     }
@@ -6590,6 +6752,11 @@ function buildFunctionList() {
   const sorted = [...fns].sort((a,b) => a.name.localeCompare(b.name));
   for (const f of sorted) {
     const li = document.createElement("li");
+    // Default-handler functions render in muted italic to signal that
+    // they're built-in; same visual convention as default interfaces
+    // and their messages. The +/edit/delete buttons grey out via
+    // setEntityActionButtons so user actions are blocked.
+    if (handler.isDefault && f.isDefault) li.classList.add("default-item");
     // Name + optional description in separate spans, matching the
     // state/message/interface row pattern.
     const labelSpan = document.createElement("span");
@@ -6826,20 +6993,62 @@ function updateToolbar() {
   // Add interface: always — interfaces are device-wide vocabulary.
   document.getElementById("btn-add-iface").disabled = false;
 
-  // Add message: exactly one interface selected
-  document.getElementById("btn-add-msg").disabled = Selection.interfaces.size !== 1;
+  // Add message: exactly one interface selected, AND it's not one of
+  // the device-default interfaces (Logical, Timer). Defaults have a
+  // fixed set of messages — Logical:Yes/No, Timer:Timeout — and the
+  // model treats them as built-in vocabulary. Adding messages there
+  // would bend the convention without buying anything.
+  {
+    const onlyOne = Selection.interfaces.size === 1;
+    const onlyName = onlyOne ? [...Selection.interfaces][0] : null;
+    const onlyIface = onlyName ? Model.interfaces.find(i => i.name === onlyName) : null;
+    document.getElementById("btn-add-msg").disabled = !onlyOne || (onlyIface && onlyIface.isDefault);
+  }
 
   // Add function: exactly one handler selected. Parallel rule to
   // "Add message needs one interface": functions belong to a specific
-  // handler, so the user must have picked one.
-  document.getElementById("btn-add-fn").disabled = Selection.handlers.size !== 1;
+  // handler, so the user must have picked one. Default handlers
+  // (TimerHandler) are locked — no adding new functions to them.
+  {
+    const onlyOne = Selection.handlers.size === 1;
+    const onlyName = onlyOne ? [...Selection.handlers][0] : null;
+    document.getElementById("btn-add-fn").disabled = !onlyOne || isDefaultHandlerName(onlyName);
+  }
 
   // Add function-parameter: exactly one function selected (and by
   // implication, exactly one handler). The fn-params panel is only
   // visible in that state; the button would be hidden otherwise, but
   // we still set the flag for correctness and for the brief moment
-  // the panel transitions in/out of visibility.
-  document.getElementById("btn-add-fnparam").disabled = Selection.functions.size !== 1;
+  // the panel transitions in/out of visibility. Default-handler
+  // functions are locked — no adding parameters.
+  {
+    const onlyOne = Selection.functions.size === 1;
+    let locked = !onlyOne;
+    if (onlyOne) {
+      const key = [...Selection.functions][0];
+      const firstColon = key.indexOf(":");
+      if (firstColon >= 0) {
+        const handlerName = key.slice(0, firstColon);
+        const fnName = key.slice(firstColon + 1);
+        if (isDefaultFunction(handlerName, fnName)) locked = true;
+      }
+    }
+    document.getElementById("btn-add-fnparam").disabled = locked;
+  }
+
+  // Add message-parameter: similar default-message lock so
+  // Logical:Yes/No (no params) and Timer:Timeout (locked params) all
+  // grey out the +. Selection.messages keys are "Iface:MsgName".
+  {
+    const onlyOne = Selection.messages.size === 1;
+    let locked = !onlyOne;
+    if (onlyOne) {
+      const key = [...Selection.messages][0];
+      const [iface, name] = key.split(":");
+      if (isDefaultMessage(iface, name)) locked = true;
+    }
+    document.getElementById("btn-add-param").disabled = locked;
+  }
 
   // Add transition / Redirect: only meaningful in component view.
   document.getElementById("btn-add-trans").disabled = inDevice || !canAddTransition();
@@ -6868,17 +7077,44 @@ function updateToolbar() {
   setBtn("btn-edit-comp", Selection.components.size !== 1);
   setBtn("btn-del-comp",  Selection.components.size === 0);
 
-  // Handlers — device-wide.
-  setBtn("btn-edit-handler", Selection.handlers.size !== 1);
-  setBtn("btn-del-handler",  Selection.handlers.size === 0);
+  // Handlers — device-wide. Default handlers (TimerHandler) are
+  // built-in and locked from edit/delete; the buttons grey out when
+  // the only thing the user has selected is a default handler. The
+  // delete check filters out defaults entirely — selecting them and
+  // any other handler would otherwise leak the default into the
+  // "delete this set" operation.
+  {
+    const handlerSel = [...Selection.handlers];
+    const editable = handlerSel.length === 1 && !isDefaultHandlerName(handlerSel[0]);
+    setBtn("btn-edit-handler", !editable);
+    const deletable = handlerSel.length > 0 && handlerSel.some(n => !isDefaultHandlerName(n));
+    setBtn("btn-del-handler",  !deletable);
+  }
 
   // Functions — handler-scoped, requires the parent handler picked.
-  setBtn("btn-edit-fn", Selection.functions.size !== 1);
-  setBtn("btn-del-fn",  Selection.functions.size === 0);
+  // Locked when the parent handler is a default; functions of a
+  // default handler are part of the built-in API and aren't editable.
+  // Selection.functions keys are "Handler:FunctionName".
+  {
+    const fnSel = [...Selection.functions];
+    const onlyOne = fnSel.length === 1;
+    const fnLocked = onlyOne && isDefaultHandlerName(fnSel[0].split(":")[0]);
+    setBtn("btn-edit-fn", !onlyOne || fnLocked);
+    const fnsDeletable = fnSel.length > 0 && fnSel.some(key => !isDefaultHandlerName(key.split(":")[0]));
+    setBtn("btn-del-fn",  !fnsDeletable);
+  }
 
-  // Function parameters.
-  setBtn("btn-edit-fnparam", Selection.functionParameters.size !== 1);
-  setBtn("btn-del-fnparam",  Selection.functionParameters.size === 0);
+  // Function parameters. Locked when the owning function belongs to a
+  // default handler. Selection.functionParameters keys are
+  // "Handler:Function:ParamName" — first colon segment names the handler.
+  {
+    const fpSel = [...Selection.functionParameters];
+    const onlyOne = fpSel.length === 1;
+    const fpLocked = onlyOne && isDefaultHandlerName(fpSel[0].split(":")[0]);
+    setBtn("btn-edit-fnparam", !onlyOne || fpLocked);
+    const fpsDeletable = fpSel.length > 0 && fpSel.some(key => !isDefaultHandlerName(key.split(":")[0]));
+    setBtn("btn-del-fnparam",  !fpsDeletable);
+  }
 
   // Interfaces — defaults excluded for both edit and delete.
   const ifaceSel = [...Selection.interfaces].filter(n => !isDefaultInterface(n));
@@ -6894,9 +7130,25 @@ function updateToolbar() {
   setBtn("btn-edit-msg", msgSel.length !== 1);
   setBtn("btn-del-msg",  msgSel.length === 0);
 
-  // Message parameters.
-  setBtn("btn-edit-param", Selection.messageParameters.size !== 1);
-  setBtn("btn-del-param",  Selection.messageParameters.size === 0);
+  // Message parameters. Default-message parameters (Timer:Timeout's
+  // timerId) are part of the built-in vocabulary and locked from
+  // edit/delete. Selection.messageParameters keys are
+  // "Interface:Message:ParamName".
+  {
+    const mpSel = [...Selection.messageParameters];
+    const onlyOne = mpSel.length === 1;
+    let editable = onlyOne;
+    if (onlyOne) {
+      const parts = mpSel[0].split(":");
+      if (parts.length === 3 && isDefaultMessageParam(parts[0], parts[1], parts[2])) editable = false;
+    }
+    setBtn("btn-edit-param", !editable);
+    const deletable = mpSel.length > 0 && mpSel.some(k => {
+      const parts = k.split(":");
+      return parts.length !== 3 || !isDefaultMessageParam(parts[0], parts[1], parts[2]);
+    });
+    setBtn("btn-del-param",  !deletable);
+  }
 
   // States — pseudo-states (START, history, ANY) excluded. Also
   // disabled in device view since states aren't visible there.
@@ -6927,6 +7179,48 @@ function isDefaultInterface(name) {
 function isDefaultMessage(iface, name) {
   return (iface === "Timer" && name === "Timeout") ||
          (iface === "Logical" && (name === "Yes" || name === "No"));
+}
+// Same convention extended to handlers, functions, function parameters,
+// types, and message parameters. The defaults are sourced from
+// getDefaultModelEntries() — these helpers ask the in-memory Model
+// directly so the truth lives in one place. They tolerate absent
+// entries (returns false rather than throwing) so callers don't need
+// to pre-validate.
+function isDefaultHandlerName(name) {
+  const h = Model.handlers.find(x => x.name === name);
+  return !!(h && h.isDefault);
+}
+function isDefaultFunction(handlerName, fnName) {
+  if (!isDefaultHandlerName(handlerName)) return false;
+  const h = Model.handlers.find(x => x.name === handlerName);
+  if (!h || !Array.isArray(h.functions)) return false;
+  const f = h.functions.find(x => x.name === fnName);
+  return !!(f && f.isDefault);
+}
+function isDefaultFunctionParam(handlerName, fnName, paramName) {
+  if (!isDefaultHandlerName(handlerName)) return false;
+  const h = Model.handlers.find(x => x.name === handlerName);
+  if (!h || !Array.isArray(h.functions)) return false;
+  const f = h.functions.find(x => x.name === fnName);
+  if (!f || !Array.isArray(f.parameters)) return false;
+  const p = f.parameters.find(x => x.name === paramName);
+  return !!(p && p.isDefault);
+}
+// Default message parameters are currently only on Timer:Timeout
+// (timerId). The check looks at the message's parameter array for a
+// matching name with isDefault flag set. Same shape as the function-
+// param helper above.
+function isDefaultMessageParam(iface, msgName, paramName) {
+  if (!isDefaultMessage(iface, msgName)) return false;
+  const m = Model.messages.find(x => x.interface === iface && x.name === msgName);
+  if (!m || !Array.isArray(m.parameters)) return false;
+  const p = m.parameters.find(x => x.name === paramName);
+  return !!(p && p.isDefault);
+}
+function isDefaultType(name) {
+  if (!Array.isArray(Model.types)) return false;
+  const t = Model.types.find(x => x.name === name);
+  return !!(t && t.isDefault);
 }
 
 // ---------- Component-diagram connection helpers ----------
@@ -7797,6 +8091,12 @@ function manualContent() {
         <li><strong>Expose functions to be called by Components.</strong> A Component that calls functions exposed by a Handler declares this with a direct Component→Handler dependency line — a dashed arrow pointing at the Handler. No interface is involved.</li>
       </ul>
       <p>Add a Handler by clicking the <code>+</code> in the Handlers list header. Rename, add a description, or delete via the <code>✎</code> / <code>−</code> buttons on a selected Handler row. A small accent-coloured dot on a row indicates the Handler has a non-empty description (same convention as Components).</p>
+      <p><strong>The built-in <code>TimerHandler</code>.</strong> Every model carries a default Handler called <code>TimerHandler</code> — shown muted/italic in the Handlers list to mark it as built-in. It exposes two functions:</p>
+      <ul>
+        <li><code>setTimeout(timeout: Time, timerId: TimerID)</code> — schedule a timer that, when it fires, sends a <code>Timer:Timeout</code> message to the calling component carrying the same <code>timerId</code>.</li>
+        <li><code>cancelTimeout(timerId: TimerID)</code> — cancel a previously-scheduled timer so it never fires.</li>
+      </ul>
+      <p>The TimerHandler can't be edited or deleted, and it's excluded from the device diagram — it's conceptually always present, the same way the <code>Logical</code> and <code>Timer</code> interfaces are. The two types it references (<code>Time</code>, <code>TimerID</code>) are also built-in and appear in the Type definitions chapter of the spec export. None of these defaults are written to disk; they're stripped on save and re-injected on load, so files stay byte-minimal.</p>
 
       <h3>Functions</h3>
       <p>A Handler exposes <strong>functions</strong> — its callable API. Any Component that has a call-dependency line to the Handler can invoke any of those functions. Functions are documentation only: they never appear in the generated PlantUML and they don't affect the diagram. They exist so developers can write the action of a transition against a concrete API.</p>
@@ -7916,6 +8216,7 @@ function manualContent() {
       </ul>
       <p>The dialog has two panes side by side. The left pane lists the existing types with their names and short descriptions, sorted alphabetically. The right pane shows the selected type's full specification \u2014 name as a heading, description below it, then the long-form specification text with backtick references rendered in styled monospace (with hover tooltips) the same way they appear elsewhere in the editor. Click a row to select it; the right pane updates immediately. Click <strong>Add</strong> to create a new type, <strong>Edit</strong> (or double-click a row) to change the selected type's fields, or <strong>Delete</strong> to remove it. Editing opens a sub-dialog with the three fields for input. Deleting prompts for confirmation \u2014 references to a deleted type don't auto-rewrite, they just become unresolved (warning style), so you can find and fix them by hand if needed.</p>
       <p><strong>Auto-linking in the spec.</strong> When a parameter or state-variable's type field exactly matches a defined type name, the spec renders it as a hyperlink to the type's row in the Type definitions chapter \u2014 no backticks needed. The type cell shows a description tooltip on hover, the same way explicit backtick references do. Compound type strings (<code>Map&lt;String, int&gt;</code>, <code>int?</code>) are not auto-linked, since they aren't exact-string matches; if you want links to sub-types in those, use the backtick syntax in the surrounding description.</p>
+      <p><strong>Autocomplete in type fields.</strong> Parameter and state-variable <em>Type</em> inputs offer the device's defined types as autocomplete suggestions as you type \u2014 click the field and start typing, or press the down arrow to see the full sorted list. Picking a suggestion just inserts that name into the field, so an exact-match auto-link will form. The field stays free text either way: you can also type compound expressions like <code>uint16</code>, <code>Map&lt;String, int&gt;</code>, or <code>enum {Active, Idle}</code> when there's no defined type that fits.</p>
       <p><strong>Renames cascade through everything.</strong> Rename a type and Stadi&aelig; rewrites every backtick reference to it in the model's prose, plus every parameter and state-variable type field that exact-string-matches the old name. The links keep working without you editing each row by hand.</p>
       <p>The Type definitions chapter is rendered at the end of both the HTML and docx specifications, so the reader has finished the components and handlers before encountering the reference material.</p>
     </section>
@@ -8380,6 +8681,9 @@ function openCPDialog(existing=null) {
 // word, unique within component), type (free-text, optional), and
 // description (free-text, optional). Same UX shape as openCPDialog.
 function openStateVariableDialog(existing=null) {
+  // Same type-name autocomplete as the parameter dialog. State
+  // variables and parameters draw from the same Model.types pool.
+  refreshTypesDatalist();
   const title = existing ? "State variable properties" : "Add state variable";
   modalContainer.innerHTML = `
     <div class="title">${title}</div>
@@ -8387,7 +8691,7 @@ function openStateVariableDialog(existing=null) {
       <label>Name:</label>
       <input type="text" id="sv-name" value="${escapeHTML(existing?.name||'')}">
       <label>Type:</label>
-      <input type="text" id="sv-type" value="${escapeHTML(existing?.type||'')}">
+      <input type="text" id="sv-type" list="types-datalist" value="${escapeHTML(existing?.type||'')}">
       <label>Description:</label>
       <input type="text" id="sv-desc" value="${escapeHTML(existing?.description||'')}">
     </div>
@@ -8656,6 +8960,35 @@ function deleteSelectedConstant() {
 // (multi-line textarea). Closing returns to the list view.
 let _typeDialogSelection = null;  // selected name within the dialog
 
+// Repopulate the shared <datalist id="types-datalist"> with one
+// <option> per defined type, sorted alphabetically. Called at the
+// start of every dialog that has a type input (parameter dialog,
+// state-variable dialog) — modal dialogs are exclusive, so the type
+// list can't shift under the user mid-dialog, which makes a single
+// pre-open refresh sufficient.
+//
+// The datalist drives the browser's native autocomplete for an
+// <input list="types-datalist">: the user gets matching suggestions
+// as they type, and the field stays free-text — picking a suggestion
+// just inserts that text. Same UX as a desktop combo box without
+// any custom JS or styling, and it preserves the existing free-text
+// behaviour entirely (users can still type `enum {Active, Idle}` or
+// any other ad-hoc declaration).
+//
+// `Model.types` is the canonical source. We render type names only
+// (not descriptions) — descriptions belong in the type-definitions
+// chapter, not the autocomplete dropdown.
+function refreshTypesDatalist() {
+  const dl = document.getElementById("types-datalist");
+  if (!dl) return;
+  const types = Array.isArray(Model.types) ? Model.types : [];
+  const names = types
+    .map(t => t && typeof t.name === "string" ? t.name : "")
+    .filter(n => n.length > 0)
+    .sort((a, b) => a.localeCompare(b));
+  dl.innerHTML = names.map(n => `<option value="${escapeHTML(n)}"></option>`).join("");
+}
+
 function openTypeDefinitionsModal() {
   // Reset local selection on each open. The dialog is reusable; we
   // don't want a stale selection from a previous session pre-selecting
@@ -8669,6 +9002,11 @@ function renderTypeDefinitionsModal() {
   const selName = _typeDialogSelection;
   const hasSel = selName && types.some(t => t.name === selName);
   const selType = hasSel ? types.find(t => t.name === selName) : null;
+  // Default types (Time, TimerID) are built-in and not editable — the
+  // Edit and Delete buttons grey out when a default is the active
+  // selection. The right-pane spec preview still renders normally so
+  // the reader can see what the type means.
+  const selIsDefault = !!(selType && selType.isDefault);
 
   // Right-pane content: when a type is selected, show its name as a
   // header, its description (single-line), and its full specification
@@ -8714,8 +9052,8 @@ function renderTypeDefinitionsModal() {
     </div>
     <div class="actions">
       <button id="td-add">Add</button>
-      <button id="td-edit"${hasSel ? "" : " disabled"}>Edit</button>
-      <button id="td-delete"${hasSel ? "" : " disabled"}>Delete</button>
+      <button id="td-edit"${(hasSel && !selIsDefault) ? "" : " disabled"}>Edit</button>
+      <button id="td-delete"${(hasSel && !selIsDefault) ? "" : " disabled"}>Delete</button>
       <button id="td-close" class="cancel">Close</button>
     </div>`;
   modalContainer.className = "modal modal-type-defs";
@@ -8726,6 +9064,7 @@ function renderTypeDefinitionsModal() {
     const tr = document.createElement("tr");
     tr.dataset.name = t.name;
     if (t.name === selName) tr.classList.add("selected");
+    if (t.isDefault) tr.classList.add("default-item");
     const nameTd = document.createElement("td");
     nameTd.textContent = t.name;
     const descTd = document.createElement("td");
@@ -8752,6 +9091,9 @@ function renderTypeDefinitionsModal() {
   document.getElementById("td-delete").onclick = () => {
     const t = types.find(x => x.name === selName);
     if (!t) return;
+    // Defensive: the button is greyed out for defaults, but never
+    // attempt the delete even if the disabled state was bypassed.
+    if (t.isDefault) return;
     showConfirm(
       "Delete type definition?",
       `This will remove the type definition "${t.name}". References to this type elsewhere in the model will not be modified — they'll just stop linking. Continue?`,
@@ -8825,7 +9167,7 @@ function openTypeDefinitionEditDialog(existing) {
       _typeDialogSelection = name;
     } else {
       if (!Array.isArray(Model.types)) Model.types = [];
-      Model.types.push({ name, description, specification });
+      Model.types.push({ name, isDefault: false, description, specification });
       _typeDialogSelection = name;
     }
     renderTypeDefinitionsModal();
@@ -10138,15 +10480,11 @@ function newDiagram(skipConfirm) {
 }
 
 function resetModel(componentName) {
-  Model.interfaces = [
-    { name: "Timer", isDefault: true },
-    { name: "Logical", isDefault: true }
-  ];
-  Model.messages = [
-    { interface: "Timer", name: "Timeout", isDefault: true },
-    { interface: "Logical", name: "Yes", isDefault: true },
-    { interface: "Logical", name: "No", isDefault: true }
-  ];
+  const defaults = getDefaultModelEntries();
+  Model.interfaces = defaults.interfaces;
+  Model.messages = defaults.messages;
+  Model.handlers = defaults.handlers;
+  Model.types = defaults.types;
   // The caller may pass an arbitrary user-entered name (e.g. "Component
   // Name" from the default prompt). If it's not identifier-safe, slug
   // it and promote the original to displayName, same migration we apply
@@ -10160,10 +10498,12 @@ function resetModel(componentName) {
   Model.components = [ makeEmptyComponent(cName, cDisplay) ];
   Model.activeComponentIndex = 0;
   Model.connections = [];
-  Model.handlers = [];
+  // NB: Model.handlers and Model.types intentionally NOT reset to [] —
+  // they were just populated with defaults a few lines above. These
+  // collections are append-on-top in loadModel(), and resetModel()
+  // is the seed step.
   Model.handlerConnections = [];
   Model.handlerCalls = [];
-  Model.types = [];
   Model.deviceName = "Device";
   Model.deviceDisplayName = "";
   Model.deviceComponentFontSize = 12;
@@ -10302,9 +10642,11 @@ function buildSerializedModel() {
   };
   // Handler-related arrays are a post-initial-v3 addition; emit them
   // only when non-empty so files from users who don't use handlers stay
-  // as lean as they were before the feature existed.
-  if (Model.handlers.length > 0) {
-    out.handlers = Model.handlers.map(h => {
+  // as lean as they were before the feature existed. Default handlers
+  // (TimerHandler) are filtered out — they're re-injected on load.
+  const userHandlers = Model.handlers.filter(h => !h.isDefault);
+  if (userHandlers.length > 0) {
+    out.handlers = userHandlers.map(h => {
       const o = { name: h.name };
       if (h.displayName && h.displayName.length > 0) o.displayName = h.displayName;
       if (h.description && h.description.length > 0) o.description = h.description;
@@ -10340,14 +10682,19 @@ function buildSerializedModel() {
   if (Model.deviceInterfaceFontSize && Model.deviceInterfaceFontSize !== 11) out.deviceInterfaceFontSize = Model.deviceInterfaceFontSize;
   if (Model.deviceSpecification && Model.deviceSpecification.length > 0) out.deviceSpecification = Model.deviceSpecification;
   if (Array.isArray(Model.types) && Model.types.length > 0) {
-    out.types = Model.types.map(t => {
-      // Per-record minification: drop empty optional fields so
-      // freshly-defined types take minimal disk space.
-      const o = { name: t.name };
-      if (t.description && t.description.length > 0) o.description = t.description;
-      if (t.specification && t.specification.length > 0) o.specification = t.specification;
-      return o;
-    });
+    // Default types (Time, TimerID) are re-injected on load, so they
+    // don't need to be persisted. Filter them out for byte-minimality.
+    const userTypes = Model.types.filter(t => !t.isDefault);
+    if (userTypes.length > 0) {
+      out.types = userTypes.map(t => {
+        // Per-record minification: drop empty optional fields so
+        // freshly-defined types take minimal disk space.
+        const o = { name: t.name };
+        if (t.description && t.description.length > 0) o.description = t.description;
+        if (t.specification && t.specification.length > 0) o.specification = t.specification;
+        return o;
+      });
+    }
   }
   return out;
 }
@@ -14311,15 +14658,10 @@ function loadModel(data) {
   // name/fonts) default cleanly so a hand-edited or pared-down file
   // still loads without complaint.
   resetModel();
-  Model.interfaces = [
-    { name: "Timer", isDefault: true },
-    { name: "Logical", isDefault: true }
-  ];
-  Model.messages = [
-    { interface: "Timer", name: "Timeout", isDefault: true },
-    { interface: "Logical", name: "Yes", isDefault: true },
-    { interface: "Logical", name: "No", isDefault: true }
-  ];
+  // resetModel() has already seeded the model with the built-in
+  // defaults (Logical / Timer interfaces, their messages, the
+  // TimerHandler with its functions, and the Time / TimerID types).
+  // Below we append the user-defined entries on top.
   // Normalize to carry an explicit description field (empty string when
   // absent). Forward-compat within v3: older saves lacked the field;
   // they load cleanly with empty descriptions.
@@ -14497,9 +14839,13 @@ function loadModel(data) {
   // level; the loader is more lenient and accepts what it's given,
   // because a hand-edited file might not respect the UI rule — it's
   // better to load it and let the user fix it than to reject the file.
-  Model.handlers = [];
+  // Default handlers (TimerHandler) were seeded by resetModel(); we
+  // append user-defined handlers on top. The usedHandlerNames set is
+  // pre-seeded with the default names so a hand-edited file naming a
+  // handler "TimerHandler" gets disambiguated rather than shadowing
+  // the built-in.
   if (Array.isArray(data.handlers)) {
-    const usedHandlerNames = new Set();
+    const usedHandlerNames = new Set(Model.handlers.map(h => h.name));
     for (const h of data.handlers) {
       if (!h || typeof h.name !== "string") continue;
       // Handlers follow the same name + displayName convention as
@@ -14519,6 +14865,10 @@ function loadModel(data) {
       Model.handlers.push({
         name,
         displayName,
+        // User-defined handlers carry an explicit isDefault: false so
+        // diagram and selection code paths can treat the field as
+        // present-on-every-handler rather than tri-state.
+        isDefault: false,
         description: (typeof h.description === "string") ? h.description : "",
         // Handler functions: callable API exposed by this handler to
         // Components. Each function carries a name, optional
@@ -14595,11 +14945,26 @@ function loadModel(data) {
                                    data.deviceInterfaceFontSize >= 6 && data.deviceInterfaceFontSize <= 40)
                                   ? data.deviceInterfaceFontSize : 11;
   Model.deviceSpecification = (typeof data.deviceSpecification === "string") ? data.deviceSpecification : "";
-  Model.types = Array.isArray(data.types) ? data.types.map(t => ({
-    name: (typeof t.name === "string") ? t.name : "",
-    description:   (typeof t.description === "string") ? t.description : "",
-    specification: (typeof t.specification === "string") ? t.specification : ""
-  })).filter(t => t.name.length > 0) : [];
+  // Default types (Time, TimerID) were seeded by resetModel(); user-
+  // defined types are appended on top. The pre-seeded set guards
+  // against a saved file that names a user type "Time" or "TimerID":
+  // the second one in is silently dropped to keep the defaults
+  // canonical.
+  if (Array.isArray(data.types)) {
+    const usedTypeNames = new Set(Model.types.map(t => t.name));
+    for (const t of data.types) {
+      const name = (typeof t.name === "string") ? t.name : "";
+      if (name.length === 0) continue;
+      if (usedTypeNames.has(name)) continue;
+      usedTypeNames.add(name);
+      Model.types.push({
+        name,
+        isDefault: false,
+        description:   (typeof t.description === "string") ? t.description : "",
+        specification: (typeof t.specification === "string") ? t.specification : ""
+      });
+    }
+  }
 
   Model.activeView = "component";
 }
