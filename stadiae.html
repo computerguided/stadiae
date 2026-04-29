@@ -11458,14 +11458,35 @@ function buildSpecAnchorIndex() {
     idx.perComponent.set(c.name, sub);
   }
   for (const h of Model.handlers) {
-    idx.handlers.set(h.name, { anchor: anchorHandler(h.name), description: tipFor(h.description) });
+    // Default handlers (TimerHandler) aren't part of the spec body
+    // — their chapters are skipped in the export, so a `<a href="#…">`
+    // link would point at a non-existent anchor. We still include
+    // them in the index with `anchor: null` so that backtick refs
+    // like `TimerHandler:setTimeout` still resolve enough to carry
+    // their description as a hover tooltip; the renderers branch on
+    // `anchor` truthiness to produce a tooltip-only token (no link)
+    // instead of a real anchor. Same applies to the handler's
+    // functions and their parameters — each gets the description for
+    // the tooltip but no anchor to navigate to.
+    const tooltipOnly = !!h.isDefault;
+    idx.handlers.set(h.name, {
+      anchor: tooltipOnly ? null : anchorHandler(h.name),
+      description: tipFor(h.description)
+    });
     const fns = new Map();
     for (const f of (h.functions || [])) {
       const params = new Map();
       for (const p of (f.parameters || [])) {
-        params.set(p.name, { anchor: anchorFnParam(h.name, f.name, p.name), description: tipFor(p.description) });
+        params.set(p.name, {
+          anchor: tooltipOnly ? null : anchorFnParam(h.name, f.name, p.name),
+          description: tipFor(p.description)
+        });
       }
-      fns.set(f.name, { anchor: anchorFn(h.name, f.name), description: tipFor(f.description), parameters: params });
+      fns.set(f.name, {
+        anchor: tooltipOnly ? null : anchorFn(h.name, f.name),
+        description: tipFor(f.description),
+        parameters: params
+      });
     }
     idx.perHandler.set(h.name, { functions: fns });
   }
@@ -11747,7 +11768,15 @@ function renderProse(text, context, idx) {
         const tipAttr = tip.length > 0
           ? ` data-tooltip="${escapeHTML(tip)}"`
           : "";
-        out += `<a class="ref" href="#${escapeHTML(resolved.anchor)}"${tipAttr}>${escapeHTML(resolved.label)}</a>`;
+        if (resolved.anchor) {
+          out += `<a class="ref" href="#${escapeHTML(resolved.anchor)}"${tipAttr}>${escapeHTML(resolved.label)}</a>`;
+        } else {
+          // Tooltip-only: a default-handler entry that has no chapter
+          // to link to. <span class="ref"> wears the same accent
+          // styling as <a class="ref"> so refs read uniformly; only
+          // the link behaviour differs.
+          out += `<span class="ref"${tipAttr}>${escapeHTML(resolved.label)}</span>`;
+        }
       } else {
         // Unresolved — render styled but no link.
         out += `<code class="ref-unresolved" title="Unresolved reference">${escapeHTML(inner)}</code>`;
@@ -12028,7 +12057,17 @@ function specRefHtml(inner, context, idx) {
     const tipAttr = tip.length > 0
       ? ` data-tooltip="${escapeHTML(tip)}"`
       : "";
-    return `<a class="ref" href="#${escapeHTML(resolved.anchor)}"${tipAttr}>${escapeHTML(resolved.label)}</a>`;
+    if (resolved.anchor) {
+      return `<a class="ref" href="#${escapeHTML(resolved.anchor)}"${tipAttr}>${escapeHTML(resolved.label)}</a>`;
+    }
+    // Tooltip-only: resolves to a real entity (default-handler entry)
+    // but the spec doesn't have a chapter for it. Render as a <span>
+    // wearing the same `.ref` look as a real link — accent color,
+    // dotted underline — so visually it integrates with surrounding
+    // refs. The missing href is the only behavioural difference; the
+    // hover tooltip confirms the reference resolves. CSS rules for
+    // `.ref` cover both <a class="ref"> and <span class="ref">.
+    return `<span class="ref"${tipAttr}>${escapeHTML(resolved.label)}</span>`;
   }
   return `<code class="ref-unresolved" title="Unresolved reference">${escapeHTML(inner)}</code>`;
 }
@@ -12039,6 +12078,13 @@ function liveRefHtml(inner, context, idx) {
     const tipAttr = tip.length > 0
       ? ` data-tooltip="${escapeHTML(tip)}"`
       : "";
+    // Both linked and tooltip-only refs use the same .live-ref
+    // styling — visually they read as "this token resolves to
+    // something". The presence of a tooltip is the user-facing
+    // affordance; the absence of a chapter to navigate to is an
+    // implementation detail. (Live preview spans never carry an
+    // href anyway — clicking the field swaps it back to editing,
+    // so there's no link behaviour to lose.)
     return `<span class="live-ref"${tipAttr}>${escapeHTML(resolved.label)}</span>`;
   }
   return `<span class="live-ref-plain">${escapeHTML(inner)}</span>`;
@@ -12168,6 +12214,8 @@ function renderLiveBackticks(text, context, idx) {
         const tipAttr = tip.length > 0
           ? ` data-tooltip="${escapeHTML(tip)}"`
           : "";
+        // Both linked and tooltip-only refs use the same `.live-ref`
+        // styling — see liveRefHtml above for the rationale.
         out += `<span class="live-ref"${tipAttr}>${escapeHTML(resolved.label)}</span>`;
       } else {
         out += `<span class="live-ref-plain">${escapeHTML(inner)}</span>`;
@@ -12386,14 +12434,20 @@ function installLiveTooltipHandlers() {
   };
 
   document.addEventListener("mouseover", (e) => {
-    const ref = e.target.closest(".live-ref[data-tooltip]");
+    // Match any data-tooltip-bearing element so both real refs
+    // (.live-ref, accent-styled link) and tooltip-only refs
+    // (.live-ref-plain[data-tooltip], the default-handler family
+    // that has a description but no chapter to link to) get the
+    // popup. The attribute selector means future tooltip categories
+    // automatically inherit the listener.
+    const ref = e.target.closest("[data-tooltip]");
     if (!ref) return;
     if (ref === activeRef) return;
     if (showTimer) clearTimeout(showTimer);
     showTimer = setTimeout(() => showTipFor(ref), 250);
   });
   document.addEventListener("mouseout", (e) => {
-    const ref = e.target.closest(".live-ref[data-tooltip]");
+    const ref = e.target.closest("[data-tooltip]");
     if (!ref) return;
     // Only hide if the new target isn't the same span or its child.
     const to = e.relatedTarget;
@@ -12535,10 +12589,13 @@ function buildSidebarTOC() {
     }
     html += `</ul></li>`;
   }
-  // Handlers group
-  if (Model.handlers.length > 0) {
+  // Handlers group — default handlers (TimerHandler) are built-in and
+  // not part of the spec. Filter them out, and skip the group entirely
+  // when no user handlers remain.
+  const userHandlersToc = Model.handlers.filter(h => !h.isDefault);
+  if (userHandlersToc.length > 0) {
     html += `<li class="toc-group"><span class="toc-group-label">Handlers</span><ul>`;
-    for (const h of Model.handlers) {
+    for (const h of userHandlersToc) {
       html += `<li><a href="#${escapeHTML(anchorHandler(h.name))}">${escapeHTML(handlerDisplayLabel(h).replace(/\\n/g, " "))}</a></li>`;
     }
     html += `</ul></li>`;
@@ -12705,7 +12762,13 @@ table th {
   color: var(--text-muted);
 }
 table td.cell-multiline { white-space: pre-wrap; }
-a.ref {
+/* \`a.ref\` for navigable references; \`span.ref\` for tooltip-only
+   references (default-handler family — there's a description but no
+   chapter to anchor to). Both wear the same accent styling so refs
+   read uniformly in prose; the only difference is whether clicking
+   navigates somewhere. The \`:hover\` rule applies to both. */
+a.ref,
+span.ref {
   color: var(--accent);
   text-decoration: none;
   border-bottom: 1px dotted var(--accent);
@@ -12714,7 +12777,8 @@ a.ref {
   background: transparent;
   padding: 0 1px;
 }
-a.ref:hover { background: var(--accent-soft); border-radius: 2px; }
+a.ref:hover,
+span.ref:hover { background: var(--accent-soft); border-radius: 2px; }
 
 /* Hover tooltip for cross-references. Single absolutely-positioned
    element managed by the iframe's JS; CSS just provides the visual
@@ -12933,14 +12997,21 @@ function buildSpecScript() {
   };
 
   document.addEventListener('mouseover', (e) => {
-    const link = e.target.closest('a.ref[data-tooltip]');
+    // Tooltip targets: any element carrying a data-tooltip attribute.
+    // That covers <a class="ref"> (linked refs), <code class="ref-unresolved">
+    // (default-handler refs that have a description but no chapter
+    // to navigate to), and any future tooltip-bearing element. Using
+    // an attribute selector keeps the listener a single source of
+    // truth — no class-by-class enumeration to update each time a new
+    // ref category appears.
+    const link = e.target.closest('[data-tooltip]');
     if (!link) return;
     if (link === activeLink) return;
     if (showTimer) clearTimeout(showTimer);
     showTimer = setTimeout(() => showTipFor(link), 250);
   });
   document.addEventListener('mouseout', (e) => {
-    const link = e.target.closest('a.ref[data-tooltip]');
+    const link = e.target.closest('[data-tooltip]');
     if (!link) return;
     // Only hide if the new target isn't the same link or its child.
     const to = e.relatedTarget;
@@ -13068,12 +13139,15 @@ async function buildSpecBody(idx, progress) {
     parts.push(`</tbody></table>`);
 
     // Handler summary table — fallback to italic note when none.
-    if (Model.handlers.length === 0) {
+    // Default handlers (TimerHandler) are built-in and excluded from
+    // the spec; the table reflects only user-defined handlers.
+    const userHandlers = Model.handlers.filter(h => !h.isDefault);
+    if (userHandlers.length === 0) {
       parts.push(`<p class="no-content">No handlers are defined for this device.</p>`);
     } else {
       parts.push(`<p>The descriptions of the identified handlers are given in the table below.</p>`);
       parts.push(`<table><thead><tr><th>Handler</th><th>Description</th></tr></thead><tbody>`);
-      for (const h of Model.handlers) {
+      for (const h of userHandlers) {
         const label = handlerDisplayLabel(h).replace(/\\n/g, " ");
         // Same first-line truncation as the component summary above.
         parts.push(`<tr><td><a class="ref" href="#${escapeHTML(anchorHandler(h.name))}">${escapeHTML(label)}</a></td><td>${renderDesc(firstLineDesc(h.description), devCtx, idx)}</td></tr>`);
@@ -13400,13 +13474,19 @@ async function buildSpecBody(idx, progress) {
   }
 
   // === Handlers ===
-  if (Model.handlers.length > 0) {
+  // Default handlers (TimerHandler) are built-in and not part of the
+  // spec — same convention as default interfaces. Filter them out
+  // before doing anything, including the "are there any handlers"
+  // gating check.
+  {
+    const userHandlersChapter = Model.handlers.filter(h => !h.isDefault);
+    if (userHandlersChapter.length > 0) {
     // Note no umbrella <h1>Handlers</h1>: handler chapters are each
     // their own <h1>, parallel to the way component chapters are
     // structured. The "Handlers" TOC group label is independent of
     // the body and still appears in the sidebar.
     parts.push(`<p>Handlers wrap external resources (timers, network endpoints, hardware peripherals) so the components can interact with them through interfaces and function calls.</p>`);
-    for (const h of Model.handlers) {
+    for (const h of userHandlersChapter) {
       const handlerLabel = handlerDisplayLabel(h).replace(/\\n/g, " ");
       const handlerCtx = { kind: "handler", handlerName: h.name };
       parts.push(`<section id="${escapeHTML(anchorHandler(h.name))}" class="entity-anchor">`);
@@ -13451,6 +13531,7 @@ async function buildSpecBody(idx, progress) {
       }
       parts.push(`</section>`);
     }
+    }  // end userHandlersChapter
   }
 
   // === Type definitions ===
@@ -13733,22 +13814,27 @@ async function buildSpecificationDocx(d, progress) {
   ));
   children.push(mkPara(d, ""));
 
-  // Handler summary table (or fallback).
-  if (Model.handlers.length === 0) {
-    children.push(mkItalicPara(d, "No handlers are defined for this device."));
-  } else {
-    children.push(mkPara(d, "The descriptions of the identified handlers are given in the table below."));
-    children.push(mkTable(d,
-      [ "Handler", "Description" ],
-      Model.handlers.map(h => new d.TableRow({
-        children: [
-          mkCell(d, handlerDisplayLabel(h), { width: COL_2[0] }),
-          // Summary — first line only, see component summary above.
-          mkCell(d, desc(firstLineDesc(h.description)), { width: COL_2[1] })
-        ]
-      })),
-      COL_2
-    ));
+  // Handler summary table (or fallback). Default handlers
+  // (TimerHandler) are built-in and excluded from the spec — same
+  // convention as the HTML side.
+  {
+    const userHandlers = Model.handlers.filter(h => !h.isDefault);
+    if (userHandlers.length === 0) {
+      children.push(mkItalicPara(d, "No handlers are defined for this device."));
+    } else {
+      children.push(mkPara(d, "The descriptions of the identified handlers are given in the table below."));
+      children.push(mkTable(d,
+        [ "Handler", "Description" ],
+        userHandlers.map(h => new d.TableRow({
+          children: [
+            mkCell(d, handlerDisplayLabel(h), { width: COL_2[0] }),
+            // Summary — first line only, see component summary above.
+            mkCell(d, desc(firstLineDesc(h.description)), { width: COL_2[1] })
+          ]
+        })),
+        COL_2
+      ));
+    }
   }
   children.push(mkPara(d, ""));
 
@@ -14122,7 +14208,10 @@ async function buildSpecificationDocx(d, progress) {
   }
 
   // --- Handler deep-dives ---
+  // Default handlers (TimerHandler) are excluded — same convention as
+  // the HTML side. They're built-in and not part of the spec.
   for (const h of Model.handlers) {
+    if (h.isDefault) continue;
     const label = handlerDisplayLabel(h).replace(/\\n/g, " ").replace(/\s+/g, " ").trim();
     children.push(mkHeading(d, label, 1));
     // Description gets its own Heading 2, parallel to the component
