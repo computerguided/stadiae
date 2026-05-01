@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>stadi&aelig; &mdash; use cases &amp; scenarios</title>
+<meta name="description" content="Use case and scenario specification for the Stadi&aelig; state-diagram editor: 12 use cases and 84 scenarios in precondition / sequence / postcondition form.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><style>:root{color:black}@media(prefers-color-scheme:dark){:root{color:white}}</style><path d='M30 10L10 10L10 90L30 90' fill='none' stroke='currentColor' stroke-width='10' stroke-linecap='square' stroke-linejoin='miter'/><circle cx='50' cy='50' r='18' fill='currentColor'/><path d='M70 10L90 10L90 90L70 90' fill='none' stroke='currentColor' stroke-width='10' stroke-linecap='square' stroke-linejoin='miter'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:         #f8f8f6;
+  --bg-2:       #efefeb;
+  --bg-3:       #e6e5df;
+  --surface:    #ffffff;
+  --ink:        #0f0f12;
+  --ink-1:      #2c2c33;
+  --ink-2:      #55555d;
+  --ink-3:      #8e8e95;
+  --ink-4:      #b8b8bd;
+  --rule:       #0f0f12;
+  --rule-soft:  #d8d8d2;
+  --accent:     #2b2a8f;
+  --accent-hov: #1e1d66;
+  --accent-bg:  #eceaf6;
+  --green:      #1a7a3a;
+  --red:        #a11f33;
+  --amber:      #8a5a10;
+  --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", "Menlo", "Consolas", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code, pre, .mono, kbd { font-family: var(--mono); }
+code {
+  font-size: 0.88em;
+  padding: 1px 5px;
+  background: var(--bg-2);
+  border-radius: 2px;
+  color: var(--ink-1);
+}
+
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.15s; }
+a:hover { border-bottom-color: var(--accent); }
+
+a.uc-ref {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* ============== Top status bar ============== */
+.topbar {
+  position: sticky; top: 0;
+  z-index: 50;
+  background: var(--bg);
+  border-bottom: 1px solid var(--rule);
+  padding: 10px 28px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 24px;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.topbar .brand { font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
+.topbar .brand .hash { color: var(--ink-3); }
+.topbar .path { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar .path .slash { color: var(--ink-4); }
+.topbar .actions { display: flex; gap: 16px; font-size: 12px; }
+.topbar .actions a { color: var(--ink-2); }
+.topbar .actions a:hover { color: var(--accent); }
+
+/* ============== Layout ============== */
+.wrap {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 28px;
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 48px;
+}
+
+/* ============== Sidebar ============== */
+aside.sidebar {
+  position: sticky;
+  top: 60px;
+  align-self: start;
+  padding-top: 56px;
+  padding-bottom: 40px;
+  font-family: var(--mono);
+  font-size: 12px;
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+aside.sidebar .tag { display: inline-block; font-size: 10.5px; color: var(--ink-3); margin-bottom: 6px; letter-spacing: 0.03em; }
+aside.sidebar h4 {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 26px 0 10px 0;
+}
+aside.sidebar h4:first-of-type { margin-top: 0; }
+
+details.sb-sec {
+  margin: 2px 0;
+  border-left: 2px solid transparent;
+  padding-left: 10px;
+  margin-left: -12px;
+  transition: border-color 0.12s;
+}
+details.sb-sec:hover { border-left-color: var(--rule-soft); }
+details.sb-sec[open] { border-left-color: var(--rule-soft); }
+details.sb-sec summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 4px 0 4px 0;
+  color: var(--ink-1);
+  font-weight: 500;
+  /* Reserve a column for the toggle indicator on the right; let the
+     inner link take up the rest. Uses padding-right + an absolute
+     toggle so the link's clickable area can fill the row. */
+  position: relative;
+  padding-right: 18px;
+}
+details.sb-sec summary::-webkit-details-marker { display: none; }
+details.sb-sec summary::after {
+  content: "+";
+  position: absolute;
+  right: 0;
+  top: 4px;
+  color: var(--ink-3);
+  font-weight: 400;
+  font-size: 13px;
+  width: 14px;
+  text-align: center;
+  pointer-events: none;
+  transition: color 0.12s;
+}
+details.sb-sec[open] summary::after { content: "−"; }
+details.sb-sec summary:hover::after { color: var(--ink-1); }
+
+/* The use-case link inside the summary. Stops propagation in JS so
+   clicking it navigates without toggling the disclosure. */
+details.sb-sec summary a.sb-uc-link {
+  display: flex;
+  align-items: baseline;
+  column-gap: 12px;
+  color: var(--ink-1);
+  border-bottom: none;
+  line-height: 1.4;
+}
+details.sb-sec summary a.sb-uc-link:hover { color: var(--accent); }
+details.sb-sec summary a.sb-uc-link:hover .sb-num { color: var(--accent); }
+details.sb-sec[open] summary a.sb-uc-link { color: var(--ink); }
+details.sb-sec .sb-num {
+  color: var(--accent);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  min-width: 3em;
+}
+details.sb-sec .sb-title {
+  /* Use-case titles are short enough to fit on one line at the
+     sidebar's default width. Wrapping is allowed as a fallback for
+     unusually long titles or narrowed viewports; wrapped lines hang
+     beneath the title's first line (not under the UC-N prefix). */
+  min-width: 0;
+  flex: 1 1 auto;
+}
+/* On the appendix entry, "A" badge is narrower; tighten its column. */
+details.sb-sec.sb-sec-appendix .sb-num { min-width: 1.5em; }
+
+ul.sb-ucs {
+  list-style: none;
+  margin: 4px 0 8px 0;
+  padding-left: 3em;            /* align under .sb-title above */
+  border-left: none;
+  position: relative;
+}
+ul.sb-ucs::before {
+  /* Faint vertical rule connecting the list visually to the parent
+     UC summary. Sits at the start of the index column. */
+  content: "";
+  position: absolute;
+  left: 3em;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: var(--rule-soft);
+}
+ul.sb-ucs li { margin: 2px 0; }
+ul.sb-ucs li a {
+  color: var(--ink-2);
+  font-size: 11px;
+  display: flex;
+  align-items: baseline;
+  column-gap: 8px;
+  padding: 2px 0 2px 12px;
+  line-height: 1.4;
+  border-bottom: none;
+}
+ul.sb-ucs li a:hover { color: var(--accent); }
+ul.sb-ucs li a .idx {
+  color: var(--ink-4);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  min-width: 2.4em;
+}
+ul.sb-ucs li a .sb-uc-title {
+  /* Allow wrap as needed. Wrapped lines hang under the title column
+     (not under the index), thanks to flex baseline + min-width: 0. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+ul.sb-ucs li a.active { color: var(--accent); font-weight: 500; }
+ul.sb-ucs li a.active .idx { color: var(--accent); }
+
+aside.sidebar .meta {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule-soft);
+  color: var(--ink-3);
+  font-size: 11px;
+  line-height: 1.8;
+}
+aside.sidebar .meta .k { color: var(--ink-2); }
+
+/* ============== Main ============== */
+main.doc { padding: 56px 0 120px 0; min-width: 0; }
+
+/* ---- Hero ---- */
+.hero { border-bottom: 1px solid var(--rule); padding-bottom: 48px; margin-bottom: 0; }
+.hero .crumb { font-family: var(--mono); font-size: 12px; color: var(--ink-3); margin-bottom: 20px; }
+.hero .crumb .accent { color: var(--accent); }
+.hero h1 {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 46px;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.hero h1 .title-mark {
+  width: 0.85em;
+  height: 0.85em;
+  vertical-align: -0.10em;
+  margin-right: 0.18em;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+.hero h1 .mono-accent {
+  font-family: var(--mono);
+  font-weight: 500;
+  color: var(--accent);
+  font-size: 38px;
+  letter-spacing: -0.02em;
+}
+.hero .tagline {
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink-1);
+  max-width: 64ch;
+  margin-bottom: 18px;
+}
+.hero .tagline.second { font-size: 15px; color: var(--ink-2); margin-bottom: 28px; }
+
+.hero .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 28px; }
+
+.btn {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 18px;
+  border-radius: 2px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  letter-spacing: -0.01em;
+}
+.btn:hover { border-bottom: 1px solid; }
+.btn-primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn-primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-ghost { background: transparent; color: var(--ink-1); border-color: var(--rule); }
+.btn-ghost:hover { background: var(--surface); color: var(--ink); border-color: var(--ink); }
+
+.hero .badges {
+  display: flex; flex-wrap: wrap; gap: 10px 18px;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-2);
+  align-items: center;
+}
+.hero .badges .badge { display: inline-flex; align-items: center; gap: 6px; }
+.hero .badges .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+.hero .badges .badge.b2::before { background: var(--accent); }
+.hero .badges .badge.b3::before { background: var(--amber); }
+.hero .badges .sep { color: var(--ink-4); }
+
+/* ---- Section blocks ---- */
+section.block {
+  padding: 52px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  scroll-margin-top: 70px;
+}
+section.block:last-of-type { border-bottom: none; }
+
+.sec-head {
+  margin-bottom: 28px;
+}
+.sec-head h2 {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 16px;
+}
+.sec-head .uc-badge {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-bg);
+  padding: 5px 12px;
+  border-radius: 2px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  align-self: center;
+  /* The badge sits on the same baseline-row as the title; flex's
+     align-items: baseline keeps it vertically aligned. */
+}
+.sec-head .uc-badge.appendix { color: var(--ink-2); background: var(--bg-2); }
+section.block.appendix .sec-head h2 { font-size: 24px; }
+
+.sec-body {
+  /* Content occupies full width; the section-number gutter alignment
+     comes from .sec-head only. Use cases provide their own internal
+     visual rhythm via the UC-id pill. */
+  padding-left: 0;
+}
+
+/* ---- Use-case article ---- */
+article.uc {
+  padding: 28px 0;
+  border-top: 1px solid var(--rule-soft);
+  scroll-margin-top: 70px;
+  position: relative;
+}
+article.uc:first-child { border-top: none; padding-top: 0; }
+
+article.uc .uc-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: baseline;
+  margin-bottom: 14px;
+}
+article.uc .uc-id {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0;
+  background: var(--accent-bg);
+  padding: 4px 10px;
+  border-radius: 2px;
+  white-space: nowrap;
+  align-self: center;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+article.uc .uc-id-tag {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+article.uc .uc-id-num {
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+article.uc h3.uc-title {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 18px;
+  color: var(--ink);
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  margin: 0;
+}
+article.uc .uc-permalink {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--ink-4);
+  border-bottom: none;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  align-self: center;
+}
+article.uc:hover .uc-permalink { opacity: 1; }
+article.uc .uc-permalink:hover { color: var(--accent); }
+article.uc:target {
+  background: linear-gradient(to right, var(--accent-bg), transparent 60%);
+  margin-left: -24px;
+  padding-left: 24px;
+  border-radius: 0;
+}
+article.uc:target .uc-permalink { opacity: 1; color: var(--accent); }
+
+article.uc p {
+  margin: 8px 0;
+  color: var(--ink-1);
+  max-width: 76ch;
+}
+article.uc p.lbl-pre,
+article.uc p.lbl-post,
+article.uc p.lbl-fail,
+article.uc p.lbl-alt {
+  margin-top: 14px;
+  padding-left: 14px;
+  border-left: 2px solid var(--rule-soft);
+}
+article.uc p.lbl-pre { border-left-color: var(--ink-3); }
+article.uc p.lbl-post { border-left-color: var(--green); }
+article.uc p.lbl-fail { border-left-color: var(--red); }
+article.uc p.lbl-alt { border-left-color: var(--amber); }
+article.uc p.lbl {
+  margin-top: 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-2);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+article.uc .lbl-tag {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 8px;
+}
+article.uc p.lbl-pre .lbl-tag { color: var(--ink-1); }
+article.uc p.lbl-post .lbl-tag { color: var(--green); }
+article.uc p.lbl-fail .lbl-tag { color: var(--red); }
+article.uc p.lbl-alt .lbl-tag { color: var(--amber); }
+
+/* Section-intro labels: Goal / Primary actor / Scenarios.
+   These appear right after a section heading, before the first
+   scenario in that use case. They use a quieter, dignified treatment
+   than the in-scenario precondition/postcondition borders. */
+.sec-body > p.lbl-meta {
+  margin: 6px 0;
+  color: var(--ink-1);
+  max-width: 76ch;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.sec-body > p.lbl-meta:first-of-type { margin-top: 0; }
+.sec-body > p.lbl-meta + article.uc { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--rule-soft); }
+.sec-body > p.lbl-meta .lbl-tag {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-right: 10px;
+  display: inline-block;
+  min-width: 100px;
+  vertical-align: baseline;
+}
+
+/* Sequence list */
+ol.seq {
+  list-style: none;
+  counter-reset: step;
+  padding-left: 0;
+  margin: 8px 0 8px 0;
+  max-width: 76ch;
+}
+ol.seq > li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 36px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  margin: 4px 0;
+  color: var(--ink-1);
+}
+ol.seq > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 24px;
+  height: 22px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-align: right;
+  padding-right: 8px;
+  border-right: 1px solid var(--rule-soft);
+}
+
+/* Continuation paragraphs inside a sequence step */
+ol.seq > li > p {
+  margin: 8px 0 0 0;
+  color: var(--ink-1);
+}
+
+/* Nested bullet lists inside sequence steps */
+ul.sub {
+  list-style: none;
+  margin: 6px 0 6px 0;
+  padding-left: 0;
+}
+ul.sub li {
+  position: relative;
+  padding-left: 18px;
+  margin: 2px 0;
+  color: var(--ink-1);
+}
+ul.sub li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--ink-3);
+}
+
+/* Bullet lists at the article level (rare but possible) */
+article.uc > ul {
+  list-style: none;
+  margin: 6px 0;
+  padding-left: 0;
+  max-width: 76ch;
+}
+article.uc > ul > li {
+  position: relative;
+  padding-left: 18px;
+  margin: 4px 0;
+  color: var(--ink-1);
+}
+article.uc > ul > li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--ink-3);
+}
+
+article.uc strong { font-weight: 600; color: var(--ink); }
+article.uc em { font-style: italic; }
+
+/* Appendix list styling */
+section.appendix .sec-body > ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-width: 80ch;
+}
+section.appendix .sec-body > ul > li {
+  padding: 16px 0;
+  border-top: 1px solid var(--rule-soft);
+  color: var(--ink-1);
+}
+section.appendix .sec-body > ul > li:first-child { border-top: none; padding-top: 0; }
+section.appendix ul.sub { margin-top: 8px; }
+section.appendix strong { font-weight: 600; color: var(--ink); }
+
+/* Section-body intro paragraph (if any) */
+.sec-body > p:first-child { margin-bottom: 16px; color: var(--ink-1); }
+
+/* Mobile / narrow viewports */
+@media (max-width: 1024px) {
+  .wrap { grid-template-columns: 1fr; gap: 0; padding: 0 20px; }
+  aside.sidebar {
+    position: static;
+    max-height: none;
+    padding-top: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--rule);
+  }
+  main.doc { padding: 32px 0 80px 0; }
+  .hero h1 { font-size: 34px; }
+  .hero h1 .mono-accent { font-size: 28px; }
+  .sec-head h2 { font-size: 24px; gap: 12px; }
+  .sec-head .uc-badge { font-size: 12px; padding: 3px 9px; }
+  article.uc .uc-head { grid-template-columns: auto 1fr; }
+  article.uc .uc-permalink { display: none; }
+  .topbar { grid-template-columns: 1fr auto; gap: 8px; padding: 8px 20px; }
+  .topbar .path { display: none; }
+}
+
+@media (max-width: 500px) {
+  .topbar .actions a span.lbl-text { display: none; }
+  ol.seq > li { padding-left: 32px; }
+  article.uc h3.uc-title { font-size: 16px; }
+}
+
+/* Footer */
+footer.foot {
+  border-top: 1px solid var(--rule);
+  padding: 32px 28px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+footer.foot .right { text-align: right; }
+footer.foot a { color: var(--ink-2); }
+footer.foot a:hover { color: var(--accent); }
+
+@media (max-width: 600px) {
+  footer.foot { grid-template-columns: 1fr; }
+  footer.foot .right { text-align: left; }
+}
+
+/* Print */
+@media print {
+  .topbar, aside.sidebar, .hero-actions, .uc-permalink { display: none; }
+  .wrap { display: block; padding: 0; max-width: none; }
+  main.doc { padding: 0; }
+  article.uc { break-inside: avoid; page-break-inside: avoid; }
+  section.block { break-inside: auto; }
+  body { font-size: 11pt; }
+  .hero h1 { font-size: 28pt; }
+  ol.seq > li::before { border: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="hash">#</span> stadi&aelig;</div>
+  <div class="path">
+    <span class="slash">github.com/</span>computerguided<span class="slash">/</span>stadiae<span class="slash">/</span>use-cases
+  </div>
+  <div class="actions">
+    <a href="index.html"><span class="lbl-text">&larr; home</span></a>
+    <a href="stadiae.html">open the editor &rarr;</a>
+    <a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github &#8599;</a>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <aside class="sidebar">
+    <span class="tag">stadi&aelig; / use cases</span>
+    <h4>Use cases</h4>
+    <details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-1"><span class="sb-num">UC&#8209;1</span><span class="sb-title">Manage files</span></a></summary><ul class="sb-ucs"><li><a href="#uc-1.1"><span class="idx">1.1</span><span class="sb-uc-title">Start a new diagram</span></a></li><li><a href="#uc-1.2"><span class="idx">1.2</span><span class="sb-uc-title">Open a file from disk</span></a></li><li><a href="#uc-1.3"><span class="idx">1.3</span><span class="sb-uc-title">Open a file from a URL</span></a></li><li><a href="#uc-1.4"><span class="idx">1.4</span><span class="sb-uc-title">Save the current diagram</span></a></li><li><a href="#uc-1.5"><span class="idx">1.5</span><span class="sb-uc-title">Save under a new filename</span></a></li><li><a href="#uc-1.6"><span class="idx">1.6</span><span class="sb-uc-title">Restore an autosaved draft after browser closure</span></a></li><li><a href="#uc-1.7"><span class="idx">1.7</span><span class="sb-uc-title">Configure the PlantUML server</span></a></li><li><a href="#uc-1.8"><span class="idx">1.8</span><span class="sb-uc-title">Exit the editor</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-2"><span class="sb-num">UC&#8209;2</span><span class="sb-title">Model at the device level</span></a></summary><ul class="sb-ucs"><li><a href="#uc-2.1"><span class="idx">2.1</span><span class="sb-uc-title">Switch to the device view</span></a></li><li><a href="#uc-2.2"><span class="idx">2.2</span><span class="sb-uc-title">Return to a component&#x27;s state machine</span></a></li><li><a href="#uc-2.3"><span class="idx">2.3</span><span class="sb-uc-title">Rename the device</span></a></li><li><a href="#uc-2.4"><span class="idx">2.4</span><span class="sb-uc-title">Adjust device-diagram font sizes</span></a></li><li><a href="#uc-2.5"><span class="idx">2.5</span><span class="sb-uc-title">Add a type definition</span></a></li><li><a href="#uc-2.6"><span class="idx">2.6</span><span class="sb-uc-title">Edit a type definition</span></a></li><li><a href="#uc-2.7"><span class="idx">2.7</span><span class="sb-uc-title">Delete a type definition</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-3"><span class="sb-num">UC&#8209;3</span><span class="sb-title">Manage components</span></a></summary><ul class="sb-ucs"><li><a href="#uc-3.1"><span class="idx">3.1</span><span class="sb-uc-title">Add a component</span></a></li><li><a href="#uc-3.2"><span class="idx">3.2</span><span class="sb-uc-title">Switch the active component</span></a></li><li><a href="#uc-3.3"><span class="idx">3.3</span><span class="sb-uc-title">Rename a component (or change display name, multiplication)</span></a></li><li><a href="#uc-3.4"><span class="idx">3.4</span><span class="sb-uc-title">Delete a component</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-4"><span class="sb-num">UC&#8209;4</span><span class="sb-title">Define the shared vocabulary</span></a></summary><ul class="sb-ucs"><li><a href="#uc-4.1"><span class="idx">4.1</span><span class="sb-uc-title">Add an interface</span></a></li><li><a href="#uc-4.2"><span class="idx">4.2</span><span class="sb-uc-title">Add a message to an interface</span></a></li><li><a href="#uc-4.3"><span class="idx">4.3</span><span class="sb-uc-title">Add a message parameter</span></a></li><li><a href="#uc-4.4"><span class="idx">4.4</span><span class="sb-uc-title">Edit a message parameter</span></a></li><li><a href="#uc-4.5"><span class="idx">4.5</span><span class="sb-uc-title">Add a handler</span></a></li><li><a href="#uc-4.6"><span class="idx">4.6</span><span class="sb-uc-title">Add a handler function</span></a></li><li><a href="#uc-4.7"><span class="idx">4.7</span><span class="sb-uc-title">Edit a handler function</span></a></li><li><a href="#uc-4.8"><span class="idx">4.8</span><span class="sb-uc-title">Add a handler-function parameter</span></a></li><li><a href="#uc-4.9"><span class="idx">4.9</span><span class="sb-uc-title">Edit a handler-function parameter</span></a></li><li><a href="#uc-4.10"><span class="idx">4.10</span><span class="sb-uc-title">Wire a component to an interface</span></a></li><li><a href="#uc-4.11"><span class="idx">4.11</span><span class="sb-uc-title">Wire a handler to an interface</span></a></li><li><a href="#uc-4.12"><span class="idx">4.12</span><span class="sb-uc-title">Wire a component to a handler (call dependency)</span></a></li><li><a href="#uc-4.13"><span class="idx">4.13</span><span class="sb-uc-title">Adjust connection direction or length</span></a></li><li><a href="#uc-4.14"><span class="idx">4.14</span><span class="sb-uc-title">Delete a connection or a wiring entry</span></a></li><li><a href="#uc-4.15"><span class="idx">4.15</span><span class="sb-uc-title">Rename a shared interface</span></a></li><li><a href="#uc-4.16"><span class="idx">4.16</span><span class="sb-uc-title">Rename a message</span></a></li><li><a href="#uc-4.17"><span class="idx">4.17</span><span class="sb-uc-title">Delete a shared interface</span></a></li><li><a href="#uc-4.18"><span class="idx">4.18</span><span class="sb-uc-title">Delete a message</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-5"><span class="sb-num">UC&#8209;5</span><span class="sb-title">Build a state machine — nodes</span></a></summary><ul class="sb-ucs"><li><a href="#uc-5.1"><span class="idx">5.1</span><span class="sb-uc-title">Add a state</span></a></li><li><a href="#uc-5.2"><span class="idx">5.2</span><span class="sb-uc-title">Edit a state (rename, change display name, description)</span></a></li><li><a href="#uc-5.3"><span class="idx">5.3</span><span class="sb-uc-title">Add a choice-point</span></a></li><li><a href="#uc-5.4"><span class="idx">5.4</span><span class="sb-uc-title">Delete a state or choice-point</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-6"><span class="sb-num">UC&#8209;6</span><span class="sb-title">Build a state machine — transitions</span></a></summary><ul class="sb-ucs"><li><a href="#uc-6.1"><span class="idx">6.1</span><span class="sb-uc-title">Add an initial (START) transition</span></a></li><li><a href="#uc-6.2"><span class="idx">6.2</span><span class="sb-uc-title">Add a state-to-state transition with one or more messages</span></a></li><li><a href="#uc-6.3"><span class="idx">6.3</span><span class="sb-uc-title">Add a choice-point branch (Yes / No)</span></a></li><li><a href="#uc-6.4"><span class="idx">6.4</span><span class="sb-uc-title">Add a history transition</span></a></li><li><a href="#uc-6.5"><span class="idx">6.5</span><span class="sb-uc-title">Add an ANY-source (wildcard) transition</span></a></li><li><a href="#uc-6.6"><span class="idx">6.6</span><span class="sb-uc-title">Add an ANY-message wildcard on a transition</span></a></li><li><a href="#uc-6.7"><span class="idx">6.7</span><span class="sb-uc-title">Group multiple messages on one arrow</span></a></li><li><a href="#uc-6.8"><span class="idx">6.8</span><span class="sb-uc-title">Edit a transition&#x27;s connector direction and length</span></a></li><li><a href="#uc-6.9"><span class="idx">6.9</span><span class="sb-uc-title">Redirect a transition to a different target</span></a></li><li><a href="#uc-6.10"><span class="idx">6.10</span><span class="sb-uc-title">Document a transition&#x27;s action</span></a></li><li><a href="#uc-6.11"><span class="idx">6.11</span><span class="sb-uc-title">Delete a transition or a single message row</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-7"><span class="sb-num">UC&#8209;7</span><span class="sb-title">Document a component</span></a></summary><ul class="sb-ucs"><li><a href="#uc-7.1"><span class="idx">7.1</span><span class="sb-uc-title">Add a state variable</span></a></li><li><a href="#uc-7.2"><span class="idx">7.2</span><span class="sb-uc-title">Edit a state variable</span></a></li><li><a href="#uc-7.3"><span class="idx">7.3</span><span class="sb-uc-title">Add a constant</span></a></li><li><a href="#uc-7.4"><span class="idx">7.4</span><span class="sb-uc-title">Edit a constant</span></a></li><li><a href="#uc-7.5"><span class="idx">7.5</span><span class="sb-uc-title">Add a local function</span></a></li><li><a href="#uc-7.6"><span class="idx">7.6</span><span class="sb-uc-title">Edit a local function&#x27;s name or description</span></a></li><li><a href="#uc-7.7"><span class="idx">7.7</span><span class="sb-uc-title">Edit a local function&#x27;s step body</span></a></li><li><a href="#uc-7.8"><span class="idx">7.8</span><span class="sb-uc-title">Delete a state variable</span></a></li><li><a href="#uc-7.9"><span class="idx">7.9</span><span class="sb-uc-title">Delete a constant</span></a></li><li><a href="#uc-7.10"><span class="idx">7.10</span><span class="sb-uc-title">Delete a local function</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-8"><span class="sb-num">UC&#8209;8</span><span class="sb-title">Edit free-text documentation</span></a></summary><ul class="sb-ucs"><li><a href="#uc-8.1"><span class="idx">8.1</span><span class="sb-uc-title">Edit the Device Specification</span></a></li><li><a href="#uc-8.2"><span class="idx">8.2</span><span class="sb-uc-title">Edit a component or handler description</span></a></li><li><a href="#uc-8.3"><span class="idx">8.3</span><span class="sb-uc-title">Edit a transition&#x27;s action note (Action panel)</span></a></li><li><a href="#uc-8.4"><span class="idx">8.4</span><span class="sb-uc-title">Edit a local function&#x27;s step body (Steps panel)</span></a></li><li><a href="#uc-8.5"><span class="idx">8.5</span><span class="sb-uc-title">Use backtick cross-references</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-9"><span class="sb-num">UC&#8209;9</span><span class="sb-title">Select, edit, and undo</span></a></summary><ul class="sb-ucs"><li><a href="#uc-9.1"><span class="idx">9.1</span><span class="sb-uc-title">Build a multi-element selection (transition composition)</span></a></li><li><a href="#uc-9.2"><span class="idx">9.2</span><span class="sb-uc-title">Click an element on the canvas to select it</span></a></li><li><a href="#uc-9.3"><span class="idx">9.3</span><span class="sb-uc-title">Edit any selected entity via the keyboard</span></a></li><li><a href="#uc-9.4"><span class="idx">9.4</span><span class="sb-uc-title">Copy and paste states and choice-points</span></a></li><li><a href="#uc-9.5"><span class="idx">9.5</span><span class="sb-uc-title">Copy and paste messages between interfaces</span></a></li><li><a href="#uc-9.6"><span class="idx">9.6</span><span class="sb-uc-title">Rename an entity with cascading reference rewrite</span></a></li><li><a href="#uc-9.7"><span class="idx">9.7</span><span class="sb-uc-title">Undo and redo</span></a></li><li><a href="#uc-9.8"><span class="idx">9.8</span><span class="sb-uc-title">Delete with cascading effects</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-10"><span class="sb-num">UC&#8209;10</span><span class="sb-title">Configure view and layout</span></a></summary><ul class="sb-ucs"><li><a href="#uc-10.1"><span class="idx">10.1</span><span class="sb-uc-title">Adjust component-level font sizes</span></a></li><li><a href="#uc-10.2"><span class="idx">10.2</span><span class="sb-uc-title">Resize panels and dividers</span></a></li><li><a href="#uc-10.3"><span class="idx">10.3</span><span class="sb-uc-title">Print the current diagram</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-11"><span class="sb-num">UC&#8209;11</span><span class="sb-title">Export</span></a></summary><ul class="sb-ucs"><li><a href="#uc-11.1"><span class="idx">11.1</span><span class="sb-uc-title">Export the active diagram as PlantUML source</span></a></li><li><a href="#uc-11.2"><span class="idx">11.2</span><span class="sb-uc-title">Export the active diagram as PNG</span></a></li><li><a href="#uc-11.3"><span class="idx">11.3</span><span class="sb-uc-title">Export the active component&#x27;s transitions as Markdown</span></a></li><li><a href="#uc-11.4"><span class="idx">11.4</span><span class="sb-uc-title">Export the full specification (HTML or .docx)</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-12"><span class="sb-num">UC&#8209;12</span><span class="sb-title">Get help</span></a></summary><ul class="sb-ucs"><li><a href="#uc-12.1"><span class="idx">12.1</span><span class="sb-uc-title">Open the user manual</span></a></li><li><a href="#uc-12.2"><span class="idx">12.2</span><span class="sb-uc-title">Open the About dialog</span></a></li></ul></details>
+<details class="sb-sec"><summary><a class="sb-uc-link" href="#appendix"><span class="sb-num">A</span><span class="sb-title">invariants &amp; rules</span></a></summary><ul class="sb-ucs"><li><a href="#appendix"><span class="idx"></span><span class="sb-uc-title">Appendix A</span></a></li></ul></details>
+
+    <h4>Source</h4>
+    <ul class="sb-ucs" style="margin-left:0; padding-left:0; border-left:none;">
+      <li><a href="index.html">&larr; landing page</a></li>
+      <li><a href="stadiae.html">stadiae.html (editor)</a></li>
+      <li><a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github repo &#8599;</a></li>
+      <li><a href="https://github.com/computerguided/stadiae/blob/main/README.md" target="_blank" rel="noopener">README.md &#8599;</a></li>
+    </ul>
+
+    <div class="meta">
+      <div><span class="k">use cases</span> 12</div>
+      <div><span class="k">scenarios</span> 84</div>
+      <div><span class="k">format</span> p / s / q</div>
+    </div>
+  </aside>
+
+  <main class="doc">
+
+    <section class="hero" id="top">
+      <div class="crumb"><span class="accent">$</span> man stadi&aelig;.use-cases</div>
+      <h1>
+        <svg class="title-mark" viewBox="0 0 100 100" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+          <path d="M30 10L10 10L10 90L30 90" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/>
+          <circle cx="50" cy="50" r="18" fill="currentColor"/>
+          <path d="M70 10L90 10L90 90L70 90" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/>
+        </svg>Use cases &amp; <span class="mono-accent">scenarios</span>
+      </h1>
+      <p class="tagline">This document specifies the <strong>Stadiæ</strong> state-diagram editor as a set of <strong>use cases</strong> — the goals a user pursues with the tool — together with the <strong>scenarios</strong> that achieve each goal. Every scenario is described in <em>precondition / sequence / postcondition</em> form.</p>
+      <p class="tagline second">A use case is a single objective. A scenario is one way of reaching it. A typical use case has several scenarios: a primary success path, variations on it, and the failure or refusal paths the editor can take. For example, use case 2 — <em>Model at the device level</em> — bundles the goal of working with the diagram as a whole. It is achieved by seven scenarios: switching to and from device view, renaming the device, adjusting device-diagram font sizes, and the three ways of managing type definitions (add, edit, delete). Each scenario has its own preconditions, steps, and postconditions.</p>
+
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#sec-1">start reading &rarr;</a>
+        <a class="btn btn-ghost" href="stadiae.html">./stadiae.html &rarr;</a>
+        <a class="btn btn-ghost" href="index.html">&larr; back to landing</a>
+      </div>
+
+      <div class="badges">
+        <span class="badge">12 use cases</span>
+        <span class="sep">&middot;</span>
+        <span class="badge b2">84 scenarios</span>
+        <span class="sep">&middot;</span>
+        <span class="badge b3">precondition / sequence / postcondition</span>
+      </div>
+    </section>
+
+    <section class="block" id="sec-1"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;1</span>Manage files</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Create, save, open, and restore Stadiæ project files. Configure which PlantUML server is used to render the diagrams.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> Creating a new diagram, opening one from disk or a URL, saving and saving-as, restoring an autosaved draft after a crash, configuring the PlantUML server, and exiting the editor.</p>
+<article class="uc" id="uc-1.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 1.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">1.1</span></span><h3 class="uc-title">Start a new diagram</h3><a class="uc-permalink" href="#uc-1.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is open in the browser. The current diagram may have unsaved edits.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>File → New</em> (or presses <code>Ctrl+N</code>).</li>
+<li>If there are unsaved edits, Stadiæ asks whether they should be discarded. The User confirms.</li>
+<li>A prompt asks for the initial component's name, with the default <em>"Component Name"</em>. The User accepts the default or types a different name.</li>
+<li>Stadiæ resets the diagram to a fresh empty state. If the entered name contains a space (or any other non-identifier character), the space becomes an underscore — so the default <em>"Component Name"</em> becomes a component called <code>Component_Name</code>, with the original text used as its display label. Beyond that single component, the new diagram has no user-defined interfaces, messages, handlers, or connections; the device is called <code>Device</code> and its specification is empty.</li>
+<li>The undo and redo history is cleared, nothing is selected, the autosaved draft from any previous session is discarded, and the diagram is treated as having no associated file on disk.</li>
+<li>The canvas shows the empty state machine of the new component (Stadiæ is in <em>Component</em> view).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The editor holds an empty, unsaved diagram. The Components list shows exactly one row, marked active.</p>
+</article>
+<article class="uc" id="uc-1.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 1.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">1.2</span></span><h3 class="uc-title">Open a file from disk</h3><a class="uc-permalink" href="#uc-1.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The User has a <code>.json</code> file previously saved by Stadiæ (format tag <code>stadiae-v4</code>).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>File → Open</em> (or presses <code>Ctrl+O</code>).</li>
+<li>If the current diagram has unsaved edits, Stadiæ asks whether they should be discarded. The User confirms.</li>
+<li>The browser's file picker opens. The User selects the <code>.json</code> file and confirms.</li>
+<li>If the file is not a <code>stadiae-v4</code> Stadiæ file, an error dialog explains the rejection and the use case ends.</li>
+<li>Otherwise Stadiæ loads everything from the file: components, handlers, interfaces and messages, connections, type definitions, the Device Specification, descriptions, and transition action notes. Built-in entries (the <code>Timer</code> and <code>Logical</code> interfaces, the <code>TimerHandler</code>, etc.) are always present and are restored on top. Any wiring entry that points to something that no longer exists is silently dropped.</li>
+<li>The view is set to <strong>Device view</strong> — Stadiæ deliberately presents the device diagram first when a file opens, so the User sees an overview of the loaded file before drilling into any one component. The first component in the file becomes the active one. Nothing is selected. The undo and redo history is cleared. The diagram is marked clean, with the opened file as its associated filename.</li>
+<li>The canvas shows the device diagram.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The editor reflects the file's contents. Subsequent <em>Save</em> actions write to the same filename without prompting.</p>
+</article>
+<article class="uc" id="uc-1.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 1.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">1.3</span></span><h3 class="uc-title">Open a file from a URL</h3><a class="uc-permalink" href="#uc-1.3" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The User has the URL of a publicly fetchable Stadiæ <code>.json</code> file, served by a host that allows cross-origin browser fetches (e.g. <code>raw.githubusercontent.com</code>).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>File → Open from URL...</em>.</li>
+<li>If the current diagram has unsaved edits, Stadiæ asks whether they should be discarded.</li>
+<li>A dialog asks for the URL. The User pastes the URL and confirms. If the URL is a <code>github.com/.../blob/...</code> URL, Stadiæ rewrites it to its raw equivalent automatically.</li>
+<li>Stadiæ fetches the file. If the fetch fails because the host doesn't permit cross-origin browser access, the error dialog suggests trying a host that does; other failures are reported verbatim. The use case ends.</li>
+<li>The fetched file is loaded with the same logic as <em><a class="uc-ref" href="#uc-1.2">Scenario&nbsp;1.2</a> (Open a file from disk)</em> steps 4–7, with the view set to <em>Device</em>. The associated filename is taken from the last segment of the URL (or <code>diagram.json</code> if the URL doesn't end in <code>.json</code>).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The editor reflects the fetched file. Subsequent <em>Save</em> actions write to the URL-derived filename without prompting.</p>
+</article>
+<article class="uc" id="uc-1.4"><header class="uc-head"><span class="uc-id" aria-label="Scenario 1.4"><span class="uc-id-tag">scenario</span><span class="uc-id-num">1.4</span></span><h3 class="uc-title">Save the current diagram</h3><a class="uc-permalink" href="#uc-1.4" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The User wishes to persist the current diagram to disk. The diagram may or may not already have an associated filename (from a previous <em>Open</em> or <em>Save As</em>).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>File → Save</em> (or presses <code>Ctrl+S</code>, or clicks the toolbar <em>Save</em> button — the toolbar button is enabled only when there is both an associated filename and unsaved edits).</li>
+<li>If there is no associated filename, the use case continues as <em><a class="uc-ref" href="#uc-1.5">Scenario&nbsp;1.5</a> (Save As...)</em>.</li>
+<li>Otherwise, the browser downloads the diagram as a <code>.json</code> file under the associated filename. The file contains everything the editor knows about the diagram; built-in entries and unset optional fields are omitted to keep the file compact.</li>
+<li>The diagram is marked as having no unsaved edits.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> A <code>.json</code> file is on disk. The browser's "leave page?" warning will no longer appear unless the User makes new edits.</p>
+</article>
+<article class="uc" id="uc-1.5"><header class="uc-head"><span class="uc-id" aria-label="Scenario 1.5"><span class="uc-id-tag">scenario</span><span class="uc-id-num">1.5</span></span><h3 class="uc-title">Save under a new filename</h3><a class="uc-permalink" href="#uc-1.5" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The User has any diagram, saved or unsaved.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>File → Save As...</em>.</li>
+<li>The browser's save-file dialog opens. The User picks a filename ending in <code>.json</code> and confirms.</li>
+<li>The browser writes the file as in <em><a class="uc-ref" href="#uc-1.4">Scenario&nbsp;1.4</a></em> step 3.</li>
+<li>The new filename becomes the diagram's associated filename for subsequent <em>Save</em> actions.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The <code>.json</code> file exists on disk. The diagram has no unsaved edits.</p>
+</article>
+<article class="uc" id="uc-1.6"><header class="uc-head"><span class="uc-id" aria-label="Scenario 1.6"><span class="uc-id-tag">scenario</span><span class="uc-id-num">1.6</span></span><h3 class="uc-title">Restore an autosaved draft after browser closure</h3><a class="uc-permalink" href="#uc-1.6" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The User had a diagram open when the browser tab was closed, the page was refreshed, or the browser crashed. As the User worked, Stadiæ was quietly autosaving every change to a draft kept inside the browser itself (separate from any file on disk).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User reopens Stadiæ in the same browser. Stadiæ finds the draft and restores the diagram from it. If the User had unsaved edits at the time, those edits are present and the diagram is shown as having unsaved edits; if the User had just saved to disk, the restored diagram is shown as clean.</li>
+<li>A small banner appears at the top of the canvas reading <em>"Restored unsaved work from your previous session."</em> with two buttons: <strong>Keep</strong> and <strong>Discard</strong>.</li>
+<li>The banner disappears automatically after about 8 seconds, or when the User clicks either button.<ul class="sub"><li><strong>Keep:</strong> the banner is removed and the User continues working with the restored diagram.</li><li><strong>Discard:</strong> the banner is removed, the autosaved draft is thrown away, and Stadiæ resets to a fresh empty diagram (no prompt for a component name, unlike <em><a class="uc-ref" href="#uc-1.1">Scenario&nbsp;1.1</a></em>; the slug <code>Component_Name</code> is used directly).</li></ul></li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The User is editing either the restored diagram or a fresh empty one. Autosave continues in the background as the User works.</p>
+</article>
+<article class="uc" id="uc-1.7"><header class="uc-head"><span class="uc-id" aria-label="Scenario 1.7"><span class="uc-id-tag">scenario</span><span class="uc-id-num">1.7</span></span><h3 class="uc-title">Configure the PlantUML server</h3><a class="uc-permalink" href="#uc-1.7" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Stadiæ is open. The User wishes to switch between the public <code>plantuml.com</code> server and a local PlantUML server, or change the URL of the local server.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User opens the configuration dialog via <em>File → PlantUML server...</em> or by clicking the small <code>plantuml:</code> indicator in the menu bar.</li>
+<li>The dialog presents two options: <em>Online — plantuml.com</em> and <em>Local server</em>. Selecting <em>Local server</em> enables the <em>Base URL</em> field.</li>
+<li>The User picks an option, edits the base URL if applicable, and confirms. The dialog shows a live preview of the resulting request URL so the User can verify it before committing.</li>
+<li>Stadiæ remembers the choice between sessions.</li>
+<li>The canvas re-renders against the new server.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> Subsequent diagram renders, click-selection on the canvas, and <code>.docx</code> specification exports use the configured server. The <code>plantuml:</code> indicator in the menu bar reflects the new state (blue dot for online, green for local).</p>
+</article>
+<article class="uc" id="uc-1.8"><header class="uc-head"><span class="uc-id" aria-label="Scenario 1.8"><span class="uc-id-tag">scenario</span><span class="uc-id-num">1.8</span></span><h3 class="uc-title">Exit the editor</h3><a class="uc-permalink" href="#uc-1.8" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The User has finished working and wishes to close Stadiæ.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li><strong>Via the menu.</strong> Choosing <em>File → Exit</em> opens an alert reading <em>"In a desktop app this would close the application. Close the browser tab to exit."</em> The menu item is informational — it does not actually close anything. The User dismisses the alert.</li>
+<li><strong>Via the browser.</strong> The User closes the browser tab (or window) the normal way. If the diagram has unsaved edits, the browser shows its "leave page?" warning. The User confirms.</li>
+<li>Whatever the latest state of the diagram was, autosave has already captured it (with a small delay), so a subsequent visit to Stadiæ in the same browser can restore it (see <em><a class="uc-ref" href="#uc-1.6">Scenario&nbsp;1.6</a></em>).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The browser tab closes (when the User uses the browser's own close action). The autosaved draft persists for next time.</p>
+</article>
+</div>
+</section>
+<section class="block" id="sec-2"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;2</span>Model at the device level</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Work with the diagram as a whole: switch between the device view and component views, name the device, adjust device-diagram font sizes, and define the named domain types used throughout the model.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> Switching to and from device view, renaming the device, adjusting device-diagram font sizes, and adding, editing, or deleting type definitions.</p>
+<article class="uc" id="uc-2.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 2.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">2.1</span></span><h3 class="uc-title">Switch to the device view</h3><a class="uc-permalink" href="#uc-2.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Component</em> view (the default).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the floating <code>◇ Device</code> button at the top-left of the diagram canvas.</li>
+<li>The canvas switches to the device diagram and the component-only panels (States, Choice-points, State variables, Constants, Local functions, Steps, Transitions, Action) disappear from view. The current selection is cleared.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The canvas shows the device diagram: components as boxes, handlers as 3D-brick boxes, interfaces as lollipops, all wiring lines, and the outer device box. The Device button is accent-coloured. The <code>Component ▸</code> button at the top-right of the canvas is now visible.</p>
+</article>
+<article class="uc" id="uc-2.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 2.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">2.2</span></span><h3 class="uc-title">Return to a component's state machine</h3><a class="uc-permalink" href="#uc-2.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Device</em> view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects exactly one component, either by clicking its box on the canvas or its row in the Components list.</li>
+<li>The User clicks the floating <code>Component ▸</code> button at the top-right of the diagram canvas.</li>
+<li>The canvas switches to the selected component's state machine, the component-only panels reappear, and the chosen component becomes the active one. The current selection is cleared.</li></ol>
+<p class="lbl-alt"><span class="lbl-tag">Alternative.</span> From <em>Component</em> view, simply clicking another row in the Components list switches the active component directly without needing the device view.</p>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The canvas shows the active component's state machine. The Components list shows a chevron <code>▸</code> next to the active component.</p>
+</article>
+<article class="uc" id="uc-2.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 2.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">2.3</span></span><h3 class="uc-title">Rename the device</h3><a class="uc-permalink" href="#uc-2.3" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Device</em> view (the <em>Device</em> menu is hidden in <em>Component</em> view).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>Device → Change name...</em>.</li>
+<li>A dialog presents two fields: the identifier-safe <em>Name</em> (defaults to <code>Device</code>) and the optional free-text <em>Display name</em> (which may include <code>\n</code> for line breaks). There is no Description field — the device's long-form documentation is the <em>Device Specification</em> panel below the canvas (see <em><a class="uc-ref" href="#uc-8.1">Scenario&nbsp;8.1</a></em>).</li>
+<li>The User edits the fields and confirms. Stadiæ rejects the change if the Name is empty, contains spaces, or otherwise isn't a valid identifier.</li>
+<li>The device diagram re-renders with the new outer-box label.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The device's Name and Display name are updated. The default filename for spec exports becomes <code>&lt;deviceName&gt;-spec.{html|docx}</code>.</p>
+</article>
+<article class="uc" id="uc-2.4"><header class="uc-head"><span class="uc-id" aria-label="Scenario 2.4"><span class="uc-id-tag">scenario</span><span class="uc-id-num">2.4</span></span><h3 class="uc-title">Adjust device-diagram font sizes</h3><a class="uc-permalink" href="#uc-2.4" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Device</em> view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>Device → Change component/handler font size...</em> (for component and handler box labels) or <em>Device → Change interface font size...</em> (for interface lollipop labels).</li>
+<li>A dialog asks for an integer point size and shows the current value. The User enters a new value and confirms.</li>
+<li>The device diagram re-renders at the new font size.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The label sizes on the device diagram are adjusted. Component-view (state machine) font sizes are unaffected.</p>
+</article>
+<article class="uc" id="uc-2.5"><header class="uc-head"><span class="uc-id" aria-label="Scenario 2.5"><span class="uc-id-tag">scenario</span><span class="uc-id-num">2.5</span></span><h3 class="uc-title">Add a type definition</h3><a class="uc-permalink" href="#uc-2.5" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Device</em> view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>Device → Type definitions...</em>. The Type Definitions dialog opens with two side-by-side panes: a list of existing types on the left, the selected type's full body on the right.</li>
+<li>The User clicks <em>Add</em>. A sub-dialog asks for <em>Name</em> (identifier- safe, unique device-wide), optional <em>Description</em> (single line), and optional <em>Specification</em> (free multi-line text).</li>
+<li>The User confirms. The new type appears in the list, sorted alphabetically.</li>
+<li>The User closes the Type Definitions dialog.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The new type is available device-wide. It appears in autocomplete suggestions wherever a <em>Type</em> field is shown (parameter dialogs, state-variable dialog), and it gets a chapter in the specification export. Backtick references that name the type resolve from now on.</p>
+</article>
+<article class="uc" id="uc-2.6"><header class="uc-head"><span class="uc-id" aria-label="Scenario 2.6"><span class="uc-id-tag">scenario</span><span class="uc-id-num">2.6</span></span><h3 class="uc-title">Edit a type definition</h3><a class="uc-permalink" href="#uc-2.6" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Device</em> view. At least one user-defined type exists.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>Device → Type definitions...</em>.</li>
+<li>The User selects a type in the list and clicks <em>Edit</em> (or double-clicks the row). The sub-dialog opens with the existing <em>Name</em>, <em>Description</em>, and <em>Specification</em> values.</li>
+<li>The User edits the fields and confirms.</li>
+<li>If the <em>Name</em> changed, the rename cascades: every backtick reference to the type in the diagram's prose is updated, and every parameter and state-variable <em>Type</em> field that names this type exactly switches to the new name. Type fields that contain the name as part of a longer string (e.g. <code>List&lt;UserId&gt;</code>) are <em>not</em> auto-rewritten — those need manual updates.</li>
+<li>The User closes the Type Definitions dialog.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The type definition reflects the edits. References elsewhere in the diagram are consistent with the new name.</p>
+</article>
+<article class="uc" id="uc-2.7"><header class="uc-head"><span class="uc-id" aria-label="Scenario 2.7"><span class="uc-id-tag">scenario</span><span class="uc-id-num">2.7</span></span><h3 class="uc-title">Delete a type definition</h3><a class="uc-permalink" href="#uc-2.7" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Device</em> view. At least one user-defined type exists.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>Device → Type definitions...</em>.</li>
+<li>The User selects a type in the list and clicks <em>Delete</em>.</li>
+<li>Stadiæ asks for confirmation. The User confirms.</li>
+<li>The User closes the Type Definitions dialog.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The type is gone from the type definitions list, and the <em>Type definitions</em> chapter of the specification export shrinks accordingly. References to the deleted type in prose, and parameter and state-variable <em>Type</em> fields that named it, are <em>not</em> auto-rewritten — they show as unresolved in the spec preview until the User fixes them.</p>
+</article>
+</div>
+</section>
+<section class="block" id="sec-3"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;3</span>Manage components</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Add, switch between, rename, and remove components — the top-level state machines that make up the device. A diagram always holds at least one component.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> Adding a component, switching the active component, renaming or otherwise editing a component, and deleting a component.</p>
+<article class="uc" id="uc-3.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 3.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">3.1</span></span><h3 class="uc-title">Add a component</h3><a class="uc-permalink" href="#uc-3.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in either view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the Components list header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique among components and handlers), optional <em>Display name</em> (may contain <code>\n</code> line breaks), and an optional <em>Multiplication</em> marker (free text, e.g. <code>N</code>). There is no Description field in this dialog — the component's description is edited via the Description panel (see <em><a class="uc-ref" href="#uc-8.2">Scenario&nbsp;8.2</a></em>).</li>
+<li>The User fills in the fields and confirms.</li>
+<li>The new component appears in the Components list and <strong>becomes the active component</strong>. The current selection is cleared.</li>
+<li>The chevron <code>▸</code> moves to the new row and the canvas shows the new (empty) state machine.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The new component exists and is active. The User can immediately add states, choice-points, and transitions to it.</p>
+</article>
+<article class="uc" id="uc-3.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 3.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">3.2</span></span><h3 class="uc-title">Switch the active component</h3><a class="uc-permalink" href="#uc-3.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The diagram has at least two components. The editor is in <em>Component</em> view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks a row in the Components list other than the active one.</li>
+<li>The clicked component becomes the active one, the canvas switches to its state machine, and the current selection is cleared. The chevron <code>▸</code> moves to the new row. The States, Choice-points, State variables, Constants, Local functions, and Transitions panels all refresh to show this component's contents.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The canvas and the component-local panels reflect the newly active component. Shared catalogues (Interfaces, Messages, Handlers, Functions) are unchanged.</p>
+</article>
+<article class="uc" id="uc-3.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 3.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">3.3</span></span><h3 class="uc-title">Rename a component (or change display name, multiplication)</h3><a class="uc-permalink" href="#uc-3.3" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The User wishes to edit a component. In <em>Component</em> view, the active component can be edited via the <em>Component</em> menu; in either view, any component selected in the Components list can be edited via the list's <code>✎</code> button.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects the target component's row in the Components list and clicks <code>✎</code>. (Alternatively, for the active component in <em>Component</em> view, <em>Component → Change name...</em>.)</li>
+<li>The dialog opens with the existing values for <em>Name</em>, <em>Display name</em>, and <em>Multiplication</em>. (The <em>Description</em> is not in this dialog — it's edited via the Description panel; see <em><a class="uc-ref" href="#uc-8.2">Scenario&nbsp;8.2</a></em>.)</li>
+<li>The User edits the fields and confirms. Stadiæ rejects the change if the new Name isn't a valid identifier or clashes with another component or handler.</li>
+<li><strong>Multiplication conflict check.</strong> If the User is setting a non-empty <em>Multiplication</em>, Stadiæ checks every interface this component is already wired to. If any of those interfaces is also wired to a different multiplied component, Stadiæ refuses with an error dialog naming the conflicting other component. The User must disconnect first or remove the other multiplication.</li>
+<li>If the Name changed, Stadiæ rewrites every backtick reference to the old name in the diagram's prose (qualified <code>OldName:Member</code> references and bare <code>OldName</code> references — component names are visible everywhere). The component is then renamed and any wiring that referenced it (interface connections, handler-call dependencies, current selection) follows automatically.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The component's identity, label, and multiplicity marker are updated. All references in prose and connections are consistent. A single <code>Ctrl+Z</code> reverses the rename together with the prose rewrites — they're a single undoable step.</p>
+</article>
+<article class="uc" id="uc-3.4"><header class="uc-head"><span class="uc-id" aria-label="Scenario 3.4"><span class="uc-id-tag">scenario</span><span class="uc-id-num">3.4</span></span><h3 class="uc-title">Delete a component</h3><a class="uc-permalink" href="#uc-3.4" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The diagram has at least two components (the last remaining component cannot be deleted). The User wants to remove one.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects the target component's row in the Components list and clicks <code>−</code>.</li>
+<li>Stadiæ shows a confirmation dialog noting that the component's states, choice-points, transitions, state variables, constants, and local functions will be removed.</li>
+<li>The User confirms. The component is removed from the Components list, along with every interface connection and handler-call dependency that referenced it.</li>
+<li>If the deleted component was the active one, the previous (or first remaining) component takes its place.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The component is gone. Backtick references to the deleted component or its members in prose now render as unresolved (warning style).</p>
+</article>
+</div>
+</section>
+<section class="block" id="sec-4"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;4</span>Define the shared vocabulary</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Build the shared catalogue of interfaces, messages, handlers, and the wiring that connects them on the device diagram. The vocabulary defined here is what the components in UC-3 use to talk to each other and to the outside world.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> Adding interfaces, messages, and message parameters; adding handlers, their functions, and the function parameters; the three wiring patterns on the device diagram (component to interface, handler to interface, component to handler); adjusting the direction or length of a connection; and the rename and delete paths for shared interfaces and messages.</p>
+<article class="uc" id="uc-4.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.1</span></span><h3 class="uc-title">Add an interface</h3><a class="uc-permalink" href="#uc-4.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is open, in either view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the Interfaces list header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique among interfaces) and optional <em>Description</em>.</li>
+<li>The User confirms. The new interface appears in the Interfaces list and is automatically selected, so the User can immediately add its first message.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The new interface is available in the Interfaces list across all components. It does not appear on the device diagram until at least one connection is wired to it.</p>
+</article>
+<article class="uc" id="uc-4.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.2</span></span><h3 class="uc-title">Add a message to an interface</h3><a class="uc-permalink" href="#uc-4.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one non-default interface is selected.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the Messages list header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique within the parent interface) and optional <em>Description</em>.</li>
+<li>The User confirms. The new message appears in the Messages list under the selected interface.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The new message is available for use in transitions of any component.</p>
+</article>
+<article class="uc" id="uc-4.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.3</span></span><h3 class="uc-title">Add a message parameter</h3><a class="uc-permalink" href="#uc-4.3" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one non-default message is selected. The Parameters panel below the Messages list is visible.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the Parameters panel header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique within the message), optional <em>Type</em> (free text; autocompletes against the defined type names), and optional <em>Description</em>.</li>
+<li>The User confirms. The new parameter appears in the Parameters panel, in alphabetical order.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The parameter is shown as <code>name : type — description</code>. It is documentation only — it never reaches the generated PlantUML — but it appears in the spec export's message table and can be the target of three-segment backtick references like <code>Iface:Msg:Param</code>.</p>
+</article>
+<article class="uc" id="uc-4.4"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.4"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.4</span></span><h3 class="uc-title">Edit a message parameter</h3><a class="uc-permalink" href="#uc-4.4" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one non-default message is selected, and exactly one of its parameters is selected in the Parameters panel.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>✎</code> button on the parameter row (or presses <code>Enter</code>).</li>
+<li>The dialog opens with the existing <em>Name</em>, <em>Type</em>, and <em>Description</em> values. The User edits them and confirms.</li>
+<li>If the <em>Name</em> changed, every three-segment backtick reference <code>Iface:Msg:Old</code> in the diagram's prose is rewritten to point at the new name (with the limitation noted in <em><a class="uc-ref" href="#uc-9.6">Scenario&nbsp;9.6</a></em> for the action-context shorthand).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The parameter reflects the edits. References to it elsewhere in the diagram are consistent (with the shorthand exception noted above).</p>
+</article>
+<article class="uc" id="uc-4.5"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.5"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.5</span></span><h3 class="uc-title">Add a handler</h3><a class="uc-permalink" href="#uc-4.5" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is open, in either view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the Handlers list header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique among components and handlers) and optional <em>Display name</em>. Handlers do not have a Multiplication field, and the Handler's Description is edited via the Description panel (see <em><a class="uc-ref" href="#uc-8.2">Scenario&nbsp;8.2</a></em>) — not in this dialog.</li>
+<li>The User confirms. The new handler appears in the Handlers list with no functions and no description yet.</li>
+<li><strong>Auto-switch to Device view.</strong> If the editor was in <em>Component</em> view, Stadiæ switches to <em>Device</em> view automatically — handlers only show on the device diagram, and the User will want to see what was just added.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The new handler appears in the Handlers list and on the device diagram. The built-in <code>TimerHandler</code> remains muted and locked from edits.</p>
+</article>
+<article class="uc" id="uc-4.6"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.6"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.6</span></span><h3 class="uc-title">Add a handler function</h3><a class="uc-permalink" href="#uc-4.6" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one non-default handler is selected. The Functions list is visible and shows that handler's existing functions.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the Functions list header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique within the handler) and optional <em>Description</em>.</li>
+<li>The User confirms. The new function appears in the Functions list.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The handler exposes a new function. It has no parameters yet (see <em><a class="uc-ref" href="#uc-4.8">Scenario&nbsp;4.8</a></em> to add them). The function is documentation only — it never reaches the generated PlantUML — but it appears in the spec export's handler chapter.</p>
+</article>
+<article class="uc" id="uc-4.7"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.7"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.7</span></span><h3 class="uc-title">Edit a handler function</h3><a class="uc-permalink" href="#uc-4.7" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one function is selected in the Functions list of a non-default handler.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>✎</code> button on the function row (or presses <code>Enter</code>).</li>
+<li>The dialog opens with the existing <em>Name</em> and <em>Description</em>. The User edits them and confirms.</li>
+<li>If the <em>Name</em> changed, every backtick reference <code>Handler:Old</code> in the diagram's prose is rewritten, plus any bare <code>Old</code> references inside the owning handler's own description.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The function reflects the edits. References to it elsewhere in the diagram are consistent.</p>
+</article>
+<article class="uc" id="uc-4.8"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.8"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.8</span></span><h3 class="uc-title">Add a handler-function parameter</h3><a class="uc-permalink" href="#uc-4.8" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one function is selected in the Functions list of a non-default handler. The Parameters panel below the Functions list is visible.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the Parameters panel header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique within the function), optional <em>Type</em> (free text; autocompletes against the defined type names), and optional <em>Description</em>.</li>
+<li>The User confirms. The new parameter appears in the Parameters panel, in alphabetical order.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The parameter is shown as <code>name : type — description</code>. Like the function itself, it is documentation only and appears in the spec export's handler chapter.</p>
+</article>
+<article class="uc" id="uc-4.9"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.9"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.9</span></span><h3 class="uc-title">Edit a handler-function parameter</h3><a class="uc-permalink" href="#uc-4.9" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one function is selected, and exactly one of its parameters is selected in the Parameters panel.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>✎</code> button on the parameter row (or presses <code>Enter</code>).</li>
+<li>The dialog opens with the existing <em>Name</em>, <em>Type</em>, and <em>Description</em> values. The User edits them and confirms.</li>
+<li>If the <em>Name</em> changed, every three-segment backtick reference <code>Handler:Function:Old</code> in the diagram's prose is rewritten.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The parameter reflects the edits. References to it elsewhere in the diagram are consistent.</p>
+</article>
+<article class="uc" id="uc-4.10"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.10"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.10</span></span><h3 class="uc-title">Wire a component to an interface</h3><a class="uc-permalink" href="#uc-4.10" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Device</em> view. The component and the interface both exist (the interface is non-default — <code>Timer</code> and <code>Logical</code> aren't wired explicitly).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects exactly one <strong>Component</strong> and one non-default <strong>Interface</strong> — in the Components and Interfaces lists or directly on the canvas. Nothing else is selected.</li>
+<li>The User clicks the <em>Add Connection</em> toolbar button.</li>
+<li><strong>Multiplication check.</strong> If the component carries a multiplication marker (e.g. <code>N</code>) and the interface is already wired to a different multiplied component, Stadiæ refuses with an error dialog naming the other multiplied component, and the use case ends. (At most one multiplied component per interface.)</li>
+<li>Otherwise a new wiring line is drawn between the component and the interface, pointing to the right by default. The device diagram updates to show it. If the component is multiplied, the interface is wrapped in the same multiplication rectangle on the diagram and its label gets a <code>[]</code> suffix.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The device diagram shows the new wiring line. If the same interface also has a Handler wired to it, the Component-side line is drawn with an arrowhead pointing at the Component — Stadiæ infers from the topology that the Handler is the sender on that interface and the Component the receiver.</p>
+<p class="lbl-fail"><span class="lbl-tag">Failure mode.</span> Multiplication invariant violation (step 3) — the User must remove the conflicting connection or change one of the multiplications before retrying.</p>
+</article>
+<article class="uc" id="uc-4.11"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.11"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.11</span></span><h3 class="uc-title">Wire a handler to an interface</h3><a class="uc-permalink" href="#uc-4.11" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Device</em> view. The handler and the interface both exist (the interface is non-default).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects exactly one <strong>Handler</strong> and one non-default <strong>Interface</strong> — in the Handlers and Interfaces lists or directly on the canvas. Nothing else is selected.</li>
+<li>The User clicks the <em>Add Connection</em> toolbar button.</li>
+<li>A new wiring line is drawn between the handler and the interface, pointing to the right by default. By being on this interface the handler is implicitly declared as the sender of the interface's messages — components wired to the same interface are the receivers.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The device diagram shows the new wiring line. Any Component–Interface lines on the same interface gain an arrowhead pointing at the Component (the Handler is now the inferred sender; the Components are receivers).</p>
+</article>
+<article class="uc" id="uc-4.12"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.12"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.12</span></span><h3 class="uc-title">Wire a component to a handler (call dependency)</h3><a class="uc-permalink" href="#uc-4.12" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Device</em> view. The component and the handler both exist. The User wishes to record that the component calls one or more of the handler's functions directly (not via an interface).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects exactly one <strong>Component</strong> and one <strong>Handler</strong> — in the Components and Handlers lists or directly on the canvas. Nothing else is selected.</li>
+<li>The User clicks the <em>Add Connection</em> toolbar button.</li>
+<li>A new call-dependency line is drawn from the component to the handler, pointing to the right by default.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The device diagram shows the new line. The dependency is documentation only — it doesn't change which functions the component can reference from action text (any handler function can already be referenced by qualified name; this line just makes the relationship visible on the device diagram and in the spec export's component context diagram).</p>
+</article>
+<article class="uc" id="uc-4.13"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.13"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.13</span></span><h3 class="uc-title">Adjust connection direction or length</h3><a class="uc-permalink" href="#uc-4.13" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one connection (Component–Interface, Handler–Interface, or Component → Handler) is selected on the device canvas.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User opens the Connection Properties dialog by pressing <code>Enter</code>. <em>Or</em> the User uses the arrow-key shortcut: <code>←</code> <code>→</code> <code>↑</code> <code>↓</code> change the connection's direction directly without opening the dialog.</li>
+<li>In the dialog, the User picks one of <em>Right / Left / Up / Down</em> and for <em>Up</em> and <em>Down</em> sets a <em>Length</em> (number of dashes). The User confirms.</li>
+<li>Repeated <code>↑</code> or <code>↓</code> keystrokes via the shortcut path extend the length by one dash each press, with undo coalescing — the entire keystroke run is one undo step.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The device diagram shows the connection in the new direction and length.</p>
+</article>
+<article class="uc" id="uc-4.14"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.14"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.14</span></span><h3 class="uc-title">Delete a connection or a wiring entry</h3><a class="uc-permalink" href="#uc-4.14" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more connections or wiring entries are selected on the device canvas (or in the Components, Handlers, or Interfaces lists).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User presses <code>Delete</code> (or <code>Backspace</code>).</li>
+<li>The selected wiring lines are removed from the device diagram. Interfaces left without any wiring disappear from the canvas (they remain in the Interfaces list).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The selected connections are gone. State machines and their transitions are unaffected, but the wiring-vs-usage warning device may now flag interfaces as unwired.</p>
+</article>
+<article class="uc" id="uc-4.15"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.15"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.15</span></span><h3 class="uc-title">Rename a shared interface</h3><a class="uc-permalink" href="#uc-4.15" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one non-default interface is selected.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks <code>✎</code> (or presses <code>Enter</code>).</li>
+<li>The dialog opens with the existing <em>Name</em> and <em>Description</em>. The User edits them and confirms. Stadiæ rejects the change if the new Name isn't a valid identifier or clashes with another interface.</li>
+<li>If the <em>Name</em> changed, Stadiæ rewrites every backtick reference to the old name across the diagram's prose (qualified <code>OldIface:Member</code> and bare <code>OldIface</code>), then renames the interface. Transitions in every component and the wiring on the device diagram follow automatically.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The interface has its new name. References in prose, transitions, and wiring are consistent. A single <code>Ctrl+Z</code> reverses the rename together with the prose rewrites.</p>
+</article>
+<article class="uc" id="uc-4.16"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.16"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.16</span></span><h3 class="uc-title">Rename a message</h3><a class="uc-permalink" href="#uc-4.16" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one non-default message is selected.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks <code>✎</code> (or presses <code>Enter</code>).</li>
+<li>The dialog opens with the existing <em>Name</em> and <em>Description</em>. The User edits them and confirms. Stadiæ rejects the change if the new Name isn't a valid identifier or clashes with another message of the same interface.</li>
+<li>If the <em>Name</em> changed, Stadiæ rewrites every backtick reference <code>Iface:Old</code> and every parameter reference <code>Iface:Old:Param</code> in the diagram's prose, then renames the message. Every transition that used the message follows automatically.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The message has its new name. References in prose and transitions are consistent.</p>
+</article>
+<article class="uc" id="uc-4.17"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.17"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.17</span></span><h3 class="uc-title">Delete a shared interface</h3><a class="uc-permalink" href="#uc-4.17" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one non-default interface is selected.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks <code>−</code> (or presses <code>Delete</code>).</li>
+<li>Stadiæ asks for confirmation. The User confirms.</li>
+<li>The interface is removed from the Interfaces list. Cascades:<ul class="sub"><li>Every message under the interface disappears.</li><li>Every transition that used those messages drops the message row; if a transition arrow is left with no messages, the arrow itself disappears (except for the initial transition, which is allowed to have no messages).</li><li>Every wiring line on the interface (component-side or handler-side) is removed from the device diagram.</li></ul></li>
+<li>Backtick references to the deleted interface or any of its messages or parameters become unresolved.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> Lists, diagrams, and Transitions tables are consistent across the diagram.</p>
+</article>
+<article class="uc" id="uc-4.18"><header class="uc-head"><span class="uc-id" aria-label="Scenario 4.18"><span class="uc-id-tag">scenario</span><span class="uc-id-num">4.18</span></span><h3 class="uc-title">Delete a message</h3><a class="uc-permalink" href="#uc-4.18" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one non-default message is selected.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks <code>−</code> (or presses <code>Delete</code>).</li>
+<li>Stadiæ asks for confirmation. The User confirms.</li>
+<li>The message is removed from the Messages list. Cascades:<ul class="sub"><li>Every transition that used the message drops the message row; if an arrow is left with no messages, the arrow itself disappears (except for the initial transition).</li></ul></li>
+<li>Backtick references to the deleted message or its parameters become unresolved.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The message is gone. Transitions tables and state-machine diagrams reflect the change.</p>
+</article>
+</div>
+</section>
+<section class="block" id="sec-5"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;5</span>Build a state machine — nodes</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Add and edit the nodes of the active component's state machine: states (where the component sits) and choice-points (where it branches on a Yes/No question).</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> Adding a state, editing a state, adding a choice-point, and deleting either kind. (Choice-point editing follows the same dialog mechanics as state editing and is implicit in <em><a class="uc-ref" href="#uc-5.2">Scenario&nbsp;5.2</a></em>.)</p>
+<article class="uc" id="uc-5.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 5.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">5.1</span></span><h3 class="uc-title">Add a state</h3><a class="uc-permalink" href="#uc-5.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Component</em> view, with an active component.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the States list header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique among the component's states and choice-points; cannot be <code>START</code> or <code>component</code>), optional <em>Display name</em> (may contain <code>\n</code>), and optional <em>Description</em>.</li>
+<li>The User confirms. The state machine on the canvas updates to show the new state.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The new state exists. It can be a transition source or target in the active component.</p>
+</article>
+<article class="uc" id="uc-5.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 5.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">5.2</span></span><h3 class="uc-title">Edit a state (rename, change display name, description)</h3><a class="uc-permalink" href="#uc-5.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one state (not the START pseudostate) is selected in the States list or on the canvas.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks <code>✎</code> (or presses <code>Enter</code>).</li>
+<li>The dialog opens with the existing values. The User edits and confirms. Stadiæ rejects the change if the new Name isn't a valid identifier or clashes with another state or choice-point in the same component.</li>
+<li>If the Name changed, Stadiæ rewrites every backtick reference to the old name across the diagram's prose, then renames the state. Every transition that pointed to or from the old name follows automatically, and the state stays selected through the rename.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The state's identity, label, and description are updated consistently across the component.</p>
+</article>
+<article class="uc" id="uc-5.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 5.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">5.3</span></span><h3 class="uc-title">Add a choice-point</h3><a class="uc-permalink" href="#uc-5.3" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Component</em> view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the Choice-points list header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique among the component's states and choice-points), <em>Question</em> (the text shown on the diagram; may contain <code>\n</code>), and optional <em>Description</em>.</li>
+<li>The User confirms.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The choice-point appears as a white rectangle on the diagram. It can be the target of any state's transition and the source of exactly one <em>Yes</em> and one <em>No</em> outgoing transition.</p>
+</article>
+<article class="uc" id="uc-5.4"><header class="uc-head"><span class="uc-id" aria-label="Scenario 5.4"><span class="uc-id-tag">scenario</span><span class="uc-id-num">5.4</span></span><h3 class="uc-title">Delete a state or choice-point</h3><a class="uc-permalink" href="#uc-5.4" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more states (not START) and/or choice-points are selected.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User presses <code>Delete</code> (or clicks <code>−</code> in the corresponding list header).</li>
+<li>The selected nodes are removed from the active component's state machine, along with every transition that had a deleted node as its source or target.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The component's state machine is consistent. Backtick references in prose pointing to deleted nodes become unresolved.</p>
+</article>
+</div>
+</section>
+<section class="block" id="sec-6"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;6</span>Build a state machine — transitions</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Add, edit, document, redirect, and delete the transitions that connect the nodes of a component's state machine.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> Six flavours of transition (initial, state-to-state, Yes-No branch, history, wildcard source, wildcard message), grouping multiple messages on a single arrow, editing a transition's direction and length, redirecting a transition, documenting a transition's action, and deleting a transition or one of its message rows.</p>
+<article class="uc" id="uc-6.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.1</span></span><h3 class="uc-title">Add an initial (START) transition</h3><a class="uc-permalink" href="#uc-6.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The active component does <em>not</em> yet have a START transition.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects the <strong>START</strong> pseudostate in the States list and exactly one target state. No message is selected.</li>
+<li>The User clicks <em>Add Transition</em>.</li>
+<li>The diagram now shows a black dot leading into the chosen state.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The component has its initial transition. A component has at most one START transition; <em>Add Transition</em> is disabled while one already exists with START selected.</p>
+</article>
+<article class="uc" id="uc-6.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.2</span></span><h3 class="uc-title">Add a state-to-state transition with one or more messages</h3><a class="uc-permalink" href="#uc-6.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The active component has at least two states (or one state and one choice-point, or one state for a self-transition).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects the source and target nodes (in any order). For a self-transition, the User selects exactly one state.</li>
+<li>The User selects one or more messages in the Messages list. The messages must be non-<code>Yes</code>/<code>No</code> (a state cannot emit <code>Yes</code> or <code>No</code>).</li>
+<li>The User clicks <em>Add Transition</em>.</li>
+<li><strong>Direction inference.</strong> With two distinct nodes, the node clicked first becomes the source. If both directions would be invalid (typically because both candidate sources already handle one of the selected messages), Stadiæ asks explicitly.</li>
+<li><strong>Determinism guard.</strong> If the chosen source already handles any of the selected messages anywhere in this component, Stadiæ refuses the addition and reports the conflict.</li>
+<li>If a transition already exists between the chosen source and target, the new messages are added to that arrow (grouped on the same arrow). Otherwise a new arrow is drawn, pointing to the right by default.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The diagram shows the new (or extended) arrow. The Transitions table grows by one row per added message.</p>
+</article>
+<article class="uc" id="uc-6.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.3</span></span><h3 class="uc-title">Add a choice-point branch (Yes / No)</h3><a class="uc-permalink" href="#uc-6.3" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> A choice-point exists. Its outgoing branches are not both already defined.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects the choice-point (source) and exactly one other node (target — a state or another choice-point).</li>
+<li>The User selects exactly one of the messages <code>Logical:Yes</code> or <code>Logical:No</code>.</li>
+<li>The User clicks <em>Add Transition</em>.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The diagram shows a labelled <code>Yes</code> or <code>No</code> arrow leaving the choice-point. A choice-point may have at most one <em>Yes</em> outgoing and at most one <em>No</em> outgoing transition.</p>
+</article>
+<article class="uc" id="uc-6.4"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.4"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.4</span></span><h3 class="uc-title">Add a history transition</h3><a class="uc-permalink" href="#uc-6.4" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The active component has at least one state or choice-point.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects the <strong>H (history)</strong> pseudostate in the States list, exactly one source node (state or choice-point), and one or more messages.</li>
+<li>The User clicks <em>Add Transition</em>.</li>
+<li>The diagram shows an arrow from the source into a circled <code>H</code>.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> Multiple history transitions are allowed; each is shown as its own H icon on the diagram.</p>
+</article>
+<article class="uc" id="uc-6.5"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.5"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.5</span></span><h3 class="uc-title">Add an ANY-source (wildcard) transition</h3><a class="uc-permalink" href="#uc-6.5" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The active component has at least one state or choice-point.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects the <strong>∗ (any)</strong> pseudostate in the States list, exactly one target node, and one or more non-<code>Yes</code>/<code>No</code> messages.</li>
+<li>The User clicks <em>Add Transition</em>.</li>
+<li>The diagram shows an arrow from a <code>*</code> icon to the target. Multiple ANY-source transitions appear as separate <code>*</code> icons.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> A given message may be used on at most one ANY-source transition at a time.</p>
+</article>
+<article class="uc" id="uc-6.6"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.6"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.6</span></span><h3 class="uc-title">Add an ANY-message wildcard on a transition</h3><a class="uc-permalink" href="#uc-6.6" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> A source state and a target state (or choice-point) are selected, plus the wildcard pseudo-row in the Messages list (either the global <code>*:*</code> at the top, or the per-interface <code>Iface:*</code> row that appears when an interface is selected).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks <em>Add Transition</em>.</li>
+<li>The wildcard message is added to the transition. The same rules apply as for any other transition addition, with these extras:<ul class="sub"><li>At most one global wildcard per source state.</li><li>At most one per-interface wildcard per interface per source state.</li><li>Wildcards cannot be sourced from a choice-point.</li><li>Wildcards cannot be mixed with <code>Yes</code>/<code>No</code> on the same transition.</li></ul></li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The Transitions table shows a row with <code>*</code> (or <code>Iface:*</code>) as the message. At runtime, this transition matches any otherwise-unhandled message in the source state, with explicit messages taking precedence over per-interface wildcards over the global wildcard.</p>
+</article>
+<article class="uc" id="uc-6.7"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.7"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.7</span></span><h3 class="uc-title">Group multiple messages on one arrow</h3><a class="uc-permalink" href="#uc-6.7" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> A transition between a particular source and target already exists (created via <em><a class="uc-ref" href="#uc-6.2">Scenario&nbsp;6.2</a></em> or similar). The same source and target pair, plus extra messages, are selected.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User selects the same source and target as the existing transition, plus one or more new messages not yet on that arrow.</li>
+<li>The User clicks <em>Add Transition</em>.</li>
+<li>The new messages are added to the existing arrow. The determinism guard still applies — the source must not already handle the new messages anywhere else.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The diagram shows the additional message labels stacked on the same arrow. The Transitions table shows one row per message; rows can be selected and edited individually.</p>
+</article>
+<article class="uc" id="uc-6.8"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.8"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.8</span></span><h3 class="uc-title">Edit a transition's connector direction and length</h3><a class="uc-permalink" href="#uc-6.8" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one transition is selected in the Transitions table or on the canvas (every message of the transition selected — see <em><a class="uc-ref" href="#uc-9.5">Scenario&nbsp;9.5</a></em> for per-message selection).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User opens the Transition Properties dialog by pressing <code>Enter</code>, <em>or</em> uses the arrow-key shortcut.</li>
+<li><em>Dialog path.</em> The User picks <em>Right / Left / Up / Down</em> and (for <em>Up</em> and <em>Down</em>) a <em>Length</em> (number of dashes). The User confirms.</li>
+<li><em>Shortcut path.</em> Pressing <code>←</code> <code>→</code> <code>↑</code> <code>↓</code> directly sets the direction. Repeated <code>↑</code> or <code>↓</code> extends the length by one dash per press, with undo coalescing into a single step.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The diagram shows the transition in the new direction and length. Self-transitions are fixed at <code>-&gt;</code> and ignore the shortcut.</p>
+</article>
+<article class="uc" id="uc-6.9"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.9"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.9</span></span><h3 class="uc-title">Redirect a transition to a different target</h3><a class="uc-permalink" href="#uc-6.9" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more transition rows are selected in the Transitions table, and exactly one target node (state, choice-point, or H pseudostate) is selected.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <em>Redirect</em> toolbar button.</li>
+<li>Stadiæ checks every selected redirect first: if any one of them would create a duplicate transition (the source already handles that message at the new target) or would be a no-op (the row already targets the chosen node), Stadiæ aborts the entire operation before any change and lists the conflicts.</li>
+<li>Otherwise, each selected row moves to point at the new target. Original messages and action notes are preserved. Rows from different sources are redirected independently.</li>
+<li>The redirected rows become the new selection.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The Transitions table reflects the new arrows. Action notes and message identities are preserved.</p>
+</article>
+<article class="uc" id="uc-6.10"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.10"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.10</span></span><h3 class="uc-title">Document a transition's action</h3><a class="uc-permalink" href="#uc-6.10" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one row in the Transitions table is selected (a single message of a single transition; not the initial transition, which has no message and no action).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The Action panel (right of the Transitions table) opens to an editable textarea showing the selected row's action note.</li>
+<li>The User types prose into the textarea. Edits save as the User types — no explicit <em>Save</em> needed. A whole typing session counts as one undo step, so a single <code>Ctrl+Z</code> reverses the lot.</li>
+<li>The User clicks elsewhere or selects a different row to end the editing session.</li>
+<li>Backtick references in the action text render in styled monospace with hover tooltips when the field loses focus (the live preview); pressing <code>Esc</code> blurs the field as a shortcut.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The transition row has its action note. The note is persisted in the saved <code>.json</code> and rendered in the spec export, but never in the generated PlantUML. A small accent-coloured dot in the indicator column of the row marks it as having an action.</p>
+</article>
+<article class="uc" id="uc-6.11"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.11"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.11</span></span><h3 class="uc-title">Delete a transition or a single message row</h3><a class="uc-permalink" href="#uc-6.11" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more rows in the Transitions table are selected, or a whole transition arrow is selected on the canvas.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User presses <code>Delete</code> (or clicks <code>−</code>).</li>
+<li>The selected message rows are removed. If a transition is left with no messages as a result, the whole arrow is removed (except the initial transition, which is allowed to have no messages).</li>
+<li>Selecting an arrow on the canvas selects all of its message rows together; pressing <code>Delete</code> then removes the entire arrow at once.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The diagram and Transitions table are consistent.</p>
+</article>
+</div>
+</section>
+<section class="block" id="sec-7"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;7</span>Document a component</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Capture the data, named values, and reusable behaviour fragments that belong to a single component but never reach the generated PlantUML — state variables, constants, and local functions. These documentation entries appear as their own sections in the spec export and can be referenced by name from action text.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> Add, edit, and delete for each of state variables, constants, and local functions; plus a separate scenario for editing a local function's multi-line step body in the Steps panel.</p>
+<article class="uc" id="uc-7.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.1</span></span><h3 class="uc-title">Add a state variable</h3><a class="uc-permalink" href="#uc-7.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Component</em> view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the State variables list header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique among the component's state variables), optional <em>Type</em> (free text; autocompletes from the defined type names), and optional <em>Description</em> (one line).</li>
+<li>The User confirms.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The state variable appears in the State variables list as <code>name : type — description</code>. It is documentation only and never reaches the generated PlantUML, but it appears as a section in the component's chapter of the spec export. It can be referenced by name from action text (bare reference inside the owning component).</p>
+</article>
+<article class="uc" id="uc-7.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.2</span></span><h3 class="uc-title">Edit a state variable</h3><a class="uc-permalink" href="#uc-7.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one state variable is selected in the State variables list.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>✎</code> button on the row (or presses <code>Enter</code>).</li>
+<li>The dialog opens with the existing <em>Name</em>, <em>Type</em>, and <em>Description</em>. The User edits them and confirms.</li>
+<li>If the <em>Name</em> changed, every backtick reference <code>Component:Old</code> in the diagram's prose is rewritten, plus any bare <code>Old</code> references inside the owning component's prose.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The state variable reflects the edits. References to it elsewhere in the diagram are consistent.</p>
+</article>
+<article class="uc" id="uc-7.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.3</span></span><h3 class="uc-title">Add a constant</h3><a class="uc-permalink" href="#uc-7.3" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Component</em> view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the Constants list header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique among the component's constants), free-text <em>Value</em> (any notation: <code>30 seconds</code>, <code>0xFF</code>, <code>42</code>, an enum literal — no type discipline), and optional <em>Description</em>.</li>
+<li>The User confirms.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The constant appears in the Constants list as <code>name = value — description</code>. It is documentation only and can be referenced by name from action text.</p>
+</article>
+<article class="uc" id="uc-7.4"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.4"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.4</span></span><h3 class="uc-title">Edit a constant</h3><a class="uc-permalink" href="#uc-7.4" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one constant is selected in the Constants list.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>✎</code> button on the row (or presses <code>Enter</code>).</li>
+<li>The dialog opens with the existing <em>Name</em>, <em>Value</em>, and <em>Description</em>. The User edits them and confirms.</li>
+<li>If the <em>Name</em> changed, every backtick reference <code>Component:Old</code> in the diagram's prose is rewritten, plus any bare <code>Old</code> references inside the owning component's prose. The <em>Value</em> text, by contrast, is free text and never auto-rewrites — when the value of a constant changes, references to it by name still resolve.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The constant reflects the edits. References to it elsewhere in the diagram are consistent.</p>
+</article>
+<article class="uc" id="uc-7.5"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.5"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.5</span></span><h3 class="uc-title">Add a local function</h3><a class="uc-permalink" href="#uc-7.5" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Component</em> view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>+</code> button in the Local functions list header.</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique among the component's local functions) and optional <em>Description</em> (one- line summary).</li>
+<li>The User confirms. The new function appears in the Local functions list and is selected automatically, so the Steps panel below the list is ready to edit (see <em><a class="uc-ref" href="#uc-7.7">Scenario&nbsp;7.7</a></em>).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The local function exists with its name and one-line description, but no step body yet. It is documentation only — not emitted to PlantUML — and appears in the spec export as a Name / Description / Steps row at the end of the component's chapter. It can be referenced by name from action text (bare reference inside the owning component).</p>
+</article>
+<article class="uc" id="uc-7.6"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.6"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.6</span></span><h3 class="uc-title">Edit a local function's name or description</h3><a class="uc-permalink" href="#uc-7.6" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one local function is selected in the Local functions list.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the <code>✎</code> button on the row (or presses <code>Enter</code>).</li>
+<li>The dialog opens with the existing <em>Name</em> and <em>Description</em>. The User edits them and confirms.</li>
+<li>If the <em>Name</em> changed, every backtick reference <code>Component:Old</code> in the diagram's prose is rewritten, plus any bare <code>Old</code> references inside the owning component's prose.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The function's name and description reflect the edits. References to it elsewhere in the diagram are consistent.</p>
+</article>
+<article class="uc" id="uc-7.7"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.7"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.7</span></span><h3 class="uc-title">Edit a local function's step body</h3><a class="uc-permalink" href="#uc-7.7" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one local function is selected in the Local functions list. The Steps panel below the list shows that function's step body.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks into the Steps textarea and types. Edits save as the User types — no explicit <em>Save</em> needed. A whole typing session counts as one undo step.</li>
+<li>Backtick references to other named entities render with hover tooltips when the field loses focus; pressing <code>Esc</code> blurs the field as a shortcut.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The function's step body reflects the edits. The Steps appear as the corresponding cell in the spec export's Local functions table for this component.</p>
+</article>
+<article class="uc" id="uc-7.8"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.8"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.8</span></span><h3 class="uc-title">Delete a state variable</h3><a class="uc-permalink" href="#uc-7.8" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more rows in the State variables list are selected.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User presses <code>Delete</code> (or clicks <code>−</code> in the list header).</li>
+<li>The selected state variables are removed from the active component.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The state variables are gone. Backtick references to them in prose become unresolved.</p>
+</article>
+<article class="uc" id="uc-7.9"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.9"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.9</span></span><h3 class="uc-title">Delete a constant</h3><a class="uc-permalink" href="#uc-7.9" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more rows in the Constants list are selected.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User presses <code>Delete</code> (or clicks <code>−</code> in the list header).</li>
+<li>The selected constants are removed from the active component.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The constants are gone. Backtick references to them in prose become unresolved. Note that any free-text <em>Value</em> field elsewhere in the diagram that mentioned the constant by name in plain (non-backtick) text is unaffected — values are free text and have no link semantics.</p>
+</article>
+<article class="uc" id="uc-7.10"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.10"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.10</span></span><h3 class="uc-title">Delete a local function</h3><a class="uc-permalink" href="#uc-7.10" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more rows in the Local functions list are selected.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User presses <code>Delete</code> (or clicks <code>−</code> in the list header).</li>
+<li>The selected local functions are removed from the active component, along with their step bodies.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The local functions are gone. Backtick references to them in prose (typically in transition Action notes that called them) become unresolved.</p>
+</article>
+</div>
+</section>
+<section class="block" id="sec-8"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;8</span>Edit free-text documentation</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Write the longer-form prose that documents the device, its components and handlers, and the actions of individual transitions. All of these fields support a curated Markdown subset and backtick cross-references that auto-link to other named entities.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> Editing the device-level specification, editing a component or handler description, editing a transition's action note, editing a local function's step body, and using backtick cross- references inside any of the free-text fields.</p>
+<article class="uc" id="uc-8.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 8.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">8.1</span></span><h3 class="uc-title">Edit the Device Specification</h3><a class="uc-permalink" href="#uc-8.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is open in either view. The Device Specification panel sits below the canvas and is always visible.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks into the Device Specification textarea. The live preview gives way to the editable textarea, with backticks visible.</li>
+<li>The User types prose. Edits save as the User types — no explicit <em>Save</em> needed. A whole typing session counts as a single undo step.</li>
+<li>The text supports a curated subset of Markdown (headings, bullet and numbered lists, paragraphs, <code>**bold**</code>, <code>*italic*</code>) plus backtick references.</li>
+<li>The User presses <code>Esc</code> (or clicks elsewhere) to end the editing session. The live preview takes over, rendering the Markdown and resolving references with hover tooltips.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The Device Specification is part of the diagram. It is persisted in the saved <code>.json</code> file and rendered as the opening chapter of the spec export, but never written to the generated PlantUML.</p>
+</article>
+<article class="uc" id="uc-8.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 8.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">8.2</span></span><h3 class="uc-title">Edit a component or handler description</h3><a class="uc-permalink" href="#uc-8.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The User wishes to document a component or handler. The Description panel between the device catalogue and the lower right column is always visible. Which entity it documents follows these rules:</p>
+<ul><li><em>Component view:</em> the active component.</li>
+<li><em>Device view:</em> the selected handler if exactly one handler is selected; else the selected component if exactly one component is selected; else the active component.</li></ul>
+<p>The header of the Description panel shows the name of the entity it's currently documenting.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User adjusts which entity the panel is documenting by selecting the desired component or handler in the catalogue (or by switching the active component in <em>Component</em> view).</li>
+<li>The User clicks into the Description textarea and types. Edits save as the User types — same live-save and undo behaviour as the Action panel.</li>
+<li>Markdown subset and backtick references are supported (same as the Device Specification — see <em><a class="uc-ref" href="#uc-8.1">Scenario&nbsp;8.1</a></em>).</li>
+<li><code>Esc</code> ends editing.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The component or handler now has its description. A small accent-coloured dot appears next to its row in the Components or Handlers list, indicating the description is non-empty.</p>
+</article>
+<article class="uc" id="uc-8.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 8.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">8.3</span></span><h3 class="uc-title">Edit a transition's action note (Action panel)</h3><a class="uc-permalink" href="#uc-8.3" aria-label="Permalink">#</a></header>
+<p>See <em><a class="uc-ref" href="#uc-6.10">Scenario&nbsp;6.10</a></em>.</p>
+</article>
+<article class="uc" id="uc-8.4"><header class="uc-head"><span class="uc-id" aria-label="Scenario 8.4"><span class="uc-id-tag">scenario</span><span class="uc-id-num">8.4</span></span><h3 class="uc-title">Edit a local function's step body (Steps panel)</h3><a class="uc-permalink" href="#uc-8.4" aria-label="Permalink">#</a></header>
+<p>See <em><a class="uc-ref" href="#uc-7.7">Scenario&nbsp;7.7</a></em>.</p>
+</article>
+<article class="uc" id="uc-8.5"><header class="uc-head"><span class="uc-id" aria-label="Scenario 8.5"><span class="uc-id-tag">scenario</span><span class="uc-id-num">8.5</span></span><h3 class="uc-title">Use backtick cross-references</h3><a class="uc-permalink" href="#uc-8.5" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The User is editing any free-text field (Device Specification, Description, Action, Steps, type Specification, parameter or other description).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User wraps a name in backticks: `<code> </code>Idle<code> </code><code> (bare reference), </code><code> </code>Card:Charge<code> </code><code> (qualified two-segment), or </code><code> </code>Connection:ConnectReq:serverId<code> </code>` (qualified three-segment).</li>
+<li>When the field loses focus, the live preview replaces backticks with styled monospace links. Resolved references use the accent colour; unresolved references render plain (Markdown-supporting fields use warning style with dotted underline).</li>
+<li>Hovering a resolved reference shows the target's description in a tooltip.</li>
+<li><strong>Action panel shorthand.</strong> Inside a transition's Action text, the row's own message establishes the interface, so `<code> </code>ConnectReq:serverId<code> </code><code> resolves the same way as </code><code> </code>Connection:ConnectReq:serverId<code> </code>` would.</li>
+<li><strong>Function-call syntax.</strong> `<code> </code>recomputeTotal()<code> </code>` and similar parenthesised forms are accepted; the parens are decorative and ignored when resolving the link.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The reference is stored as the literal backtick text the User typed. In the spec export it renders as a hyperlink with a hover tooltip. Renaming the target updates the reference text in place (see <em><a class="uc-ref" href="#uc-9.6">Scenario&nbsp;9.6</a></em>).</p>
+</article>
+</div>
+</section>
+<section class="block" id="sec-9"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;9</span>Select, edit, and undo</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Build up multi-element selections, navigate them, edit them, copy and paste them, and step backward and forward through the edit history.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> The cross-cutting selection model (which items can coexist in a selection, how clicks toggle and replace), canvas click-selection, the keyboard-driven editing dispatch, copy and paste of nodes and of messages, the rename-with-cascade behaviour that applies to most named entities, undo and redo, and the cascading rules that govern Delete.</p>
+<article class="uc" id="uc-9.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 9.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">9.1</span></span><h3 class="uc-title">Build a multi-element selection (transition composition)</h3><a class="uc-permalink" href="#uc-9.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The User wishes to compose a transition or perform any other operation requiring elements from multiple panels.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks an interface in the Interfaces list. The interface becomes the only selection in that list.</li>
+<li>The User clicks a message in the Messages list. The message is added to the selection — the interface stays selected, because the click was in a different panel.</li>
+<li>The User clicks the source state in the States list (or canvas). Added to the selection.</li>
+<li>The User clicks the target state. Added.</li>
+<li>At any point, plain-clicking another item in <em>the same</em> list swaps: the previous selection in that list is cleared, the new item is selected. Plain-clicking an already-selected item deselects only that item.</li>
+<li><code>Ctrl-click</code> (<code>⌘-click</code> on Mac) toggles without clearing, regardless of panel — useful for selecting multiple items in the same list.</li>
+<li>Clicking empty space on the canvas clears the entire selection.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The selection contains the desired combination, ready to drive an action like <em>Add Transition</em> or <em>Add Connection</em>.</p>
+</article>
+<article class="uc" id="uc-9.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 9.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">9.2</span></span><h3 class="uc-title">Click an element on the canvas to select it</h3><a class="uc-permalink" href="#uc-9.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The diagram is rendered on the canvas. Click- selection requires the PlantUML server to have served both the visible diagram and an internal selection map; if the server's setup blocks this (cross-origin restrictions), click-selection is unavailable but list-based selection still works.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks a state, choice-point, transition arrow, component box, handler box, interface lollipop, or wiring line on the canvas.</li>
+<li>Stadiæ identifies which element was clicked and applies the same plain-click rules as the side lists (swap within the same panel; add across panels — see <em><a class="uc-ref" href="#uc-9.1">Scenario&nbsp;9.1</a></em>).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The clicked element is selected (or deselected if it was already selected). The diagram redraws with selection highlights — selected states and choice-points get a red border, selected transitions turn red, the START dot turns red.</p>
+<p class="lbl-fail"><span class="lbl-tag">Failure mode.</span> If click-selection is unavailable, canvas clicks are silently ignored. The User can still select via the side lists and Transitions table.</p>
+</article>
+<article class="uc" id="uc-9.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 9.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">9.3</span></span><h3 class="uc-title">Edit any selected entity via the keyboard</h3><a class="uc-permalink" href="#uc-9.3" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The selection identifies a single editable entity.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User presses <code>Enter</code>.</li>
+<li>Stadiæ opens the relevant entity's Edit dialog based on the selection: a single state, choice-point, component, handler, interface, non-default message, handler function, message or function parameter, state variable, constant, local function, connection (Component–Interface, Handler–Interface, or Component → Handler), or a transition with all its message rows selected. Some kinds (function, function parameter, message parameter) require their parent (handler / message) to also be selected because the panel that displays them is only visible while the parent is selected; this is naturally satisfied by clicking the row.</li>
+<li><strong>Type definitions</strong> are not edited via this keyboard shortcut — they have no presence in the side lists. They are managed only through <em>Device → Type definitions...</em> (see <em><a class="uc-ref" href="#uc-2.5">Scenario&nbsp;2.5</a></em>–<em><a class="uc-ref" href="#uc-2.7">Scenario&nbsp;2.7</a></em>).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The dialog opens. From here the flow follows the relevant entity-specific use case.</p>
+</article>
+<article class="uc" id="uc-9.4"><header class="uc-head"><span class="uc-id" aria-label="Scenario 9.4"><span class="uc-id-tag">scenario</span><span class="uc-id-num">9.4</span></span><h3 class="uc-title">Copy and paste states and choice-points</h3><a class="uc-permalink" href="#uc-9.4" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more states and/or choice-points are selected in the active component.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User presses <code>Ctrl+C</code> (or clicks <em>Copy</em>). The clipboard captures:<ul class="sub"><li>The selected states (with their names and display names) and choice-points (with their names and questions).</li><li>Every transition whose source <em>and</em> target are both in the selection, including those transitions' grouped messages and any attached action notes.</li></ul><p><strong>Not captured:</strong> state and choice-point descriptions are not carried over; the initial transition (from START), history- targeted transitions, and ANY-source transitions are excluded by definition (their endpoints aren't in the selection).</p></li>
+<li>The User optionally switches to a different component.</li>
+<li>The User presses <code>Ctrl+V</code> (or clicks <em>Paste</em>).</li>
+<li>The copied nodes and the transitions between them are inserted into the active component. Name collisions are resolved by appending <code>_1</code>, <code>_2</code>, ... to the pasted copies; original display names and questions are kept verbatim.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The pasted nodes appear as a separate, disconnected group in the active component, ready to be wired to the rest by adding transitions in the usual way.</p>
+</article>
+<article class="uc" id="uc-9.5"><header class="uc-head"><span class="uc-id" aria-label="Scenario 9.5"><span class="uc-id-tag">scenario</span><span class="uc-id-num">9.5</span></span><h3 class="uc-title">Copy and paste messages between interfaces</h3><a class="uc-permalink" href="#uc-9.5" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more messages are selected (or a whole interface, with none of its individual messages selected, which counts as "all messages of this interface").</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User presses <code>Ctrl+C</code> (or clicks <em>Copy</em>). The clipboard captures the message names (without their interface).</li>
+<li>The User selects exactly one non-default target interface.</li>
+<li>The User presses <code>Ctrl+V</code> (or clicks <em>Paste</em>).</li>
+<li>The messages appear under the target interface. Name collisions are resolved with <code>_1</code>, <code>_2</code>, ... suffixes — pasting into the original interface duplicates the message set.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The target interface holds the copied messages. The clipboard supersedes whatever it held before; copying messages clears any previously copied elements (and vice versa).</p>
+</article>
+<article class="uc" id="uc-9.6"><header class="uc-head"><span class="uc-id" aria-label="Scenario 9.6"><span class="uc-id-tag">scenario</span><span class="uc-id-num">9.6</span></span><h3 class="uc-title">Rename an entity with cascading reference rewrite</h3><a class="uc-permalink" href="#uc-9.6" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The User wishes to rename any named entity that might be referenced from prose elsewhere in the diagram.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User opens the entity's Edit dialog (any of the entity-specific use cases).</li>
+<li>The User types a new Name and confirms.</li>
+<li><strong>Before</strong> renaming the entity itself, Stadiæ scans every free-text field in the diagram — the Device Specification, every component's description, every state and choice-point description and question, every state-variable description, every constant value and description, every local-function description and steps, every transition's action note, every handler / function / parameter description, and every interface and message description — and rewrites each backtick reference that names the old entity. The exact rule depends on the entity kind:<ul class="sub"><li><em>Component / Handler / Interface rename:</em> every <code>Old:Member</code> and every bare <code>Old</code>.</li><li><em>State / Choice-point / State-variable / Constant / Local- function rename:</em> qualified <code>Component:Old</code> everywhere; bare <code>Old</code> only inside the owning component's prose.</li><li><em>Message rename:</em> <code>Iface:Old</code> and <code>Iface:Old:Param</code> everywhere.</li><li><em>Function rename:</em> <code>Handler:Old</code> everywhere; bare <code>Old</code> inside the owning handler's prose.</li><li><em>Parameter rename:</em> <code>Owner:Member:Old</code> everywhere.</li></ul><p><strong>Limitation:</strong> the two-segment action-context shorthand <code>Member:Old</code> (used inside a transition Action where the row's own message establishes the interface) is <em>not</em> auto-rewritten on parameter rename. Users who rename parameters and reference them via the shorthand must update those references manually; the spec preview will show them as unresolved until they're fixed.</p></li>
+<li>Stadiæ then renames the entity itself, and any wiring or transitions that referred to it follow automatically.</li>
+<li>The whole rename — prose rewrites, the entity rename, and the wiring follow-up — counts as a single undo step, so a single <code>Ctrl+Z</code> reverses the lot.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The entity has its new name. References in prose are updated (with the parameter-shorthand exception noted above). The selection follows the rename so the entity stays selected, and any connections or transitions that referred to it now refer to the new name.</p>
+</article>
+<article class="uc" id="uc-9.7"><header class="uc-head"><span class="uc-id" aria-label="Scenario 9.7"><span class="uc-id-tag">scenario</span><span class="uc-id-num">9.7</span></span><h3 class="uc-title">Undo and redo</h3><a class="uc-permalink" href="#uc-9.7" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> At least one mutating action has been performed since the diagram was loaded or reset.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User presses <code>Ctrl+Z</code> (or clicks <em>Undo</em>).</li>
+<li>Stadiæ rolls the diagram back one step. The current selection is cleared (because some of the previously selected items might no longer exist after the rollback). The canvas updates to match.</li>
+<li>To redo, the User presses <code>Ctrl+Y</code> (or <code>Ctrl+Shift+Z</code>, or clicks <em>Redo</em>).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The diagram is at the chosen point in its history. Subsequent edits clear the redo trail.</p>
+</article>
+<article class="uc" id="uc-9.8"><header class="uc-head"><span class="uc-id" aria-label="Scenario 9.8"><span class="uc-id-tag">scenario</span><span class="uc-id-num">9.8</span></span><h3 class="uc-title">Delete with cascading effects</h3><a class="uc-permalink" href="#uc-9.8" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more deletable entities are selected. Built-in entries (Timer, Logical, Yes, No, Timeout, TimerHandler, Time, TimerID, START) are protected and never deleted.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User presses <code>Delete</code> / <code>Backspace</code> (or clicks <code>−</code> in a specific list header — the per-list <code>−</code> button only acts on that list's selection).</li>
+<li><strong>Confirmation rule.</strong> Stadiæ asks for confirmation in exactly two cases — both governed by the <em>whole</em> current selection, not by what's inside it:<ul class="sub"><li>Exactly one component is selected and <em>nothing else at all</em> — no states, no choice-points, no handlers, no connections, etc.</li><li>Exactly one handler is selected and <em>nothing else at all</em>.</li></ul><p>In every other case (mixed selections, multiple entities of one kind, states, choice-points, interfaces, messages, transitions, parameters, functions, state variables, constants, local functions, connections of any kind), the deletion proceeds immediately with no confirmation. Users rely on <code>Ctrl+Z</code> to recover.</p><p>The "delete the last component" case is also blocked: Stadiæ refuses with an alert <em>"A file must have at least one component."</em></p></li>
+<li>Cascades on the executed deletes:<ul class="sub"><li>Deleting a state or choice-point also removes every transition having it as source or target.</li><li>Deleting an interface removes its messages, drops them from every transition (removing any arrow that becomes empty as a result, except the initial transition), and drops every wiring line on it.</li><li>Deleting a message drops it from every transition.</li><li>Deleting a component removes every wiring line and every handler-call dependency that referenced it.</li><li>Deleting a handler removes every wiring line and every handler-call dependency that referenced it.</li><li>Deleting a function or parameter removes only that record (no transition cascade — these are documentation only).</li></ul></li>
+<li><strong>Interface vs. message disambiguation.</strong> When the selection includes both an interface and one or more of its messages, the message deletion takes priority and the parent interface is left alone — the User's intent is read as "delete these messages" not "delete the interface". The interface remains selected after the operation.</li>
+<li>Backtick references to deleted entities become unresolved (warning style); they are not auto-rewritten.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The diagram is consistent. Diagrams and lists reflect the changes.</p>
+</article>
+</div>
+</section>
+<section class="block" id="sec-10"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;10</span>Configure view and layout</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Adjust the rendering of the active component's state machine, resize the editor's panels, and print the current diagram.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> Adjusting font sizes for the component-level diagram, dragging the panel dividers, and printing.</p>
+<article class="uc" id="uc-10.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 10.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">10.1</span></span><h3 class="uc-title">Adjust component-level font sizes</h3><a class="uc-permalink" href="#uc-10.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Component</em> view.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>Component → Change transition font size...</em> or <em>Component → Change state font size...</em>.</li>
+<li>A dialog asks for an integer point size and shows the current value.</li>
+<li>The User confirms. The state machine re-renders at the new font size.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The chosen font size applies to the active component only; other components and the device diagram are unaffected.</p>
+</article>
+<article class="uc" id="uc-10.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 10.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">10.2</span></span><h3 class="uc-title">Resize panels and dividers</h3><a class="uc-permalink" href="#uc-10.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is open. Multiple resizable dividers exist.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User drags any of the following handles:<ul class="sub"><li>The main vertical slider between the canvas column and the right panel (changes the left/right split).</li><li>The horizontal slider above the Device Specification panel (resizes that panel against the canvas).</li><li>Vertical bars between stacked panels in the right column (Device catalogue ↔ Description ↔ component-panel ↔ Transitions/Action row).</li><li>Within the lists row: vertical bars between State variables ↔ Constants and between Local functions ↔ Steps, plus a horizontal bar between the State-variables/Constants column and the Local- functions/Steps column.</li><li>The horizontal bar between Transitions table and Action panel.</li></ul></li>
+<li><strong>Reset.</strong> Double-clicking any handle restores its default size.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The User's preferred layout is in effect. Layout choices are not remembered between reloads — only the diagram itself is, via autosave.</p>
+</article>
+<article class="uc" id="uc-10.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 10.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">10.3</span></span><h3 class="uc-title">Print the current diagram</h3><a class="uc-permalink" href="#uc-10.3" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The canvas shows the diagram the User wishes to print.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User clicks the small printer icon in the canvas's bottom-right corner.</li>
+<li>The browser's print dialog opens. The diagram is supplied as inline SVG, so it stays crisp at any DPI when saved as PDF. Selection highlighting is suppressed in the printed output.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The diagram has been sent to the printer or saved as PDF.</p>
+</article>
+</div>
+</section>
+<section class="block" id="sec-11"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;11</span>Export</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Get the diagram out of Stadiæ in a form usable elsewhere — as PlantUML source for hand-editing or other toolchains, as a PNG for sharing, as a Markdown table for inclusion in design documents, or as a complete navigable HTML or Word specification.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> One per export format: PlantUML source, PNG, a Markdown table of the active component's transitions, and the full HTML / Word specification.</p>
+<article class="uc" id="uc-11.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 11.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">11.1</span></span><h3 class="uc-title">Export the active diagram as PlantUML source</h3><a class="uc-permalink" href="#uc-11.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The canvas shows the diagram (component state machine or device diagram) the User wishes to export. A PlantUML server is <em>not</em> required — this export works fully offline.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>File → Export as PlantUML (.puml)...</em>.</li>
+<li>A save-file dialog opens with a default filename. The User confirms.</li>
+<li>The browser downloads a <code>.puml</code> file containing clean PlantUML source for whatever is currently on the canvas (no selection highlighting, no internal markings used by click-selection).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> A <code>.puml</code> file containing the source of the current view is on disk. It can be fed to any PlantUML tool.</p>
+</article>
+<article class="uc" id="uc-11.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 11.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">11.2</span></span><h3 class="uc-title">Export the active diagram as PNG</h3><a class="uc-permalink" href="#uc-11.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The canvas has rendered successfully (PlantUML server is reachable).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>File → Export as PNG image...</em>.</li>
+<li>A save-file dialog opens. The User confirms.</li>
+<li>Stadiæ downloads the currently-rendered PNG (without selection highlighting).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> A <code>.png</code> file of the current view is on disk.</p>
+</article>
+<article class="uc" id="uc-11.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 11.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">11.3</span></span><h3 class="uc-title">Export the active component's transitions as Markdown</h3><a class="uc-permalink" href="#uc-11.3" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Component</em> view, and the active component has at least one transition.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>Component → Copy transitions as Markdown table...</em>.</li>
+<li>A modal opens with a textarea containing the Markdown table. Columns are <em>Source</em>, <em>Target</em>, <em>Interface</em>, <em>Message</em>, <em>Action</em>. Source and target use display names / questions; newlines inside cells become <code>&lt;br&gt;</code>.</li>
+<li>The User clicks <em>Copy to clipboard</em> (or selects-all in the textarea and copies manually) and closes the modal.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The Markdown table is on the clipboard, ready for pasting into a wiki, PR description, or design document.</p>
+</article>
+<article class="uc" id="uc-11.4"><header class="uc-head"><span class="uc-id" aria-label="Scenario 11.4"><span class="uc-id-tag">scenario</span><span class="uc-id-num">11.4</span></span><h3 class="uc-title">Export the full specification (HTML or .docx)</h3><a class="uc-permalink" href="#uc-11.4" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is open. The PlantUML server must be reachable for the diagrams. For <code>.docx</code>, the docx library at unpkg.com must be reachable on first use per session.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>File → Export Specification...</em>.</li>
+<li>A progress modal indicates: <em>Loading document library...</em> (only the first time), <em>Rendering diagrams...</em>, <em>Packaging document...</em></li>
+<li>Stadiæ assembles the specification, covering the diagram end-to-end:<ul class="sub"><li>Title and intro.</li><li>Device Specification chapter (free-text body with Markdown subset).</li><li>Device diagram (rendered via PlantUML).</li><li>One chapter per component, containing: filtered context diagram, description, Constants table, State variables table, States section, Choice-points section, state diagram, transitions table (with row-spanning for grouped messages), Local functions table.</li><li>One section per handler with its functions and parameters.</li><li>One section per non-default interface with its messages and parameters.</li><li>Type definitions chapter at the end.</li></ul></li>
+<li>A preview modal opens showing the spec rendered as HTML, with a sticky sidebar table of contents. Two download buttons are available: <em>Download HTML</em> and <em>Download .docx</em>. <em>Close</em> dismisses the modal.</li>
+<li>The User clicks one of the download buttons. The browser downloads the corresponding file (<code>&lt;deviceName&gt;-spec.html</code> or <code>&lt;deviceName&gt;-spec.docx</code>).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The specification document is on disk in the chosen format. The HTML version is self-contained (CSS inlined, diagrams as inline SVG, embedded <code>.json</code> source recoverable via <em>Download source</em> in the page footer). The <code>.docx</code> version uses native Word tables and embedded SVG diagrams.</p>
+<p class="lbl-fail"><span class="lbl-tag">Failure modes.</span> </p>
+<ul><li>PlantUML server unreachable → diagrams render as empty placeholders; the modal shows an error and the User can retry once the server is available.</li>
+<li>unpkg.com unreachable on first use → the <code>.docx</code> download fails with an explanation; HTML preview and download still work.</li></ul>
+</article>
+</div>
+</section>
+<section class="block" id="sec-12"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;12</span>Get help</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Look up reference information about Stadiæ — the full user manual or the version and credits.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> Opening the user manual and opening the About dialog.</p>
+<article class="uc" id="uc-12.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 12.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">12.1</span></span><h3 class="uc-title">Open the user manual</h3><a class="uc-permalink" href="#uc-12.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is open.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>Help → User Manual</em>.</li>
+<li>A modal opens with the full reference manual: Introduction, Core Concepts, Interface, Components, Device Diagram, Typical Workflow, States, Choice-points, State variables, Constants, Local functions, Interfaces &amp; Messages, Type definitions, Transitions, History State, ANY State, ANY Message, Selection, Editing &amp; Deleting, Saving &amp; Exporting, PlantUML Server, Rules Reference, Keyboard Shortcuts, Troubleshooting.</li>
+<li>The User navigates via the sticky sidebar table of contents on the left, which highlights the active section as the User scrolls.</li>
+<li>The User clicks <em>Close</em> (or presses <code>Esc</code>) to dismiss the modal.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The User has the reference information visible.</p>
+</article>
+<article class="uc" id="uc-12.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 12.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">12.2</span></span><h3 class="uc-title">Open the About dialog</h3><a class="uc-permalink" href="#uc-12.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is open.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User chooses <em>Help → About</em>.</li>
+<li>A small modal shows the editor's name, version, license attribution, and a credits line for PlantUML.</li>
+<li>The User dismisses the modal.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The User has seen the version information.</p>
+</article>
+</div>
+</section>
+<section class="block appendix" id="appendix"><div class="sec-head"><h2><span class="uc-badge appendix">A</span>Appendix A — Cross-cutting rules and invariants</h2></div><div class="sec-body">
+<p>These are not standalone scenarios but invariants enforced across many of the scenarios above. They are listed here for cross-reference.</p>
+<ul><li><strong>Identifier rule.</strong> Names entered in <em>Name</em> fields must start with a letter and contain only letters, digits, and underscores. Empty values, names starting with a digit, and names with whitespace are rejected.</li>
+<li><strong>Uniqueness scopes.</strong><ul class="sub"><li>States and choice-points: unique within the same component.</li><li>Interfaces: unique device-wide.</li><li>Messages: unique within their interface.</li><li>Components and handlers: unique device-wide (single shared scope).</li><li>Functions: unique within their handler.</li><li>Parameters: unique within their message or function.</li><li>State variables, constants, local functions: unique within their component.</li><li>Type definitions: unique device-wide, also disjoint from component, handler, and non-default interface names.</li></ul></li>
+<li><strong>Built-in entries are protected.</strong> The <code>Timer</code> and <code>Logical</code> interfaces, the <code>Timeout</code> / <code>Yes</code> / <code>No</code> messages, the <code>TimerHandler</code> with its <code>setTimeout</code> and <code>cancelTimeout</code> functions, and the <code>Time</code> and <code>TimerID</code> types cannot be renamed, edited, or deleted. They are always present (shown in muted italic in the lists) and don't appear on the device diagram — they're conceptually always available, the same way primitive operations are in a programming language.</li>
+<li><strong>Determinism.</strong> A given source state can handle any specific message at most once across all its outgoing transitions. The Add Transition scenarios enforce this.</li>
+<li><strong>Wildcard exclusivity.</strong> Wildcard messages (<code>*:*</code>, <code>Iface:*</code>) cannot be used on choice-point sources, cannot be mixed with <code>Yes</code>/<code>No</code> on the same transition, and at most one of each scope per source state.</li>
+<li><strong>Multiplication invariant.</strong> A non-default interface can have at most one multiplied component connected to it.</li>
+<li><strong>View-scoped UI.</strong> The menubar and panels follow the active view:<ul class="sub"><li>The <em>Component</em> menu is visible only in <em>Component</em> view; the <em>Device</em> menu is visible only in <em>Device</em> view.</li><li>The <em>Add Transition</em> and <em>Redirect</em> toolbar buttons are visible only in <em>Component</em> view; <em>Add Connection</em> is visible only in <em>Device</em> view.</li><li>The States, Choice-points, State variables, Constants, Local functions, Steps, Transitions, and Action panels are hidden in <em>Device</em> view.</li><li>The Components, Handlers, Functions, Interfaces, Messages lists, the Description panel, and the Device Specification panel are visible in both views.</li></ul></li>
+<li><strong>Wiring-vs-usage warning device.</strong> In <em>Component</em> view, an interface used by the active component's transitions but not wired to it on the device diagram shows a small amber <code>!</code> badge in the Interfaces list; the same <code>!</code> appears in the indicator column of every transition row that references such an interface. The warning is advisory — it does not block any operation and is not shown in <em>Device</em> view.</li>
+<li><strong>PlantUML server scope.</strong> Editing, saving, opening, and exporting to <code>.puml</code> work fully offline. Diagram rendering on the canvas, click-selection on the canvas, and the <code>.docx</code> specification export require the server. The <code>.docx</code> export additionally fetches a small library from unpkg.com the first time it's used in a session.</li>
+<li><strong>Autosave scope.</strong> Autosave runs continuously in the background as the User works, with a small delay between an edit and the draft being committed. The draft is scoped to the browser tab on the local machine and survives crashes and tab reloads. It is cleared by <em>File → New</em> or the <em>Discard</em> button on the restoration banner. Sharing a diagram with another user or another machine still requires <em>Save As</em> and explicit file transfer.</li></ul>
+</div>
+</section>
+
+  </main>
+</div>
+
+<footer class="foot">
+  <div>
+    Use case &amp; scenario specification &middot; generated from
+    <a href="https://github.com/computerguided/stadiae/blob/main/use-cases.md" target="_blank" rel="noopener">use-cases.md</a>
+  </div>
+  <div class="right">
+    Stadi&aelig; &middot; <a href="index.html">home</a> &middot;
+    <a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github</a>
+  </div>
+</footer>
+
+<script>
+// Scroll-spy: highlight the current scenario in the sidebar.
+(function() {
+  var ucLinks = document.querySelectorAll('aside.sidebar ul.sb-ucs a[href^="#uc-"]');
+  if (!ucLinks.length) return;
+  var byId = {};
+  ucLinks.forEach(function(a) {
+    var id = a.getAttribute('href').slice(1);
+    byId[id] = a;
+  });
+  var current = null;
+  function setActive(id) {
+    if (current === id) return;
+    if (current && byId[current]) byId[current].classList.remove('active');
+    current = id;
+    if (id && byId[id]) {
+      byId[id].classList.add('active');
+      // Make sure the parent <details> is open.
+      var det = byId[id].closest('details');
+      if (det && !det.open) det.open = true;
+    }
+  }
+  var io = new IntersectionObserver(function(entries) {
+    var visible = entries
+      .filter(function(e) { return e.isIntersecting; })
+      .sort(function(a, b) { return a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top; });
+    if (visible.length) {
+      setActive(visible[0].target.id);
+    }
+  }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+  document.querySelectorAll('article.uc').forEach(function(el) { io.observe(el); });
+})();
+
+// Sidebar use-case links: clicking the use-case name navigates to the
+// section without toggling the parent <details>. Also makes sure the
+// section's <details> is open after navigation, so the clicked section
+// reveals its scenarios. Clicking the +/- toggle (anywhere on the
+// summary outside the link) still toggles normally.
+(function() {
+  document.querySelectorAll('aside.sidebar a.sb-uc-link').forEach(function(a) {
+    a.addEventListener('click', function(ev) {
+      // Stop the click from bubbling to <summary>, which would
+      // toggle the <details>.
+      ev.stopPropagation();
+      // Ensure the section is open after the user navigates to it.
+      var det = a.closest('details');
+      if (det && !det.open) det.open = true;
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

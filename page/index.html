@@ -287,6 +287,105 @@ pre.code .punct { color: var(--ink-3); }
 }
 .callout b { color: var(--accent); font-weight: 600; }
 
+/* ---- Spec card (links the use-cases & scenarios reference doc) ---- */
+.spec-card {
+  display: block;
+  margin: 24px 0 28px 0;
+  padding: 22px 26px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule);
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.spec-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--accent);
+}
+.spec-card:hover {
+  border-color: var(--ink);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(15,15,18,0.05);
+}
+.spec-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.spec-card-tag {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0;
+}
+.spec-card-arrow {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--ink-3);
+  transition: color 0.15s, transform 0.15s;
+}
+.spec-card:hover .spec-card-arrow {
+  color: var(--accent);
+  transform: translateX(3px);
+}
+.spec-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px 22px;
+  margin-bottom: 16px;
+}
+.spec-card-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.spec-card-num {
+  font-family: var(--sans);
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1;
+}
+.spec-card-num.spec-card-mono {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0;
+}
+.spec-card-lbl {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+.spec-card-sep {
+  font-family: var(--mono);
+  font-size: 18px;
+  color: var(--ink-4);
+  align-self: center;
+}
+.spec-card-foot {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--ink-2);
+  padding-top: 14px;
+  border-top: 1px solid var(--rule-soft);
+}
+
 /* ---- Feature table ---- */
 table.features { width: 100%; border-collapse: collapse; font-size: 14.5px; margin-top: 8px; }
 table.features th, table.features td { text-align: left; padding: 14px 16px; vertical-align: top; border-bottom: 1px solid var(--rule-soft); }
@@ -482,6 +581,7 @@ footer.foot .links a + a { margin-left: 18px; }
   </div>
   <div class="actions">
     <a href="stadiae.html">open &rarr;</a>
+    <a href="use-cases.html">use cases &rarr;</a>
     <a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github &#8599;</a>
   </div>
 </div>
@@ -500,14 +600,16 @@ footer.foot .links a + a { margin-left: 18px; }
       <li><a href="#output"><span class="idx">4</span>output</a></li>
       <li><a href="#layout"><span class="idx">5</span>layout</a></li>
       <li><a href="#shortcuts"><span class="idx">6</span>shortcuts</a></li>
-      <li><a href="#vcs"><span class="idx">7</span>vcs workflow</a></li>
-      <li><a href="#install"><span class="idx">8</span>install</a></li>
-      <li><a href="#server"><span class="idx">9</span>server</a></li>
+      <li><a href="#reference"><span class="idx">7</span>use cases &amp; scenarios</a></li>
+      <li><a href="#vcs"><span class="idx">8</span>vcs workflow</a></li>
+      <li><a href="#install"><span class="idx">9</span>install</a></li>
+      <li><a href="#server"><span class="idx">10</span>server</a></li>
     </ul>
 
     <h4>Source</h4>
     <ul>
       <li><a href="stadiae.html">stadiae.html</a></li>
+      <li><a href="use-cases.html">use-cases.html</a></li>
       <li><a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github repo &#8599;</a></li>
       <li><a href="https://github.com/computerguided/stadiae/blob/main/README.md" target="_blank" rel="noopener">README.md &#8599;</a></li>
       <li><a href="https://github.com/computerguided/stadiae/blob/main/design.md" target="_blank" rel="noopener">design.md &#8599;</a></li>
@@ -534,6 +636,7 @@ footer.foot .links a + a { margin-left: 18px; }
 
       <div class="hero-actions">
         <a class="btn btn-primary" href="stadiae.html">./stadiae.html &rarr;</a>
+        <a class="btn btn-ghost" href="use-cases.html">use cases &amp; scenarios &rarr;</a>
         <a class="btn btn-ghost" href="https://htmlpreview.github.io/?https://raw.githubusercontent.com/computerguided/FCM/refs/heads/main/fcm.html">Stadiæ is based on FCM &rarr;</a>
         <a class="btn btn-ghost" href="#what-it-is">keep reading</a>
       </div>
@@ -864,10 +967,62 @@ footer.foot .links a + a { margin-left: 18px; }
       </div>
     </section>
 
-    <!-- 7. VCS -->
+    <!-- 8. Use cases & scenarios reference -->
+    <section class="block" id="reference">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 08 /// reference</div>
+        <h2>Every behaviour, <span class="mono-accent">specified</span>.</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <p>
+            Stadi&aelig; ships with a companion document that describes <em>every</em> interaction the editor supports &mdash; not as a tutorial, but as a specification. Twelve <b>use cases</b> name the goals a user pursues with the tool. Each use case is reached through one or more <b>scenarios</b>, written in the classical <em>precondition / sequence / postcondition</em> form. Eighty-four scenarios in total. No interaction is left undocumented.
+          </p>
+
+          <a class="spec-card" href="use-cases.html">
+            <div class="spec-card-head">
+              <span class="spec-card-tag">use-cases.html</span>
+              <span class="spec-card-arrow">&rarr;</span>
+            </div>
+            <div class="spec-card-stats">
+              <div class="spec-card-stat">
+                <span class="spec-card-num">12</span>
+                <span class="spec-card-lbl">use cases</span>
+              </div>
+              <div class="spec-card-sep">&times;</div>
+              <div class="spec-card-stat">
+                <span class="spec-card-num">84</span>
+                <span class="spec-card-lbl">scenarios</span>
+              </div>
+              <div class="spec-card-sep">&middot;</div>
+              <div class="spec-card-stat">
+                <span class="spec-card-num spec-card-mono">p / s / q</span>
+                <span class="spec-card-lbl">format</span>
+              </div>
+            </div>
+            <div class="spec-card-foot">
+              file lifecycle &middot; device modelling &middot; components &middot; shared vocabulary &middot; state-machine nodes &middot; transitions &middot; component-local docs &middot; free-text panels &middot; selection &amp; undo &middot; view &amp; layout &middot; export &middot; help
+            </div>
+          </a>
+
+          <p>
+            Three audiences read this document. <b>Reviewers</b> who want to know exactly what a pull request changes &mdash; the spec gives them a fixed reference to compare behaviour against. <b>New users</b> who want a complete index of what the editor can do &mdash; not "tutorial example #3," but every action with its preconditions and outcomes. <b>Future contributors</b> who change the editor &mdash; the spec is the contract that says whether a change is a fix or a regression.
+          </p>
+
+          <p>
+            The companion document is <a href="use-cases.html">use-cases.html</a>, a single self-contained page that lives next to <code>stadiae.html</code> and <code>index.html</code> in the repository. The markdown source it's generated from sits in the same place, so changes to the spec land in the same pull request as the code that implements them.
+          </p>
+
+          <div class="callout"><b>convention.</b> when an interaction in this README mentions a specific behaviour &mdash; "deletion of the last component is refused", "rename cascades through every reference" &mdash; the canonical statement of that behaviour lives in <a href="use-cases.html">use-cases.html</a>, with a precondition, a sequence, and a postcondition that say it precisely.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. VCS -->
     <section class="block" id="vcs">
       <div class="sec-head">
-        <div class="num"><span class="hash">#</span> 08 /// workflow</div>
+        <div class="num"><span class="hash">#</span> 09 /// workflow</div>
         <h2>Diagrams as <span class="mono-accent">source code</span>.</h2>
       </div>
       <div class="sec-body">
@@ -916,7 +1071,7 @@ footer.foot .links a + a { margin-left: 18px; }
     <!-- 8. Install -->
     <section class="block" id="install">
       <div class="sec-head">
-        <div class="num"><span class="hash">#</span> 09 /// installation</div>
+        <div class="num"><span class="hash">#</span> 10 /// installation</div>
         <h2>There is no installation.</h2>
       </div>
       <div class="sec-body">
@@ -953,7 +1108,7 @@ footer.foot .links a + a { margin-left: 18px; }
     <!-- 9. PlantUML server -->
     <section class="block" id="server">
       <div class="sec-head">
-        <div class="num"><span class="hash">#</span> 10 /// rendering</div>
+        <div class="num"><span class="hash">#</span> 11 /// rendering</div>
         <h2>Public server or <span class="mono-accent">your own</span>.</h2>
       </div>
       <div class="sec-body">
@@ -998,6 +1153,7 @@ footer.foot .links a + a { margin-left: 18px; }
   <div>stadi&aelig; &middot; &copy; computerguided systems &middot; v4</div>
   <div class="links">
     <a href="stadiae.html">open</a>
+    <a href="use-cases.html">use cases</a>
     <a href="https://github.com/computerguided/stadiae" target="_blank" rel="noopener">github &#8599;</a>
     <a href="https://github.com/computerguided/stadiae/blob/main/README.md" target="_blank" rel="noopener">readme</a>
     <a href="https://github.com/computerguided/stadiae/blob/main/DESIGN.md" target="_blank" rel="noopener">design</a>

@@ -11163,8 +11163,17 @@ function mkProseParas(d, text, opts = {}) {
         }));
       }
     } else if (b.type === "paragraph") {
-      const inline = parseMarkdownInline(b.text);
-      paras.push(new d.Paragraph({ children: runsToTextRuns(d, inline) }));
+      // Soft line breaks between source lines become explicit line
+      // break runs (Word's equivalent of <br>) within the same docx
+      // paragraph — preserves the user's typed line breaks while
+      // keeping the run on a single paragraph for spacing/styling.
+      const children = [];
+      for (let li = 0; li < b.lines.length; li++) {
+        if (li > 0) children.push(new d.TextRun({ break: 1 }));
+        const inline = parseMarkdownInline(b.lines[li]);
+        for (const r of runsToTextRuns(d, inline)) children.push(r);
+      }
+      paras.push(new d.Paragraph({ children }));
     } else if (b.type === "ul" || b.type === "ol") {
       // List paragraphs use the docx library's `bullet` (for ul) or
       // `numbering` (for ol). The `bullet: { level: 0 }` shape is
@@ -11843,7 +11852,7 @@ function renderProseMultiline(text, context, idx) {
 
 // Block parser. Returns:
 //   { type: "heading", level: 1-6, text }
-//   { type: "paragraph", text }            // text is already line-joined
+//   { type: "paragraph", lines: string[] }   // one entry per source line; renderers join with <br> / Word break
 //   { type: "ul", items: string[] }
 //   { type: "ol", items: string[] }
 // Paragraph and list-item text strings are post-trim and join multi-
@@ -11890,8 +11899,11 @@ function parseMarkdownBlocks(text) {
       blocks.push({ type: wantKind === "ul-item" ? "ul" : "ol", items });
       continue;
     }
-    // Paragraph: gather consecutive para-lines, join with single
-    // spaces. Stops at blank line or any other block kind.
+    // Paragraph: gather consecutive para-lines. Each line is kept
+    // as its own entry so renderers can emit a soft <br> between
+    // lines (matching the user's typed line breaks). A blank line
+    // ends the paragraph; the renderers join inline-rendered lines
+    // with <br>.
     const paraLines = [];
     while (i < lines.length) {
       const ci = classify(lines[i]);
@@ -11899,7 +11911,7 @@ function parseMarkdownBlocks(text) {
       paraLines.push(ci.text.trim());
       i++;
     }
-    blocks.push({ type: "paragraph", text: paraLines.join(" ") });
+    blocks.push({ type: "paragraph", lines: paraLines });
   }
   return blocks;
 }
@@ -12117,7 +12129,13 @@ function renderProseMarkdown(text, context, idx, opts = {}) {
         out += `<h${lvl}>${renderInline(b.text)}</h${lvl}>`;
       }
     } else if (b.type === "paragraph") {
-      out += `<p>${renderInline(b.text)}</p>`;
+      // Soft line breaks within a paragraph become <br>. Each line
+      // is inline-rendered separately and joined; matches the
+      // user's typed line breaks (the convention spelled out in
+      // the in-editor help text: "the line breaks you type are
+      // preserved when the specification is exported").
+      const inner = b.lines.map(renderInline).join("<br>");
+      out += `<p>${inner}</p>`;
     } else if (b.type === "ul" || b.type === "ol") {
       const tag = b.type === "ul" ? "ul" : "ol";
       out += `<${tag}>`;
@@ -12146,7 +12164,10 @@ function renderLiveMarkdown(text, context, idx) {
       const lvl = Math.min(6, b.level);
       out += `<div class="live-md-h live-md-h${lvl}">${renderInline(b.text)}</div>`;
     } else if (b.type === "paragraph") {
-      out += `<p class="live-md-p">${renderInline(b.text)}</p>`;
+      // Same soft-line-break handling as renderProseMarkdown above:
+      // single newlines in the source become <br> in the preview.
+      const inner = b.lines.map(renderInline).join("<br>");
+      out += `<p class="live-md-p">${inner}</p>`;
     } else if (b.type === "ul" || b.type === "ol") {
       const tag = b.type === "ul" ? "ul" : "ol";
       out += `<${tag} class="live-md-list">`;
