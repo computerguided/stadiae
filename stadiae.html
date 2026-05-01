@@ -2077,6 +2077,7 @@
       <div class="separator"></div>
       <div class="item" data-action="export-puml">Export as PlantUML (.puml)...</div>
       <div class="item" data-action="export-png">Export as PNG image...</div>
+      <div class="item" data-action="export-svg">Export as SVG image...</div>
       <div class="item" data-action="export-spec">Export Specification...</div>
       <div class="separator"></div>
       <div class="item" data-action="plantuml-server">PlantUML server...</div>
@@ -8075,7 +8076,7 @@ function manualContent() {
       <h3>Interfaces and messages are shared</h3>
       <p>Adding, renaming, or deleting an interface (or message) updates it everywhere. For example, renaming <code>RTx</code> to <code>Transport</code> updates every transition in every component that references it. Deleting a message cascades through every component's transitions and drops any transitions that end up empty. This keeps the contract vocabulary consistent across the whole device — no manual sync needed.</p>
       <h3>Exports</h3>
-      <p>The PlantUML and PNG exports export <em>whatever is currently showing on the canvas</em>. In component view that is the active component's state machine; in device view it is the device diagram. Switch views, export, switch back — no dedicated "export the device" command is needed. The Markdown-table export always reflects the active component's transitions.</p>
+      <p>The PlantUML, PNG, and SVG exports export <em>whatever is currently showing on the canvas</em>. In component view that is the active component's state machine; in device view it is the device diagram. Switch views, export, switch back — no dedicated "export the device" command is needed. The Markdown-table export always reflects the active component's transitions.</p>
       <p>The <code>.json</code> save covers the whole file — every component, every handler, every shared interface/message, all wiring, and device-level settings like the device name and font sizes.</p>
     </section>
 
@@ -8413,6 +8414,8 @@ function manualContent() {
       <p>Writes the clean PlantUML source of whatever is currently showing on the canvas (no selection highlighting) to a <code>.puml</code> file. In component view this is the active component's state machine; in device view it is the device diagram (the whole component + handler + interface topology, enclosed in the outer device box). To export every component, switch the active component (one click in the Components list) and export each one; to export the device diagram, switch to device view and export. Feed the files to any PlantUML tool, check them into source control, or paste them into an online PlantUML renderer.</p>
       <h3>Export as PNG</h3>
       <p>Downloads whatever is currently rendered on the canvas as a PNG image — the active component's state machine in component view, the device diagram in device view. Useful for embedding in reports and slides.</p>
+      <h3>Export as SVG</h3>
+      <p>Same as PNG, but downloads a <code>.svg</code> file: vector graphics that stay crisp at any zoom or print resolution, with the diagram's text searchable inside the file. Best for documents that will be printed or scaled (one-pagers, posters, technical reports), and for any post-processing pipeline that prefers vector input — illustration tools, slide-deck programs that re-flow content, or scripts that swap colours / fonts before publication. The SVG comes straight from the same PlantUML server that renders the canvas, so what you export is exactly what you see.</p>
       <h3>Print Diagram</h3>
       <p>The small printer icon in the canvas's bottom-right corner opens the print dialog with the currently-visible diagram. The diagram prints as inline SVG, so it stays crisp at any printer DPI or zoom level when saved as PDF. Selection highlighting is suppressed in the print copy so the output is clean even if you have elements selected on screen. Convenient for working on the architecture on a hard copy — annotations, sketched changes, review notes.</p>
       <h3>Export Specification</h3>
@@ -14725,6 +14728,52 @@ function exportPNG() {
   });
 }
 
+// Vector-graphics counterpart to exportPNG. Same flow — fetch from the
+// configured PlantUML server, download the response as a file — but
+// requests the `/svg/` endpoint so the result is an XML SVG file
+// rather than a PNG bitmap. SVG is the right choice for documents that
+// will be printed, scaled, or post-processed (the diagram stays crisp
+// at any zoom and is editable as text); PNG is still useful for chat
+// pastes and quick previews where a bitmap is wanted. The two exports
+// share their menu placement so the user picks the format at export
+// time, not by configuring a setting.
+function exportSVG() {
+  const inDevice = Model.activeView === "device";
+  const defaultBase = inDevice
+    ? (nameToFilename(Model.deviceDisplayName || Model.deviceName) || "device")
+    : (nameToFilename(Component.name) || "diagram");
+  showPrompt("Export as SVG", "File name:", defaultBase + ".svg", null, (filename) => {
+    if (!filename.endsWith(".svg")) filename += ".svg";
+    const gen = inDevice ? generateComponentDiagramPlantUML : generatePlantUML;
+    const src = gen({ withSelection: false, includeSalt: false });
+    const url = plantUMLSVGURL(src);
+    fetch(url)
+      .then(r => {
+        if (!r.ok) throw new Error("Server returned " + r.status);
+        return r.blob();
+      })
+      .then(blob => {
+        // Force the SVG MIME on the download blob. The server already
+        // sets image/svg+xml, but reusing the response blob inherits
+        // whatever the server sent; setting it explicitly here keeps
+        // the file association correct in the OS regardless of
+        // server / proxy behaviour.
+        const svgBlob = blob.type === "image/svg+xml"
+          ? blob
+          : new Blob([blob], { type: "image/svg+xml" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(svgBlob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(err => {
+        showAlert("Export failed", "Could not download the SVG: " + err.message +
+          "\n\nThe PlantUML server may be unreachable.");
+      });
+  });
+}
+
 function openFile() {
   const doOpen = () => document.getElementById("file-input").click();
   if (Model.dirty) {
@@ -15258,6 +15307,7 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
       case "saveas": saveAs(); break;
       case "export-puml": exportPUML(); break;
       case "export-png": exportPNG(); break;
+      case "export-svg": exportSVG(); break;
       case "export-spec": openSpecificationModal(); break;
       case "plantuml-server": showPlantUMLServerDialog(); break;
       case "exit": showAlert("Exit", "In a desktop app this would close the application. Close the browser tab to exit."); break;
