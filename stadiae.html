@@ -1278,6 +1278,20 @@
     transition: opacity 0.12s ease-out;
   }
   .live-tooltip.visible { opacity: 1; }
+  /* Backtick references inside a tooltip render as small inline chips —
+     same monospace + accent-color treatment as the rendered prose,
+     scaled down a touch to suit the popup. The tooltip never resolves
+     references (it's already a hover popup); the styling is purely
+     visual so backticks don't show as literal characters. */
+  .live-tooltip .tt-ref {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.92em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 0 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
   /* The resize handle below the description is only meaningful in
      component view, where there is something below it to resize against.
      In device view the description is the last thing in the column and
@@ -12397,6 +12411,69 @@ function attachLiveBacktickRendering(textarea, getContext, placeholder, opts = {
   };
 }
 
+// Render a tooltip's textual content into a DOM node, with backtick
+// references styled as small <code> chips. The input text comes from
+// `data-tooltip` attributes (always plain text — backticks survive
+// escapeHTML). Same backtick syntax as the rest of Stadiæ's prose:
+//   `Foo`            → <code class="tt-ref">Foo</code>
+//   \`               → literal backtick (escape, same as renderProse)
+//   ``               → empty backticks render as literal `` (no chip)
+// Doesn't *resolve* the references — the goal is purely visual: in a
+// short hover popup, a styled chip reads cleaner than a quoted
+// backtick. The reference's target is irrelevant to a tooltip; the
+// reader is already hovering at the source. Uses DOM-node assembly
+// (createElement / createTextNode) so input text is never interpreted
+// as HTML — text nodes are inherently safe.
+function renderTooltipContent(target, text) {
+  // Clear existing children.
+  while (target.firstChild) target.removeChild(target.firstChild);
+  if (!text) return;
+
+  let i = 0;
+  let buf = "";
+  const flushBuf = () => {
+    if (buf.length === 0) return;
+    target.appendChild(document.createTextNode(buf));
+    buf = "";
+  };
+
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "\\" && text[i + 1] === "`") {
+      // Escaped backtick: literal `.
+      buf += "`";
+      i += 2;
+      continue;
+    }
+    if (ch === "`") {
+      // Find the closing backtick.
+      const end = text.indexOf("`", i + 1);
+      if (end === -1) {
+        // Unmatched opener — render the rest as literal text.
+        buf += text.slice(i);
+        i = text.length;
+        continue;
+      }
+      const inner = text.slice(i + 1, end);
+      if (inner.length === 0) {
+        // Empty backticks → literal ``.
+        buf += "``";
+      } else {
+        flushBuf();
+        const code = document.createElement("code");
+        code.className = "tt-ref";
+        code.appendChild(document.createTextNode(inner));
+        target.appendChild(code);
+      }
+      i = end + 1;
+      continue;
+    }
+    buf += ch;
+    i++;
+  }
+  flushBuf();
+}
+
 // Install hover-tooltip handlers for resolved live-ref spans across
 // the whole editor document. Single tooltip element appended to
 // body, repositioned per hover. 250ms delay before show so cursor
@@ -12439,7 +12516,7 @@ function installLiveTooltipHandlers() {
     const text = ref.getAttribute("data-tooltip");
     if (!text) return;
     activeRef = ref;
-    tip.textContent = text;
+    renderTooltipContent(tip, text);
     // Position once before showing so the measurement is correct,
     // then once again after the .visible class is applied (font
     // metrics may settle slightly differently — the second pass is
@@ -12826,6 +12903,20 @@ span.ref:hover { background: var(--accent-soft); border-radius: 2px; }
 }
 .ref-tooltip.visible { opacity: 1; }
 @media print { .ref-tooltip { display: none !important; } }
+/* Backtick references inside a tooltip render as small inline chips,
+   matching the rendered prose's reference styling. The tooltip script
+   parses backtick syntax at display time but does not resolve the
+   references — purely visual so backticks don't show as literal
+   characters in hover popups. */
+.ref-tooltip .tt-ref {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  color: var(--accent);
+  background: var(--accent-soft, rgba(37,99,235,0.08));
+  padding: 0 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
 
 code.ref-unresolved {
   font-family: "SF Mono", Menlo, Consolas, monospace;
@@ -12977,6 +13068,54 @@ function buildSpecScript() {
   let showTimer = null;
   let activeLink = null;
 
+  // Render tooltip text into the tip element with backtick-delimited
+  // references styled as small <code> chips. Plain-text input from
+  // data-tooltip attributes; doesn't resolve references (purely
+  // visual). Uses createElement/createTextNode so input is never
+  // interpreted as HTML — text nodes are inherently safe.
+  const renderTipContent = (target, text) => {
+    while (target.firstChild) target.removeChild(target.firstChild);
+    if (!text) return;
+    let i = 0;
+    let buf = "";
+    const flushBuf = () => {
+      if (!buf) return;
+      target.appendChild(document.createTextNode(buf));
+      buf = "";
+    };
+    while (i < text.length) {
+      const ch = text[i];
+      if (ch === "\\\\" && text[i + 1] === "\`") {
+        buf += "\`";
+        i += 2;
+        continue;
+      }
+      if (ch === "\`") {
+        const end = text.indexOf("\`", i + 1);
+        if (end === -1) {
+          buf += text.slice(i);
+          i = text.length;
+          continue;
+        }
+        const inner = text.slice(i + 1, end);
+        if (inner.length === 0) {
+          buf += "\`\`";
+        } else {
+          flushBuf();
+          const code = document.createElement("code");
+          code.className = "tt-ref";
+          code.appendChild(document.createTextNode(inner));
+          target.appendChild(code);
+        }
+        i = end + 1;
+        continue;
+      }
+      buf += ch;
+      i++;
+    }
+    flushBuf();
+  };
+
   const positionTip = (link) => {
     // Measure with the tooltip already populated so width/height are
     // final. Default position: 6px below the link's bottom edge,
@@ -13003,7 +13142,7 @@ function buildSpecScript() {
     const text = link.getAttribute('data-tooltip');
     if (!text) return;
     activeLink = link;
-    tip.textContent = text;
+    renderTipContent(tip, text);
     // Position once before showing so the measurement is correct,
     // then again after the .visible class is applied (fonts may
     // settle differently — the second pass is cheap insurance).
