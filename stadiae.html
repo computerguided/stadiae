@@ -2347,12 +2347,88 @@
 // are shared across all components — they represent the contract vocabulary
 // of the device as a whole.
 //
+// The Component-scoped built-in. Every component carries a default
+// `initialize()` local function. Like the device-level defaults
+// (Logical/Timer/TimerHandler), it's marked `isDefault: true`, rendered
+// in muted italic, locked from rename and deletion. Unlike them, its
+// `steps` field is user-editable — that's the whole point: each
+// component's initialisation logic differs, so the default is just a
+// stable named slot for that logic to live.
+//
+// Save path strips this entry when its `steps` are empty (the rest of
+// the record is reconstructable, so the file stays byte-minimal). When
+// steps are non-empty, only `name` + `steps` are persisted — `description`
+// is reconstructed from this helper on load.
+//
+// Load path injects (or upgrades a user-supplied function with the same
+// name) so every loaded component carries exactly one `isDefault`
+// `initialize`. A pre-existing user `initialize` keeps its `steps`
+// content; its `description` is overwritten with the canonical text
+// (the function is now the built-in, not a user entity).
+function makeDefaultInitializeFunction() {
+  return {
+    name: "initialize",
+    description: "Built-in initialiser invoked when the component starts. Steps are user-defined.",
+    steps: "",
+    isDefault: true
+  };
+}
+
+// True when the given local function is the per-component default
+// `initialize()`. Used by the list, the toolbar enablement, the edit
+// and delete dialogs, and the save/load paths.
+function isDefaultLocalFunction(lf) {
+  return !!(lf && lf.isDefault && lf.name === "initialize");
+}
+
+// Idempotent: makes sure the active component (or a passed-in one) has
+// exactly one `isDefault` `initialize` local function, preserving any
+// existing user-authored `steps` if one was already present under that
+// name. Safe to call any number of times.
+function ensureDefaultLocalFunctions(component) {
+  if (!component) return;
+  if (!Array.isArray(component.localFunctions)) component.localFunctions = [];
+  const lfns = component.localFunctions;
+  const existing = lfns.find(lf => lf.name === "initialize");
+  const def = makeDefaultInitializeFunction();
+  if (existing) {
+    // Upgrade in place: adopt the canonical description and the
+    // isDefault flag. Preserve user-authored steps. This handles
+    // both the load case (default was stripped on save and is being
+    // re-injected) and the rare case where a v4 file from before
+    // this feature already happened to contain a user function
+    // named "initialize" — keeping their steps is the right thing
+    // to do; the description was likely empty or sketchy anyway.
+    existing.isDefault = true;
+    existing.description = def.description;
+    if (typeof existing.steps !== "string") existing.steps = "";
+  } else {
+    lfns.push(def);
+  }
+}
+
+// True when a local-function selection is non-empty AND every selected
+// function is the default `initialize()`. Used to disable the per-list
+// `−` button: a selection containing only defaults can't be deleted.
+// (Mixed selections — at least one non-default selected — *are* deletable;
+// the deletion logic itself filters defaults out before mutating, just
+// like Selection.handlers does for the TimerHandler.)
+function selectionIsOnlyDefaultLocalFunctions() {
+  if (Selection.localFunctions.size === 0) return false;
+  const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
+  for (const name of Selection.localFunctions) {
+    const lf = lfns.find(x => x.name === name);
+    if (!isDefaultLocalFunction(lf)) return false;
+  }
+  return true;
+}
+
 // The `Component` accessor below is a thin convenience that always points
 // at the currently active component. Reading `Component.states` is exactly
 // `Model.components[Model.activeComponentIndex].states`; writing to it works
 // the same. This keeps the code that manipulates one component readable.
 function makeEmptyComponent(name, displayName) {
-  return {
+  const c = {
     // Identifier-safe name. Used as a stable reference across the model
     // (connection cascades, mask-id keys, find-by-name lookups). Must be
     // a valid identifier and unique within Model.components.
@@ -2380,10 +2456,11 @@ function makeEmptyComponent(name, displayName) {
     // take no parameters (they access the component's state variables
     // by closure), documentation-only — never emitted to PlantUML.
     // Purpose is to factor out repeated steps across transition
-    // actions. Each record: {name, description}. Description holds
-    // both the purpose and the step-by-step body as one free-text
-    // block — matches state variables' structure.
-    localFunctions: [],  // {name, description}
+    // actions. Each record: {name, description, steps, isDefault?}.
+    // Every component carries a built-in `initialize` entry (added
+    // by ensureDefaultLocalFunctions below); user-added functions
+    // join the same list.
+    localFunctions: [],
     // Constants: per-component named values referenced by name in
     // action text (e.g. "Start the timer with the ADVERTISEMENT
     // interval"). Free-text value field — no type — so the user can
@@ -2423,6 +2500,15 @@ function makeEmptyComponent(name, displayName) {
     // not emitted to PlantUML).
     transitions: []
   };
+  // Inject the per-component built-in `initialize()` local function.
+  // Same pattern as the device-level defaults but scoped to a single
+  // component. ensureDefaultLocalFunctions does the work; calling it
+  // here means every component creation site (initial Model literal,
+  // resetModel, addComponent, post-deletion fallback, loadModel)
+  // produces components with the default already present, with no
+  // additional plumbing in those sites.
+  ensureDefaultLocalFunctions(c);
+  return c;
 }
 
 // Returns the device's built-in default vocabulary — the entries that
@@ -5784,13 +5870,13 @@ function deleteSelectedComponent() {
   }
   Selection.components.clear();
   // If the deletion left the file with no components, create a fresh
-  // empty one so the editor isn't in an empty state.
+  // empty one so the editor isn't in an empty state. Use
+  // makeEmptyComponent so the per-component defaults (notably the
+  // built-in `initialize()` local function) are always present —
+  // before, this path inlined a thinner literal that would have
+  // skipped those defaults.
   if (Model.components.length === 0) {
-    Model.components.push({
-      name: "Component", displayName: "", description: "",
-      states: [], choicePoints: [], transitions: [],
-      stateVariables: [], constants: [], localFunctions: []
-    });
+    Model.components.push(makeEmptyComponent("Component", ""));
     Model.activeComponentIndex = 0;
   }
   refresh();
@@ -6344,6 +6430,11 @@ function buildLocalFunctionList() {
   const sorted = [...lfns].sort((a, b) => a.name.localeCompare(b.name));
   for (const lf of sorted) {
     const li = document.createElement("li");
+    // Built-in `initialize()` renders muted-italic, mirroring the
+    // visual treatment of default messages / handler functions.
+    // The +/edit/delete header buttons disable themselves when the
+    // selection is wholly default; this class is purely cosmetic.
+    if (isDefaultLocalFunction(lf)) li.classList.add("default-item");
     const labelSpan = document.createElement("span");
     labelSpan.textContent = lf.name;
     li.appendChild(labelSpan);
@@ -7183,9 +7274,16 @@ function updateToolbar() {
   setBtn("btn-edit-const", inDevice || Selection.constants.size !== 1);
   setBtn("btn-del-const",  inDevice || Selection.constants.size === 0);
 
-  // Local functions — same.
-  setBtn("btn-edit-lfn", inDevice || Selection.localFunctions.size !== 1);
-  setBtn("btn-del-lfn",  inDevice || Selection.localFunctions.size === 0);
+  // Local functions — exactly one to edit, ≥1 to delete. The
+  // built-in `initialize()` is locked: edit is disabled when the
+  // single selected entry is the default; delete is disabled when
+  // every selected entry is default. Mixed selections (≥1 user
+  // function alongside the default) keep delete enabled — the
+  // delete handler filters defaults out before mutating, the same
+  // way deleteSelectedHandler does for the TimerHandler.
+  const onlyDefaultLfn = selectionIsOnlyDefaultLocalFunctions();
+  setBtn("btn-edit-lfn", inDevice || Selection.localFunctions.size !== 1 || onlyDefaultLfn);
+  setBtn("btn-del-lfn",  inDevice || Selection.localFunctions.size === 0  || onlyDefaultLfn);
 }
 
 function isDefaultInterface(name) {
@@ -8217,6 +8315,7 @@ function manualContent() {
       <p>The <strong>Steps panel</strong> sits beneath the Local functions list and is structurally identical to the Action panel beneath the transitions table: a free-text editor that is live-saved as you type. Select a single local function in the list and the panel unfolds, showing its current steps (empty for a newly-added function). Click elsewhere or select multiple rows and the panel retreats behind its placeholder. Typing in the textarea updates the function's step body per keystroke — no save button, no confirmation — and the line breaks you type are preserved when the specification is exported.</p>
       <p>The Local functions list shows each row as <em>name</em> &middot; <em>&mdash; description</em> (the short purpose summary, not the steps), matching how State variables render. To change either field, select the row and click <code>✎</code>; to change the step body, edit it live in the Steps panel. Local functions are sorted alphabetically.</p>
       <p>The specification export includes a <em>Local functions</em> section as the last H2 section of each component's chapter (after the state transition table). It renders a three-column table — <em>Name</em>, <em>Description</em>, <em>Steps</em> — with the Steps column preserving line breaks inside the cell just as typed.</p>
+      <p>Every component has a built-in <code>initialize</code> local function — the conventional place to put startup work for the component. It renders muted-italic in the list (the same visual treatment used for built-in interfaces and messages), cannot be renamed or deleted, and its <em>Description</em> is fixed. Its <em>Steps</em>, however, are user-editable in the Steps panel just like any other local function. The <code>initialize</code> entry is reconstructed automatically when a file is loaded, so older models gain it on first open without any migration step. Cross-references to <code>initialize</code> from transition action text resolve like any other local function.</p>
     </section>
 
     <section id="m-interfaces-msgs">
@@ -8874,14 +8973,36 @@ function editSelectedLocalFunction() {
   const name = [...Selection.localFunctions][0];
   const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
   const lf = lfns.find(x => x.name === name);
-  if (lf) openLocalFunctionDialog(lf);
+  if (!lf) return;
+  // Default initialize() is locked from rename / description edit.
+  // The button is also disabled by the toolbar predicate; this is
+  // the keyboard-path defensive belt.
+  if (isDefaultLocalFunction(lf)) return;
+  openLocalFunctionDialog(lf);
 }
 
 function deleteSelectedLocalFunction() {
   if (Selection.localFunctions.size === 0) return;
-  pushHistory();
   const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
-  Component.localFunctions = lfns.filter(lf => !Selection.localFunctions.has(lf.name));
+  // Filter out the built-in initialize() — it's permanent. Same
+  // pattern deleteSelectedHandler uses to keep the TimerHandler
+  // around when a mixed selection includes it. If after filtering
+  // there's nothing user-deletable left, exit cleanly.
+  const targets = new Set(
+    [...Selection.localFunctions].filter(n => {
+      const lf = lfns.find(x => x.name === n);
+      return lf && !isDefaultLocalFunction(lf);
+    })
+  );
+  if (targets.size === 0) {
+    // Drop the default from the selection so the panel state stays
+    // tidy but no model mutation, and no history snapshot.
+    Selection.localFunctions.clear();
+    refresh();
+    return;
+  }
+  pushHistory();
+  Component.localFunctions = lfns.filter(lf => !targets.has(lf.name));
   Selection.localFunctions.clear();
   refresh();
 }
@@ -10645,13 +10766,32 @@ function buildSerializedModel() {
       // Keeping them separate in the file too — no smashing together
       // on save — so round-trips are lossless and each field stays
       // where the user put it.
+      //
+      // The per-component built-in `initialize()` is treated as
+      // reconstructable: when its `steps` are empty, the entire
+      // entry is omitted from the file (the load path will re-inject
+      // a fresh canonical record). When the user has filled in
+      // `steps`, only `{name, steps}` is persisted — the canonical
+      // `description` and the `isDefault` flag are reconstructed on
+      // load. This keeps files byte-minimal in the common case and
+      // preserves user customisation when present, mirroring how
+      // device-level defaults (Logical/Timer/TimerHandler) are
+      // handled.
       if (Array.isArray(c.localFunctions) && c.localFunctions.length > 0) {
-        out.localFunctions = c.localFunctions.map(lf => {
+        const persisted = [];
+        for (const lf of c.localFunctions) {
+          if (isDefaultLocalFunction(lf)) {
+            const hasSteps = typeof lf.steps === "string" && lf.steps.length > 0;
+            if (!hasSteps) continue;            // wholly default — skip
+            persisted.push({ name: lf.name, steps: lf.steps });
+            continue;
+          }
           const lo = { name: lf.name };
           if (lf.description && lf.description.length > 0) lo.description = lf.description;
           if (lf.steps && lf.steps.length > 0) lo.steps = lf.steps;
-          return lo;
-        });
+          persisted.push(lo);
+        }
+        if (persisted.length > 0) out.localFunctions = persisted;
       }
       // Constants: emit only when non-empty; per-record drop empty
       // optional fields. Same byte-minimal pattern.
@@ -15085,6 +15225,13 @@ function loadModel(data) {
         // load with whatever they had in `description` kept in
         // `description` (user moves content to `steps` manually if
         // that's what it actually was).
+        //
+        // The per-component built-in `initialize()` is re-injected
+        // by ensureDefaultLocalFunctions() below (called once the
+        // component object is fully assembled). The on-disk record,
+        // if present, is loaded with whatever `steps` the user
+        // saved; ensureDefaultLocalFunctions then upgrades it to
+        // carry `isDefault: true` and the canonical description.
         localFunctions: (c.localFunctions || []).map(lf => ({
           name: lf.name,
           description: (typeof lf.description === "string") ? lf.description : "",
@@ -15116,6 +15263,14 @@ function loadModel(data) {
         return mapped ? { ...cn, component: mapped } : cn;
       });
     }
+    // Re-inject the per-component built-in `initialize()` local
+    // function. Save path strips it (or keeps only its `steps` when
+    // non-empty), so on load every component needs the canonical
+    // record reconstructed. Idempotent — also covers the case where
+    // an older v4 file already carried a user-defined `initialize`
+    // (its steps are preserved, the description is canonicalized,
+    // the isDefault flag is set).
+    for (const comp of Model.components) ensureDefaultLocalFunctions(comp);
   } else {
     Model.components = [ makeEmptyComponent("Component_Name") ];
   }
