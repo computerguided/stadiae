@@ -900,7 +900,7 @@ footer.foot a:hover { color: var(--accent); }
 <li>The User fills in the fields and confirms.</li>
 <li>The new component appears in the Components list and <strong>becomes the active component</strong>. The current selection is cleared.</li>
 <li>The chevron <code>▸</code> moves to the new row and the canvas shows the new (empty) state machine.</li></ol>
-<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The new component exists and is active. The User can immediately add states, choice-points, and transitions to it.</p>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The new component exists and is active. The User can immediately add states, choice-points, and transitions to it. The Local functions list already contains the built-in <code>initialize</code> entry (muted-italic) — see <em><a class="uc-ref" href="#uc-7.5">Scenario&nbsp;7.5</a></em>.</p>
 </article>
 <article class="uc" id="uc-3.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 3.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">3.2</span></span><h3 class="uc-title">Switch the active component</h3><a class="uc-permalink" href="#uc-3.2" aria-label="Permalink">#</a></header>
 <p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The diagram has at least two components. The editor is in <em>Component</em> view.</p>
@@ -1160,7 +1160,7 @@ footer.foot a:hover { color: var(--accent); }
 <article class="uc" id="uc-6.5"><header class="uc-head"><span class="uc-id" aria-label="Scenario 6.5"><span class="uc-id-tag">scenario</span><span class="uc-id-num">6.5</span></span><h3 class="uc-title">Add an ANY-source (wildcard) transition</h3><a class="uc-permalink" href="#uc-6.5" aria-label="Permalink">#</a></header>
 <p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The active component has at least one state or choice-point.</p>
 <p class="lbl"><strong>Sequence.</strong></p>
-<ol class="seq"><li>The User selects the <strong>∗ (any)</strong> pseudostate in the States list, exactly one target node, and one or more non-<code>Yes</code>/<code>No</code> messages.</li>
+<ol class="seq"><li>The User selects the <strong>∗ (any)</strong> pseudostate in the States list, exactly one target node, and one or more non-<code>Yes</code>/<code>No</code> messages. The target may be a state, a choice-point, or the <strong>H (history)</strong> pseudostate — selecting <code>∗</code> and <code>H</code> together (with one or more messages) creates an <em>ANY-source into history</em> transition, modelling "from any state, on this message, return to history".</li>
 <li>The User clicks <em>Add Transition</em>.</li>
 <li>The diagram shows an arrow from a <code>*</code> icon to the target. Multiple ANY-source transitions appear as separate <code>*</code> icons.</li></ol>
 <p class="lbl-post"><span class="lbl-tag">Postcondition.</span> A given message may be used on at most one ANY-source transition at a time.</p>
@@ -1252,15 +1252,15 @@ footer.foot a:hover { color: var(--accent); }
 <p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The constant reflects the edits. References to it elsewhere in the diagram are consistent.</p>
 </article>
 <article class="uc" id="uc-7.5"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.5"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.5</span></span><h3 class="uc-title">Add a local function</h3><a class="uc-permalink" href="#uc-7.5" aria-label="Permalink">#</a></header>
-<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Component</em> view.</p>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The editor is in <em>Component</em> view. The Local functions list always contains at least the built-in <code>initialize</code> entry (muted-italic, locked from rename and deletion); user-added functions sit alongside it.</p>
 <p class="lbl"><strong>Sequence.</strong></p>
 <ol class="seq"><li>The User clicks the <code>+</code> button in the Local functions list header.</li>
-<li>A dialog asks for <em>Name</em> (identifier-safe, unique among the component's local functions) and optional <em>Description</em> (one- line summary).</li>
+<li>A dialog asks for <em>Name</em> (identifier-safe, unique among the component's local functions — the name <code>initialize</code> is taken by the built-in and so will be rejected) and optional <em>Description</em> (one- line summary).</li>
 <li>The User confirms. The new function appears in the Local functions list and is selected automatically, so the Steps panel below the list is ready to edit (see <em><a class="uc-ref" href="#uc-7.7">Scenario&nbsp;7.7</a></em>).</li></ol>
 <p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The local function exists with its name and one-line description, but no step body yet. It is documentation only — not emitted to PlantUML — and appears in the spec export as a Name / Description / Steps row at the end of the component's chapter. It can be referenced by name from action text (bare reference inside the owning component).</p>
 </article>
 <article class="uc" id="uc-7.6"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.6"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.6</span></span><h3 class="uc-title">Edit a local function's name or description</h3><a class="uc-permalink" href="#uc-7.6" aria-label="Permalink">#</a></header>
-<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one local function is selected in the Local functions list.</p>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one local function is selected in the Local functions list, and it is not the built-in <code>initialize</code>. The list's <code>✎</code> button is disabled when the only selected entry is <code>initialize</code>.</p>
 <p class="lbl"><strong>Sequence.</strong></p>
 <ol class="seq"><li>The User clicks the <code>✎</code> button on the row (or presses <code>Enter</code>).</li>
 <li>The dialog opens with the existing <em>Name</em> and <em>Description</em>. The User edits them and confirms.</li>
@@ -1268,11 +1268,11 @@ footer.foot a:hover { color: var(--accent); }
 <p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The function's name and description reflect the edits. References to it elsewhere in the diagram are consistent.</p>
 </article>
 <article class="uc" id="uc-7.7"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.7"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.7</span></span><h3 class="uc-title">Edit a local function's step body</h3><a class="uc-permalink" href="#uc-7.7" aria-label="Permalink">#</a></header>
-<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one local function is selected in the Local functions list. The Steps panel below the list shows that function's step body.</p>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Exactly one local function is selected in the Local functions list — including the built-in <code>initialize</code>. The Steps panel below the list shows that function's step body.</p>
 <p class="lbl"><strong>Sequence.</strong></p>
 <ol class="seq"><li>The User clicks into the Steps textarea and types. Edits save as the User types — no explicit <em>Save</em> needed. A whole typing session counts as one undo step.</li>
 <li>Backtick references to other named entities render with hover tooltips when the field loses focus; pressing <code>Esc</code> blurs the field as a shortcut.</li></ol>
-<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The function's step body reflects the edits. The Steps appear as the corresponding cell in the spec export's Local functions table for this component.</p>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The function's step body reflects the edits. The Steps appear as the corresponding cell in the spec export's Local functions table for this component. This applies to <code>initialize</code> too: although <code>initialize</code>'s name and description are fixed, its steps are user-editable like any other local function's.</p>
 </article>
 <article class="uc" id="uc-7.8"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.8"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.8</span></span><h3 class="uc-title">Delete a state variable</h3><a class="uc-permalink" href="#uc-7.8" aria-label="Permalink">#</a></header>
 <p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more rows in the State variables list are selected.</p>
@@ -1289,11 +1289,11 @@ footer.foot a:hover { color: var(--accent); }
 <p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The constants are gone. Backtick references to them in prose become unresolved. Note that any free-text <em>Value</em> field elsewhere in the diagram that mentioned the constant by name in plain (non-backtick) text is unaffected — values are free text and have no link semantics.</p>
 </article>
 <article class="uc" id="uc-7.10"><header class="uc-head"><span class="uc-id" aria-label="Scenario 7.10"><span class="uc-id-tag">scenario</span><span class="uc-id-num">7.10</span></span><h3 class="uc-title">Delete a local function</h3><a class="uc-permalink" href="#uc-7.10" aria-label="Permalink">#</a></header>
-<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more rows in the Local functions list are selected.</p>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more rows in the Local functions list are selected. The built-in <code>initialize</code> entry is protected: when the only selected row is <code>initialize</code> the list's <code>−</code> button is disabled, and when a mixed selection includes it, only the user-defined functions are deleted.</p>
 <p class="lbl"><strong>Sequence.</strong></p>
 <ol class="seq"><li>The User presses <code>Delete</code> (or clicks <code>−</code> in the list header).</li>
-<li>The selected local functions are removed from the active component, along with their step bodies.</li></ol>
-<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The local functions are gone. Backtick references to them in prose (typically in transition Action notes that called them) become unresolved.</p>
+<li>The selected user-defined local functions are removed from the active component, along with their step bodies. The built-in <code>initialize</code>, if part of the selection, is silently kept.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The deleted local functions are gone. Backtick references to them in prose (typically in transition Action notes that called them) become unresolved.</p>
 </article>
 </div>
 </section>
@@ -1407,7 +1407,7 @@ footer.foot a:hover { color: var(--accent); }
 <p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The diagram is at the chosen point in its history. Subsequent edits clear the redo trail.</p>
 </article>
 <article class="uc" id="uc-9.8"><header class="uc-head"><span class="uc-id" aria-label="Scenario 9.8"><span class="uc-id-tag">scenario</span><span class="uc-id-num">9.8</span></span><h3 class="uc-title">Delete with cascading effects</h3><a class="uc-permalink" href="#uc-9.8" aria-label="Permalink">#</a></header>
-<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more deletable entities are selected. Built-in entries (Timer, Logical, Yes, No, Timeout, TimerHandler, Time, TimerID, START) are protected and never deleted.</p>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> One or more deletable entities are selected. Built-in entries (Timer, Logical, Yes, No, Timeout, TimerHandler, Time, TimerID, START) are protected and never deleted; the per-component built-in <code>initialize</code> local function is similarly protected.</p>
 <p class="lbl"><strong>Sequence.</strong></p>
 <ol class="seq"><li>The User presses <code>Delete</code> / <code>Backspace</code> (or clicks <code>−</code> in a specific list header — the per-list <code>−</code> button only acts on that list's selection).</li>
 <li><strong>Confirmation rule.</strong> Stadiæ asks for confirmation in exactly two cases — both governed by the <em>whole</em> current selection, not by what's inside it:<ul class="sub"><li>Exactly one component is selected and <em>nothing else at all</em> — no states, no choice-points, no handlers, no connections, etc.</li><li>Exactly one handler is selected and <em>nothing else at all</em>.</li></ul><p>In every other case (mixed selections, multiple entities of one kind, states, choice-points, interfaces, messages, transitions, parameters, functions, state variables, constants, local functions, connections of any kind), the deletion proceeds immediately with no confirmation. Users rely on <code>Ctrl+Z</code> to recover.</p><p>The "delete the last component" case is also blocked: Stadiæ refuses with an alert <em>"A file must have at least one component."</em></p></li>
@@ -1512,8 +1512,8 @@ footer.foot a:hover { color: var(--accent); }
 <section class="block appendix" id="appendix"><div class="sec-head"><h2><span class="uc-badge appendix">A</span>Appendix A — Cross-cutting rules and invariants</h2></div><div class="sec-body">
 <p>These are not standalone scenarios but invariants enforced across many of the scenarios above. They are listed here for cross-reference.</p>
 <ul><li><strong>Identifier rule.</strong> Names entered in <em>Name</em> fields must start with a letter and contain only letters, digits, and underscores. Empty values, names starting with a digit, and names with whitespace are rejected.</li>
-<li><strong>Uniqueness scopes.</strong><ul class="sub"><li>States and choice-points: unique within the same component.</li><li>Interfaces: unique device-wide.</li><li>Messages: unique within their interface.</li><li>Components and handlers: unique device-wide (single shared scope).</li><li>Functions: unique within their handler.</li><li>Parameters: unique within their message or function.</li><li>State variables, constants, local functions: unique within their component.</li><li>Type definitions: unique device-wide, also disjoint from component, handler, and non-default interface names.</li></ul></li>
-<li><strong>Built-in entries are protected.</strong> The <code>Timer</code> and <code>Logical</code> interfaces, the <code>Timeout</code> / <code>Yes</code> / <code>No</code> messages, the <code>TimerHandler</code> with its <code>setTimeout</code> and <code>cancelTimeout</code> functions, and the <code>Time</code> and <code>TimerID</code> types cannot be renamed, edited, or deleted. They are always present (shown in muted italic in the lists) and don't appear on the device diagram — they're conceptually always available, the same way primitive operations are in a programming language.</li>
+<li><strong>Uniqueness scopes.</strong><ul class="sub"><li>States and choice-points: unique within the same component.</li><li>Interfaces: unique device-wide.</li><li>Messages: unique within their interface.</li><li>Components and handlers: unique device-wide (single shared scope).</li><li>Functions: unique within their handler.</li><li>Parameters: unique within their message or function.</li><li>State variables, constants, local functions: unique within their component. Each component's local-functions namespace already contains the built-in <code>initialize</code>, so that name cannot be reused.</li><li>Type definitions: unique device-wide, also disjoint from component, handler, and non-default interface names.</li></ul></li>
+<li><strong>Built-in entries are protected.</strong> The <code>Timer</code> and <code>Logical</code> interfaces, the <code>Timeout</code> / <code>Yes</code> / <code>No</code> messages, the <code>TimerHandler</code> with its <code>setTimeout</code> and <code>cancelTimeout</code> functions, and the <code>Time</code> and <code>TimerID</code> types cannot be renamed, edited, or deleted. They are always present (shown in muted italic in the lists) and don't appear on the device diagram — they're conceptually always available, the same way primitive operations are in a programming language. Each component additionally carries a built-in <code>initialize</code> local function that follows the same locked-and-muted convention with one exception: its <em>Steps</em> are user-editable so each component's startup logic can be expressed there.</li>
 <li><strong>Determinism.</strong> A given source state can handle any specific message at most once across all its outgoing transitions. The Add Transition scenarios enforce this.</li>
 <li><strong>Wildcard exclusivity.</strong> Wildcard messages (<code>*:*</code>, <code>Iface:*</code>) cannot be used on choice-point sources, cannot be mixed with <code>Yes</code>/<code>No</code> on the same transition, and at most one of each scope per source state.</li>
 <li><strong>Multiplication invariant.</strong> A non-default interface can have at most one multiplied component connected to it.</li>
