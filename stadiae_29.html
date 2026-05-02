@@ -7516,6 +7516,14 @@ function canAddTransition() {
     if (hasYesNo) return false;
     return !sourceAlreadyHandlesAnyOf("*", msgs);
   }
+  // ANY-source to history-target: * + H + >=1 non-Yes/No message, no other nodes.
+  // Models "from any state, on this message, return to history". Same constraints
+  // as the regular ANY-source case (CP-only Yes/No doesn't apply since no CP is
+  // involved; source `*` must not already handle the chosen messages).
+  if (selAny && selHistory && !selStart && selStates.length === 0 && selCPs.length === 0 && selMsgs.length >= 1) {
+    if (hasYesNo) return false;
+    return !sourceAlreadyHandlesAnyOf("*", msgs);
+  }
   // Self-transition: 1 state + 1+ messages (not Yes/No)
   if (selStates.length === 1 && selCPs.length === 0 && !selStart && !selHistory && !selAny && selMsgs.length >= 1) {
     if (hasYesNo) return false;
@@ -8504,6 +8512,7 @@ function manualContent() {
         <tr><td>1 CP + 1 other node + Yes/No messages</td><td>Choice-point outgoing branch</td></tr>
         <tr><td>H + 1 state or CP + 1+ messages</td><td>History transition (to <code>[H]</code>)</td></tr>
         <tr><td>∗ + 1 state or CP + 1+ non-Yes/No messages</td><td>Wildcard (ANY-source) transition</td></tr>
+        <tr><td>∗ + H + 1+ non-Yes/No messages</td><td>Wildcard (ANY-source) transition into history</td></tr>
       </table>
     </section>
 
@@ -9547,6 +9556,16 @@ function actionAddTransition() {
     addMessagesToTransition("*", target, selMsgs, "Down");
     Selection.clearAll();
     for (const m of selMsgs) Selection.transitions.add(transRowKey("*", target, m.interface, m.name));
+    refresh();
+    return;
+  }
+
+  // ANY-source to history-target: * + H + messages
+  if (Selection.any && Selection.history && !Selection.start && selStates.length === 0 && selCPs.length === 0 && selMsgs.length >= 1) {
+    pushHistory();
+    addMessagesToTransition("*", "[H]", selMsgs, "Down");
+    Selection.clearAll();
+    for (const m of selMsgs) Selection.transitions.add(transRowKey("*", "[H]", m.interface, m.name));
     refresh();
     return;
   }
