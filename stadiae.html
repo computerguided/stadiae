@@ -2347,72 +2347,132 @@
 // are shared across all components — they represent the contract vocabulary
 // of the device as a whole.
 //
-// The Component-scoped built-in. Every component carries a default
-// `initialize()` local function. Like the device-level defaults
-// (Logical/Timer/TimerHandler), it's marked `isDefault: true`, rendered
-// in muted italic, locked from rename and deletion. Unlike them, its
-// `steps` field is user-editable — that's the whole point: each
-// component's initialisation logic differs, so the default is just a
-// stable named slot for that logic to live.
+// The Component-scoped built-ins. Every component carries a fixed set
+// of default local functions. Each is marked `isDefault: true`, renders
+// in muted italic, and is locked from rename and deletion — same UI
+// conventions as the device-level defaults (Logical/Timer/TimerHandler).
 //
-// Save path strips this entry when its `steps` are empty (the rest of
-// the record is reconstructable, so the file stays byte-minimal). When
-// steps are non-empty, only `name` + `steps` are persisted — `description`
-// is reconstructed from this helper on load.
+// Each default declares whether its `steps` body is user-editable. Two
+// flavours exist today:
 //
-// Load path injects (or upgrades a user-supplied function with the same
-// name) so every loaded component carries exactly one `isDefault`
-// `initialize`. A pre-existing user `initialize` keeps its `steps`
-// content; its `description` is overwritten with the canonical text
-// (the function is now the built-in, not a user entity).
-function makeDefaultInitializeFunction() {
-  return {
-    name: "initialize",
-    description: "Built-in initialiser invoked when the component starts. Steps are user-defined.",
-    steps: "",
-    isDefault: true
-  };
+//   - `initialize` — `stepsEditable: true`. The Steps panel binds to
+//     it like any other local function so the user can fill in the
+//     component's startup logic. The default's name and description
+//     are fixed; only steps are mutable.
+//
+//   - `resendLastReceivedMessage` — `stepsEditable: false`. A wholly
+//     fixed FCM mechanism: re-injects the last received message at
+//     the head of the message queue so it is received again before
+//     any other pending message. Name, description, AND steps are
+//     all fixed; the Steps panel hides for this entry.
+//
+// Save path: any wholly-reconstructable default is stripped from the
+// file; defaults whose user-editable surface (steps for `initialize`)
+// has content are persisted minimally as `{name, steps}` and the rest
+// of the record is reconstructed on load. `resendLastReceivedMessage`
+// has no user-editable surface, so it is always stripped.
+//
+// Load path: `ensureDefaultLocalFunctions` re-injects every default
+// missing from the loaded list and upgrades any pre-existing entry of
+// the same name to carry the canonical description and the
+// `isDefault` flag. For editable-step defaults, the user's steps are
+// preserved; for fixed-step defaults, the canonical steps overwrite.
+//
+// To add another per-component built-in, append a record here with
+// the desired `stepsEditable` policy. Everything else (list styling,
+// toolbar gating, save/load round-trip, Steps-panel visibility) is
+// driven from these declarations through the helpers below.
+function getDefaultLocalFunctions() {
+  return [
+    {
+      name: "initialize",
+      description: "Built-in initialiser invoked when the component starts. Steps are user-defined.",
+      steps: "",
+      isDefault: true,
+      stepsEditable: true
+    },
+    {
+      name: "resendLastReceivedMessage",
+      description: "Re-injects the last received message at the head of the message queue so it is received again before any other pending message.",
+      steps: "",
+      isDefault: true,
+      stepsEditable: false
+    }
+  ];
 }
 
-// True when the given local function is the per-component default
-// `initialize()`. Used by the list, the toolbar enablement, the edit
-// and delete dialogs, and the save/load paths.
+// True when the given local function is one of the per-component
+// defaults. Used by the list (muted-italic styling), the toolbar
+// enablement, the edit/delete leaf handlers, and the save path. The
+// check is by name + isDefault flag so user-authored functions named
+// the same can't masquerade as defaults from a hand-edited file.
 function isDefaultLocalFunction(lf) {
-  return !!(lf && lf.isDefault && lf.name === "initialize");
+  if (!lf || !lf.isDefault) return false;
+  return getDefaultLocalFunctions().some(d => d.name === lf.name);
 }
 
-// Idempotent: makes sure the active component (or a passed-in one) has
-// exactly one `isDefault` `initialize` local function, preserving any
-// existing user-authored `steps` if one was already present under that
-// name. Safe to call any number of times.
+// True when the given local function is a default whose `steps` body
+// is user-editable (currently just `initialize`). For these, the Steps
+// panel binds normally; for non-editable defaults like
+// `resendLastReceivedMessage`, the panel hides — there is nothing for
+// the user to edit. The `description` and `name` of every default are
+// always fixed regardless of this flag.
+function isDefaultLocalFunctionStepsEditable(lf) {
+  if (!isDefaultLocalFunction(lf)) return false;
+  const def = getDefaultLocalFunctions().find(d => d.name === lf.name);
+  return !!(def && def.stepsEditable);
+}
+
+// Idempotent: makes sure the given component has every per-component
+// default local function present, preserving any existing user-authored
+// `steps` for editable-step defaults (currently `initialize`) and
+// overwriting `steps` for fixed-step defaults (currently
+// `resendLastReceivedMessage`). Description and isDefault flag are
+// canonicalised from `getDefaultLocalFunctions()` either way. Safe to
+// call any number of times.
 function ensureDefaultLocalFunctions(component) {
   if (!component) return;
   if (!Array.isArray(component.localFunctions)) component.localFunctions = [];
   const lfns = component.localFunctions;
-  const existing = lfns.find(lf => lf.name === "initialize");
-  const def = makeDefaultInitializeFunction();
-  if (existing) {
-    // Upgrade in place: adopt the canonical description and the
-    // isDefault flag. Preserve user-authored steps. This handles
-    // both the load case (default was stripped on save and is being
-    // re-injected) and the rare case where a v4 file from before
-    // this feature already happened to contain a user function
-    // named "initialize" — keeping their steps is the right thing
-    // to do; the description was likely empty or sketchy anyway.
-    existing.isDefault = true;
-    existing.description = def.description;
-    if (typeof existing.steps !== "string") existing.steps = "";
-  } else {
-    lfns.push(def);
+  for (const def of getDefaultLocalFunctions()) {
+    const existing = lfns.find(lf => lf.name === def.name);
+    if (existing) {
+      // Upgrade in place: adopt the canonical description and the
+      // isDefault flag. For editable-step defaults preserve user-
+      // authored steps; for fixed-step defaults overwrite back to
+      // the canonical (empty) body. This handles the load case (a
+      // default was stripped on save and is being re-injected) and
+      // the case where an older v4 file already happened to contain
+      // a user function under one of these reserved names.
+      existing.isDefault = true;
+      existing.description = def.description;
+      if (def.stepsEditable) {
+        if (typeof existing.steps !== "string") existing.steps = "";
+      } else {
+        existing.steps = def.steps;
+      }
+    } else {
+      // Push a fresh copy — never the shared object from the helper —
+      // so per-component edits to editable-step defaults can't bleed
+      // across components.
+      lfns.push({
+        name: def.name,
+        description: def.description,
+        steps: def.steps,
+        isDefault: true
+      });
+    }
   }
 }
 
 // True when a local-function selection is non-empty AND every selected
-// function is the default `initialize()`. Used to disable the per-list
-// `−` button: a selection containing only defaults can't be deleted.
-// (Mixed selections — at least one non-default selected — *are* deletable;
-// the deletion logic itself filters defaults out before mutating, just
-// like Selection.handlers does for the TimerHandler.)
+// function is a default. Used to disable the per-list `✎` and `−`
+// buttons: a selection containing only defaults can't be edited or
+// deleted. Mixed selections — at least one user-authored function
+// alongside one or more defaults — *are* editable/deletable for the
+// user records; the leaf handlers filter defaults out before mutating,
+// matching the convention used by Selection.handlers for the
+// TimerHandler.
 function selectionIsOnlyDefaultLocalFunctions() {
   if (Selection.localFunctions.size === 0) return false;
   const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
@@ -4999,9 +5059,19 @@ function buildStepsPanel() {
   const name = [...sel][0];
   const lfns = Array.isArray(Component.localFunctions) ? Component.localFunctions : [];
   const lf = lfns.find(x => x.name === name);
-  if (!lf) {
-    // Selection points at a local function that no longer exists —
-    // unlikely but defensive. Treat as no-binding.
+  if (!lf || (isDefaultLocalFunction(lf) && !isDefaultLocalFunctionStepsEditable(lf))) {
+    // No binding for the panel. Two cases collapse here:
+    //   - Selection points at a local function that no longer exists
+    //     (unlikely but defensive — same hide-the-panel response as
+    //     "nothing selected").
+    //   - The selected entry is a fixed-steps default (e.g.
+    //     `resendLastReceivedMessage`): its `steps` are part of its
+    //     fixed semantics, not a user-authored body, so the editor
+    //     surface for it is suppressed entirely. The list still
+    //     shows the row in muted-italic with its description, and
+    //     the toolbar's `✎` / `−` buttons are already disabled by
+    //     `selectionIsOnlyDefaultLocalFunctions` — there's just no
+    //     Steps body to display or edit.
     panel.classList.add("hidden");
     handle.classList.add("hidden");
     if (textarea.hideLive) textarea.hideLive();
@@ -8315,7 +8385,12 @@ function manualContent() {
       <p>The <strong>Steps panel</strong> sits beneath the Local functions list and is structurally identical to the Action panel beneath the transitions table: a free-text editor that is live-saved as you type. Select a single local function in the list and the panel unfolds, showing its current steps (empty for a newly-added function). Click elsewhere or select multiple rows and the panel retreats behind its placeholder. Typing in the textarea updates the function's step body per keystroke — no save button, no confirmation — and the line breaks you type are preserved when the specification is exported.</p>
       <p>The Local functions list shows each row as <em>name</em> &middot; <em>&mdash; description</em> (the short purpose summary, not the steps), matching how State variables render. To change either field, select the row and click <code>✎</code>; to change the step body, edit it live in the Steps panel. Local functions are sorted alphabetically.</p>
       <p>The specification export includes a <em>Local functions</em> section as the last H2 section of each component's chapter (after the state transition table). It renders a three-column table — <em>Name</em>, <em>Description</em>, <em>Steps</em> — with the Steps column preserving line breaks inside the cell just as typed.</p>
-      <p>Every component has a built-in <code>initialize</code> local function — the conventional place to put startup work for the component. It renders muted-italic in the list (the same visual treatment used for built-in interfaces and messages), cannot be renamed or deleted, and its <em>Description</em> is fixed. Its <em>Steps</em>, however, are user-editable in the Steps panel just like any other local function. The <code>initialize</code> entry is reconstructed automatically when a file is loaded, so older models gain it on first open without any migration step. Cross-references to <code>initialize</code> from transition action text resolve like any other local function.</p>
+      <p>Every component carries two built-in local functions, both rendered muted-italic in the list (the same visual treatment used for built-in interfaces and messages) and both locked from rename and deletion:</p>
+      <ul>
+        <li><code>initialize</code> — the conventional place to put startup work for the component. Its <em>Description</em> is fixed, but its <em>Steps</em> are user-editable in the Steps panel just like any other local function.</li>
+        <li><code>resendLastReceivedMessage</code> — re-injects the last received message at the head of the message queue, so the same message is received again before any other pending message is processed. This is a <em>fully fixed</em> built-in: name, description, and body are all canonical, so the Steps panel does not appear when this row is selected — there is nothing to edit. Reference it by name from a transition's action text the way you would any other local function.</li>
+      </ul>
+      <p>The built-ins are reconstructed automatically when a file is loaded, so older models gain them on first open without any migration step. Cross-references to either name from transition action text resolve like any other local function.</p>
     </section>
 
     <section id="m-interfaces-msgs">
@@ -10767,20 +10842,24 @@ function buildSerializedModel() {
       // on save — so round-trips are lossless and each field stays
       // where the user put it.
       //
-      // The per-component built-in `initialize()` is treated as
-      // reconstructable: when its `steps` are empty, the entire
-      // entry is omitted from the file (the load path will re-inject
-      // a fresh canonical record). When the user has filled in
-      // `steps`, only `{name, steps}` is persisted — the canonical
-      // `description` and the `isDefault` flag are reconstructed on
-      // load. This keeps files byte-minimal in the common case and
-      // preserves user customisation when present, mirroring how
-      // device-level defaults (Logical/Timer/TimerHandler) are
-      // handled.
+      // The per-component built-ins (`initialize`,
+      // `resendLastReceivedMessage`) are reconstructable from
+      // `getDefaultLocalFunctions()`. Two strip flavours:
+      //   - Fixed-steps defaults (resendLastReceivedMessage): always
+      //     skipped — name, description, and steps are all canonical,
+      //     so there's nothing to persist.
+      //   - Editable-steps defaults (initialize): skipped when the
+      //     user hasn't filled in steps; persisted as `{name, steps}`
+      //     when steps are non-empty (description and isDefault flag
+      //     are reconstructed on load).
+      // Mirrors how the device-level defaults (Logical/Timer/
+      // TimerHandler) are stripped from the save and re-injected on
+      // load.
       if (Array.isArray(c.localFunctions) && c.localFunctions.length > 0) {
         const persisted = [];
         for (const lf of c.localFunctions) {
           if (isDefaultLocalFunction(lf)) {
+            if (!isDefaultLocalFunctionStepsEditable(lf)) continue;  // wholly fixed — skip
             const hasSteps = typeof lf.steps === "string" && lf.steps.length > 0;
             if (!hasSteps) continue;            // wholly default — skip
             persisted.push({ name: lf.name, steps: lf.steps });
