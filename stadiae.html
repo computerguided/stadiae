@@ -13101,6 +13101,20 @@ table th {
   color: var(--text-muted);
 }
 table td.cell-multiline { white-space: pre-wrap; }
+/* renderProseMarkdown always wraps content in block elements (\`<p>\`,
+   \`<ul>\`, \`<h*>\`), each of which carries its own top/bottom margin.
+   Neighbouring cells in the same row hold bare text nodes (Source,
+   Target, Interface, Message — and Name in the Local-functions and
+   Type-definitions tables), so without these resets the leading
+   block's top margin pushes the multiline cell's first line several
+   pixels below its neighbours' first line, and the trailing block's
+   bottom margin adds visible padding inside the cell. The first/last
+   resets fix both — vertical alignment with the rest of the row, and
+   no extra whitespace at the top or bottom of the cell. Inter-block
+   margins (between two paragraphs in the same cell) are untouched, so
+   multi-paragraph cell content still reads properly. */
+table td.cell-multiline > :first-child { margin-top: 0; }
+table td.cell-multiline > :last-child  { margin-bottom: 0; }
 /* \`a.ref\` for navigable references; \`span.ref\` for tooltip-only
    references (default-handler family — there's a description but no
    chapter to anchor to). Both wear the same accent styling so refs
