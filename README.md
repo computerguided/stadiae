@@ -78,10 +78,6 @@ When you open Stadiæ you'll see:
 
 The **complete manual** is available inside the app under `Help → User Manual` — including the full selection rules, keyboard shortcuts, and a troubleshooting guide.
 
-## Example
-
-[`coffee-pos.json`](coffee-pos.json) is a worked example: a coffee-shop point-of-sale device with two components (OrderManager, InventoryTracker), four handlers (CardReader, Printer, Display, Database), four interfaces, and full state machines for each component. Open it in Stadiæ to see the features in action; export it as `.docx` to see what the specification export produces on a populated device.
-
 ## File format
 
 Saved `.json` files use the `stadiae-v4` format and round-trip losslessly: every component, handler (with its functions), shared interface, message (with its parameters), wiring, call dependency, action note, and description is preserved. The generated PlantUML is always derivable from the JSON, but not vice versa — the JSON is the canonical storage format.
