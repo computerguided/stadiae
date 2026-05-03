@@ -982,7 +982,7 @@
       "length": 1
     }
   ],
-  "deviceDisplayName": "Wireles Interactive Networked Display (WIND)",
+  "deviceDisplayName": "Wireless Interactive Networked Display (WIND)",
   "deviceSpecification": "The device is a Wireless Interactive Networked Display (WIND) which is controlled by a central server (not in scope). It operates by creating a connection to the server and then handling requests to display content formatted as a PNG image.\nSome content must be interactive which is enabled by the display being touch sensitive and the server sending an indexed coordinates map of touch-squares on the display. The device must be extremely low cost, so interaction is limited by the device mapping touch coordinates to the proper id and sending that id back to the server.\n\nThe device further has a speaker for supplying audio cues, which comprises a set of indexed predefined sounds. Each square on the touch-map can have an audio cue associated with it, specified by the index of the sound. The server can update the stored audio samples.",
   "types": [
     {
