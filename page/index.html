@@ -595,15 +595,17 @@ footer.foot .links a + a { margin-left: 18px; }
     <ul>
       <li><a href="#synopsis"><span class="idx">0</span>synopsis</a></li>
       <li><a href="#what-it-is"><span class="idx">1</span>what it is</a></li>
-      <li><a href="#why"><span class="idx">2</span>why it exists</a></li>
-      <li><a href="#model"><span class="idx">3</span>the model</a></li>
-      <li><a href="#output"><span class="idx">4</span>output</a></li>
-      <li><a href="#layout"><span class="idx">5</span>layout</a></li>
-      <li><a href="#shortcuts"><span class="idx">6</span>shortcuts</a></li>
-      <li><a href="#reference"><span class="idx">7</span>use cases &amp; scenarios</a></li>
-      <li><a href="#vcs"><span class="idx">8</span>vcs workflow</a></li>
-      <li><a href="#install"><span class="idx">9</span>install</a></li>
-      <li><a href="#server"><span class="idx">10</span>server</a></li>
+      <li><a href="#two-levels"><span class="idx">2</span>two levels</a></li>
+      <li><a href="#why"><span class="idx">3</span>why it exists</a></li>
+      <li><a href="#model"><span class="idx">4</span>the model</a></li>
+      <li><a href="#output"><span class="idx">5</span>output</a></li>
+      <li><a href="#layout"><span class="idx">6</span>layout</a></li>
+      <li><a href="#shortcuts"><span class="idx">7</span>shortcuts</a></li>
+      <li><a href="#reference"><span class="idx">8</span>use cases &amp; scenarios</a></li>
+      <li><a href="#vcs"><span class="idx">9</span>vcs workflow</a></li>
+      <li><a href="#install"><span class="idx">10</span>install</a></li>
+      <li><a href="#server"><span class="idx">11</span>server</a></li>
+      <li><a href="#claude"><span class="idx">12</span>Claude bridge</a></li>
     </ul>
 
     <h4>Source</h4>
@@ -649,6 +651,8 @@ footer.foot .links a + a { margin-left: 18px; }
         <span class="badge">git-friendly JSON save format</span>
         <span class="sep">&middot;</span>
         <span class="badge">online or local PlantUML server</span>
+        <span class="sep">&middot;</span>
+        <span class="badge">optional Claude Desktop integration</span>
       </div>
     </section>
 
@@ -1134,6 +1138,43 @@ footer.foot .links a + a { margin-left: 18px; }
           </p>
 
           <div class="callout"><b>privacy.</b> with a local server, PlantUML source never leaves your machine. useful when the diagrams describe embargoed work, or when organisational policy forbids external service calls.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 12. Claude Desktop integration -->
+    <section class="block" id="claude">
+      <div class="sec-head">
+        <div class="num"><span class="hash">#</span> 12 /// integration</div>
+        <h2>Optional <span class="mono-accent">Claude Desktop</span> bridge.</h2>
+      </div>
+      <div class="sec-body">
+        <div></div>
+        <div class="content">
+          <p>
+            Stadi&aelig; ships with an optional MCP bridge that connects the editor to <a href="https://claude.ai/download" target="_blank" rel="noopener">Claude Desktop</a>. Once installed, Claude can read your current model, look up the schema and FCM design conventions, and apply edits you ask for in natural language &mdash; <em>"add a <code>Reconnecting</code> state to <code>ServerConnector</code> with a transition from <code>Connected</code> on <code>Connection:Disconnected</code>"</em>, <em>"describe the responsibility of each handler"</em>, <em>"refactor this state machine to handle a transient connection drop"</em>.
+          </p>
+
+          <p>
+            The bridge is a small Node process that you install separately; the editor itself remains a single self-contained HTML file with no runtime dependency on it. Connection is opt-in &mdash; nothing in the core editing experience changes whether or not the bridge is installed. The connection is local-only: a WebSocket on <code>127.0.0.1</code>, never reachable from outside the machine.
+          </p>
+
+          <div class="code-label"><span class="dot"></span> the integration in three pieces</div>
+          <pre class="code"><span class="com">// 1. The browser-side WebSocket client (part of stadiae.html).</span>
+<span class="kw">connect</span> <span class="punct">→</span> <span class="str">"ws://127.0.0.1:7531"</span>
+
+<span class="com">// 2. The bridge process (Node, separate install).</span>
+<span class="kw">spawned by</span> Claude Desktop <span class="punct">·</span> talks MCP over stdio <span class="punct">·</span> WebSocket to browser
+
+<span class="com">// 3. Optimistic concurrency, so user edits aren't silently overwritten.</span>
+get_model <span class="punct">→</span> <span class="punct">{</span>model<span class="punct">,</span> version<span class="punct">}</span>
+replace_model<span class="punct">(</span>model<span class="punct">,</span> expectedVersion<span class="punct">)</span> <span class="punct">→</span> reject if user edited since</pre>
+
+          <p>
+            Claude only sees what the editor exposes through three tools: read the current model, read the schema reference, replace the model with strict validation. Validation runs entirely on the editor side, so design constraints stay in one place &mdash; no separate schema file to keep in sync. Setup instructions for Linux are on GitHub: <a href="https://github.com/computerguided/stadiae/blob/main/bridge-setup-linux.md" target="_blank" rel="noopener">bridge-setup-linux.md &#8599;</a>.
+          </p>
+
+          <div class="callout"><b>opt-in everywhere.</b> the bridge is off by default. the editor never auto-connects on load &mdash; every session starts disconnected, and the user reconnects explicitly via <em>File &rarr; Bridge&hellip;</em>. revoking access is one click, not an uninstall.</div>
         </div>
       </div>
     </section>

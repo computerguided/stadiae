@@ -55,6 +55,14 @@ Alternatively, click the [live demo link](https://htmlpreview.github.io/?https:/
 
 > Stadiæ renders diagrams by sending PlantUML source to a **PlantUML server**. The default is the public server at `plantuml.com`, but you can point Stadiæ at a local server via `File → PlantUML server…` — useful for offline work, air-gapped environments, or avoiding the public server's rate limits. All editing, saving, and exporting-to-`.puml` works fully offline; only the rendered previews and the `.docx` specification export need server access. The specification export also loads its document-building library (`docx`) from unpkg.com on first use per session.
 
+## Optional: Claude Desktop integration
+
+Stadiæ ships with an optional **MCP bridge** that connects the editor to [Claude Desktop](https://claude.ai/download). Once installed, Claude can read your current model, look up the schema and FCM design conventions, and apply edits you ask for in natural language — *"add a `Connecting` state to ServerConnector with a transition from `Idle` on `Connection:ConnectReq`"*, *"describe the responsibility of each handler"*, *"refactor this state machine to handle a transient connection drop"*. The bridge is a separate Node process; the editor itself remains a single self-contained HTML file with no external dependencies.
+
+The bridge is **opt-in**. The editor works exactly as before whether or not the bridge is installed; nothing in the core editing experience changes.
+
+For installation instructions, see [bridge-setup-linux.md](bridge-setup-linux.md).
+
 ## Usage at a glance
 
 When you open Stadiæ you'll see:
@@ -77,6 +85,15 @@ When you open Stadiæ you'll see:
 7. Save as `.json`, or export as `.puml`, `.png`, Markdown, or a full Word specification document.
 
 The **complete manual** is available inside the app under `Help → User Manual` — including the full selection rules, keyboard shortcuts, and a troubleshooting guide.
+
+## Examples
+
+Two worked examples ship with the repository:
+
+- [`WIND.json`](examples/WIND.json) — *Wireless Interactive Networked Display*. A hardware-oriented device with three components (`ServerConnector`, `DeviceStatusController`, `UiController`), five handlers (`WirelessTransceiver`, `PeripheralHandler`, `TouchDisplay`, `AudioHandler`, `ProximityDetector`), seven interfaces, nineteen messages, and six type definitions. Exercises the radio / peripheral / display / audio / proximity-sensor families of handler.
+- [`DCSC.json`](examples/DCSC.json) — *Doors Controlling System Controller*. A control-flow-oriented device with three components (`Administrator`, `DeviceController`, `DoorController`), three handlers (`ConfigurationDatabase`, `BackendInterface`, `SensorHandler`), five interfaces, twenty-eight messages, and five type definitions. Exercises configuration storage, a backend integration, and per-door sensor management.
+
+Open either file in Stadiæ to see the features in action; export it as `.docx` to see what the specification export produces on a populated device. The two examples are complementary — WIND covers the hardware-driver flavour of FCM modelling, DCSC the administrative / business-logic flavour.
 
 ## File format
 
@@ -120,3 +137,5 @@ Released under the [MIT License](LICENSE.txt). See the `LICENSE` file for detail
 ## Credits
 
 Built as a GUI front-end for [PlantUML](https://plantuml.com). Diagram rendering uses the public PlantUML server by default (configurable).
+
+The optional Claude Desktop integration uses the [Model Context Protocol](https://modelcontextprotocol.io).

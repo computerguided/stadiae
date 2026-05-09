@@ -2048,8 +2048,30 @@
   }
   .server-status.online .dot { background: #3b82f6; }
   .server-status.local  .dot { background: #10b981; }
+  /* Bridge-status uses the same .server-status chrome with three additional
+     states: disconnected (gray, default), connecting (amber), connected
+     (green). Disconnected uses the base #888 already set above. */
+  .server-status.connecting .dot { background: #f59e0b; }
+  .server-status.connected  .dot { background: #10b981; }
   .server-status .label { color: var(--chrome-text-muted, #9ca3af); }
   .server-status .value { color: var(--chrome-text); font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; }
+
+  /* Bridge dialog status line — colour mirrors the menubar indicator's
+     dot so the user reads the two as a pair. */
+  .bridge-dialog-status-row { margin-top: 14px; display: flex; align-items: center; gap: 8px; }
+  .bridge-dialog-status-label { color: var(--text-muted, #6b7280); font-size: 12px; }
+  .bridge-dialog-status { font-size: 12px; font-family: "SF Mono", Menlo, Consolas, monospace; }
+  .bridge-dialog-status.connecting { color: #b45309; }
+  .bridge-dialog-status.connected  { color: #047857; }
+
+  /* Bridge dialog reuses the .srv-body single-column block layout (intro
+     paragraph above, URL field below, status row at the bottom). Unlike
+     the PlantUML server dialog — whose radio-option cards naturally cap
+     the modal width — the bridge dialog's only flowing content is the
+     intro paragraph, which would otherwise stretch the modal toward the
+     90vw max. We pin the width explicitly to keep the dialog compact and
+     a comfortable reading measure for the intro text. */
+  .modal.bridge-modal { width: 440px; min-width: 440px; max-width: 440px; }
 
   /* Scrollbars (WebKit) - subtle, modern */
   ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -2081,6 +2103,7 @@
       <div class="item" data-action="export-spec">Export Specification...</div>
       <div class="separator"></div>
       <div class="item" data-action="plantuml-server">PlantUML server...</div>
+      <div class="item" data-action="bridge">Bridge...</div>
       <div class="separator"></div>
       <div class="item" data-action="exit">Exit</div>
     </div>
@@ -2116,6 +2139,11 @@
     hovering over the canvas; it lives here as chrome among the menus.
   -->
   <div class="menubar-spacer"></div>
+  <button class="server-status" id="bridge-status" title="Bridge — click to configure">
+    <span class="dot"></span>
+    <span class="label">bridge:</span>
+    <span class="value" id="bridge-status-value">off</span>
+  </button>
   <button class="server-status" id="server-status" title="PlantUML server — click to change">
     <span class="dot"></span>
     <span class="label">plantuml:</span>
@@ -2727,7 +2755,15 @@ const Model = (() => {
   activeView: "component",
   // Save metadata
   dirty: false,
-  savedFilename: null
+  savedFilename: null,
+  // Monotonically increasing counter incremented on every state-changing
+  // operation. Used by the MCP bridge for optimistic concurrency control:
+  // `get_model` returns the current version alongside the model;
+  // `replace_model` requires the caller's expected version and rejects if
+  // the editor has moved on since. The version is opaque to the user and
+  // never exposed in the UI. It is in-memory only — not persisted to file
+  // and not part of the on-disk format.
+  version: 0
   };
 })();
 
@@ -2818,6 +2854,748 @@ function savePlantUMLServerConfig() {
 
 function activePlantUMLBaseUrl() {
   return PlantUMLServer.mode === "local" ? PlantUMLServer.localUrl : PlantUMLServer.onlineUrl;
+}
+
+// ---------- MCP bridge ----------
+// WebSocket client that connects to the Stadiæ MCP bridge process. The
+// bridge advertises tools to Claude Desktop over stdio/MCP; this client
+// is the other end of those tools — when Claude calls `get_model`, the
+// bridge forwards a `{method: "get_model"}` frame here, this client
+// dispatches to the matching handler, and replies with `{result: ...}`.
+//
+// Lifecycle: the user explicitly opts in via File → Bridge…, which calls
+// `connectBridge()`. On page load we never auto-connect: a reload is a
+// deliberate moment, and silently re-establishing a connection that
+// could surface model edits across tabs would be surprising. Mid-session
+// drops, however, do auto-reconnect with bounded exponential backoff —
+// once the user opted in, transient bridge restarts and network blips
+// should recover silently.
+//
+// Frame format on the wire:
+//   bridge → browser:  { id, method, params }
+//   browser → bridge:  { id, result }              on success
+//   browser → bridge:  { id, error: { message } }  on failure
+// `id` is assigned by the bridge; we echo it on the response.
+const Bridge = {
+  url: "ws://127.0.0.1:7531",   // user-configurable
+  enabled: false,                 // true once the user clicked Connect
+  socket: null,                   // current WebSocket, if any
+  state: "disconnected",          // "disconnected" | "connecting" | "connected"
+  lastError: "",                  // most recent failure message, for the dialog
+  reconnectTimer: null,           // setTimeout handle for the next backoff attempt
+  backoffMs: 1000,                // current backoff delay, doubles up to 30s
+};
+
+const BRIDGE_BACKOFF_INITIAL_MS = 1000;
+const BRIDGE_BACKOFF_MAX_MS = 30000;
+
+function loadBridgeConfig() {
+  try {
+    const raw = localStorage.getItem("stadiae.bridge");
+    if (!raw) return;
+    const cfg = JSON.parse(raw);
+    if (typeof cfg.url === "string" && cfg.url.trim()) {
+      Bridge.url = cfg.url.trim();
+    }
+    // `enabled` is intentionally not restored on load. The user reconnects
+    // explicitly each session — see lifecycle comment above.
+  } catch (_) { /* corrupted / unavailable — stick with defaults */ }
+}
+
+function saveBridgeConfig() {
+  try {
+    localStorage.setItem("stadiae.bridge", JSON.stringify({
+      url: Bridge.url
+    }));
+  } catch (_) { /* localStorage disabled — setting won't persist */ }
+}
+
+// Try to open a WebSocket to Bridge.url. Resolves on open, rejects on
+// the first error/close. Either way the caller should observe Bridge.state
+// to learn the outcome rather than relying on the promise — `state`
+// drives the UI and survives reconnects.
+function connectBridge() {
+  // Cancel any pending reconnect; the user (or a fresh attempt) is
+  // taking control now.
+  if (Bridge.reconnectTimer) {
+    clearTimeout(Bridge.reconnectTimer);
+    Bridge.reconnectTimer = null;
+  }
+  // Close any existing socket cleanly.
+  if (Bridge.socket && Bridge.socket.readyState !== WebSocket.CLOSED) {
+    try { Bridge.socket.close(); } catch (_) { /* ignore */ }
+  }
+  Bridge.enabled = true;
+  Bridge.lastError = "";
+  setBridgeState("connecting");
+
+  let ws;
+  try {
+    ws = new WebSocket(Bridge.url);
+  } catch (err) {
+    // Constructor throws synchronously on a malformed URL (e.g. wrong scheme).
+    Bridge.lastError = err.message || String(err);
+    setBridgeState("disconnected");
+    scheduleReconnect();
+    return;
+  }
+  Bridge.socket = ws;
+
+  ws.addEventListener("open", () => {
+    Bridge.backoffMs = BRIDGE_BACKOFF_INITIAL_MS;
+    Bridge.lastError = "";
+    setBridgeState("connected");
+  });
+
+  ws.addEventListener("message", (event) => {
+    let frame;
+    try {
+      frame = JSON.parse(event.data);
+    } catch (_) {
+      return; // ignore malformed frame
+    }
+    handleBridgeFrame(frame);
+  });
+
+  ws.addEventListener("error", () => {
+    // `error` fires when the connection cannot be established or breaks.
+    // The browser does not expose a useful error reason for security
+    // reasons, so we keep the message generic.
+    if (!Bridge.lastError) {
+      Bridge.lastError = "Could not connect to the bridge at " + Bridge.url + ".";
+    }
+  });
+
+  ws.addEventListener("close", () => {
+    if (Bridge.socket === ws) Bridge.socket = null;
+    setBridgeState("disconnected");
+    if (Bridge.enabled) scheduleReconnect();
+  });
+}
+
+// Stop any active connection or pending reconnect, and clear the
+// "enabled" flag so background reconnects don't fire. Idempotent.
+function disconnectBridge() {
+  Bridge.enabled = false;
+  if (Bridge.reconnectTimer) {
+    clearTimeout(Bridge.reconnectTimer);
+    Bridge.reconnectTimer = null;
+  }
+  if (Bridge.socket && Bridge.socket.readyState !== WebSocket.CLOSED) {
+    try { Bridge.socket.close(); } catch (_) { /* ignore */ }
+  }
+  Bridge.socket = null;
+  Bridge.backoffMs = BRIDGE_BACKOFF_INITIAL_MS;
+  Bridge.lastError = "";
+  setBridgeState("disconnected");
+}
+
+// Schedule the next reconnect attempt. Backoff doubles up to a 30s cap;
+// once at the cap, attempts continue every 30s until success or until
+// the user explicitly disconnects.
+function scheduleReconnect() {
+  if (!Bridge.enabled) return;
+  if (Bridge.reconnectTimer) return; // already scheduled
+  const delay = Bridge.backoffMs;
+  Bridge.backoffMs = Math.min(Bridge.backoffMs * 2, BRIDGE_BACKOFF_MAX_MS);
+  Bridge.reconnectTimer = setTimeout(() => {
+    Bridge.reconnectTimer = null;
+    if (Bridge.enabled) connectBridge();
+  }, delay);
+}
+
+function setBridgeState(state) {
+  Bridge.state = state;
+  updateBridgeStatus();
+  refreshBridgeDialogState();
+}
+
+// Dispatch an incoming bridge frame to the matching handler and send the
+// response. Handlers are async-friendly: they may return a value or a
+// promise. Errors are caught and reported back as `{error: {message}}`.
+async function handleBridgeFrame(frame) {
+  if (!frame || typeof frame.id !== "number" || typeof frame.method !== "string") {
+    return; // malformed
+  }
+  const handler = bridgeMethods[frame.method];
+  if (!handler) {
+    sendBridgeFrame({ id: frame.id, error: { message: "Unknown method: " + frame.method } });
+    return;
+  }
+  try {
+    const result = await handler(frame.params || {});
+    sendBridgeFrame({ id: frame.id, result });
+  } catch (err) {
+    // Errors carry an optional `.errors` payload (the validator's
+    // structured per-field detail). Preserve it through the wire so
+    // the bridge can surface it to the LLM in actionable form.
+    const envelope = { message: err?.message || String(err) };
+    if (Array.isArray(err?.errors)) envelope.errors = err.errors;
+    sendBridgeFrame({ id: frame.id, error: envelope });
+  }
+}
+
+function sendBridgeFrame(obj) {
+  if (Bridge.socket && Bridge.socket.readyState === WebSocket.OPEN) {
+    Bridge.socket.send(JSON.stringify(obj));
+  }
+}
+
+// Strict validator for models received from the MCP bridge. The existing
+// `loadModel` path is forgiving by design (it normalises malformed input
+// from hand-edited files), but Claude-generated input benefits from
+// strict feedback: a structured error pinpoints the mistake, and Claude
+// self-corrects in one round-trip. The validator catches the specific
+// errors most likely to appear in generated input — the rules that
+// `stadiae_mcp_instructions.md` lists as invariants.
+//
+// Returns `{ ok: true }` on success, or `{ ok: false, errors: [...] }`
+// where each entry has:
+//   - path:    a JSON-pointer-like string locating the offending field
+//   - message: what's wrong
+//   - valid:   (optional) the set of valid alternatives for this field
+//
+// Pure function: does not touch Model, does not mutate `data`, returns
+// all errors found rather than first-failure-wins so a single round-trip
+// can fix multiple issues.
+function validateBridgeModel(data) {
+  const errors = [];
+  const err = (path, message, valid) => {
+    const e = { path, message };
+    if (valid) e.valid = valid;
+    errors.push(e);
+  };
+
+  // 1. Top-level structural checks. These short-circuit the rest —
+  // there's no point trying to validate components if `data` itself
+  // isn't an object.
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    err("", "Model must be a JSON object.");
+    return { ok: false, errors };
+  }
+  if (data.format !== "stadiae-v4") {
+    err("format", "Format must be exactly \"stadiae-v4\".",
+        ["stadiae-v4"]);
+    return { ok: false, errors };
+  }
+  if (!Array.isArray(data.components) || data.components.length === 0) {
+    err("components", "Model must contain at least one component.");
+    // Continue — other top-level arrays may still be checkable.
+  }
+
+  // 2. Built-in vocabulary that must not be declared. The loader silently
+  // overwrites duplicates, but explicit rejection here gives Claude a
+  // clearer signal than "your declaration was ignored."
+  const BUILTIN_INTERFACES = new Set(["Logical", "Timer"]);
+  const BUILTIN_HANDLERS = new Set(["TimerHandler"]);
+  const BUILTIN_TYPES = new Set(["Time", "TimerID"]);
+  const RESERVED_LF_NAMES = new Set(["resendLastReceivedMessage"]);
+
+  for (const [i, iface] of (data.interfaces || []).entries()) {
+    if (iface && BUILTIN_INTERFACES.has(iface.name)) {
+      err(`interfaces[${i}].name`,
+          `"${iface.name}" is a built-in interface and must not be declared.`);
+    }
+  }
+  for (const [i, h] of (data.handlers || []).entries()) {
+    if (h && BUILTIN_HANDLERS.has(h.name)) {
+      err(`handlers[${i}].name`,
+          `"${h.name}" is a built-in handler and must not be declared.`);
+    }
+  }
+  for (const [i, t] of (data.types || []).entries()) {
+    if (t && BUILTIN_TYPES.has(t.name)) {
+      err(`types[${i}].name`,
+          `"${t.name}" is a built-in type and must not be declared.`);
+    }
+  }
+
+  // 3. Identifier-safety and uniqueness for top-level entities.
+  const checkIdentifierSafe = (path, name) => {
+    if (typeof name !== "string" || name.length === 0) {
+      err(path, "Name is required."); return false;
+    }
+    if (!isValidIdentifier(name)) {
+      err(path, `Name "${name}" is not identifier-safe. Must match /^[A-Za-z][A-Za-z0-9_]*$/.`);
+      return false;
+    }
+    return true;
+  };
+
+  const interfaceNames = new Set();
+  for (const [i, iface] of (data.interfaces || []).entries()) {
+    if (!iface) continue;
+    if (!checkIdentifierSafe(`interfaces[${i}].name`, iface.name)) continue;
+    if (interfaceNames.has(iface.name)) {
+      err(`interfaces[${i}].name`,
+          `Interface name "${iface.name}" is duplicated.`);
+    }
+    interfaceNames.add(iface.name);
+  }
+
+  // Components and handlers share one device-wide name namespace.
+  const deviceEntityNames = new Set();
+  for (const [i, c] of (data.components || []).entries()) {
+    if (!c) continue;
+    if (!checkIdentifierSafe(`components[${i}].name`, c.name)) continue;
+    if (deviceEntityNames.has(c.name)) {
+      err(`components[${i}].name`,
+          `Component name "${c.name}" is duplicated (component and handler names share one namespace).`);
+    }
+    deviceEntityNames.add(c.name);
+  }
+  for (const [i, h] of (data.handlers || []).entries()) {
+    if (!h) continue;
+    if (!checkIdentifierSafe(`handlers[${i}].name`, h.name)) continue;
+    if (deviceEntityNames.has(h.name)) {
+      err(`handlers[${i}].name`,
+          `Handler name "${h.name}" is duplicated (component and handler names share one namespace).`);
+    }
+    deviceEntityNames.add(h.name);
+  }
+
+  const typeNames = new Set();
+  for (const [i, t] of (data.types || []).entries()) {
+    if (!t) continue;
+    if (!checkIdentifierSafe(`types[${i}].name`, t.name)) continue;
+    if (typeNames.has(t.name)) {
+      err(`types[${i}].name`,
+          `Type name "${t.name}" is duplicated.`);
+    }
+    typeNames.add(t.name);
+  }
+
+  // 4. Messages must reference an existing interface (built-in or
+  // user-defined), and message names must be unique within their
+  // interface.
+  const knownInterfaceNames = new Set([
+    ...interfaceNames,
+    "Logical", "Timer",   // built-ins
+  ]);
+  const messagesByInterface = new Map();   // ifaceName -> Set<msgName>
+  for (const [i, m] of (data.messages || []).entries()) {
+    if (!m) continue;
+    if (typeof m.interface !== "string" || !knownInterfaceNames.has(m.interface)) {
+      err(`messages[${i}].interface`,
+          `Message references unknown interface "${m.interface}".`,
+          [...interfaceNames].sort());
+      continue;
+    }
+    if (!checkIdentifierSafe(`messages[${i}].name`, m.name)) continue;
+    let bucket = messagesByInterface.get(m.interface);
+    if (!bucket) { bucket = new Set(); messagesByInterface.set(m.interface, bucket); }
+    if (bucket.has(m.name)) {
+      err(`messages[${i}].name`,
+          `Message "${m.interface}:${m.name}" is duplicated.`);
+    }
+    bucket.add(m.name);
+  }
+
+  // 5. Per-component checks: state and choice-point name uniqueness,
+  // local-function reservation, and transition source/target validity.
+  for (const [ci, c] of (data.components || []).entries()) {
+    if (!c) continue;
+    const cPath = `components[${ci}]`;
+    const stateNames = new Set();
+    const cpNames = new Set();
+    // States and choice-points share one namespace, but transitions
+    // reference choice-points with a "CP_" prefix. We track both flat
+    // names (for uniqueness) and prefixed forms (for transition
+    // validation below).
+    const localNamespace = new Set();
+
+    for (const [si, s] of (c.states || []).entries()) {
+      if (!s) continue;
+      if (!checkIdentifierSafe(`${cPath}.states[${si}].name`, s.name)) continue;
+      if (s.name === "START" || s.name === "[H]" || s.name === "*") {
+        err(`${cPath}.states[${si}].name`,
+            `"${s.name}" is a reserved pseudostate name and cannot be used for a state.`);
+        continue;
+      }
+      if (localNamespace.has(s.name)) {
+        err(`${cPath}.states[${si}].name`,
+            `State name "${s.name}" collides with another state or choice-point in the same component.`);
+      }
+      stateNames.add(s.name);
+      localNamespace.add(s.name);
+    }
+    for (const [pi, p] of (c.choicePoints || []).entries()) {
+      if (!p) continue;
+      if (!checkIdentifierSafe(`${cPath}.choicePoints[${pi}].name`, p.name)) continue;
+      if (localNamespace.has(p.name)) {
+        err(`${cPath}.choicePoints[${pi}].name`,
+            `Choice-point name "${p.name}" collides with another state or choice-point in the same component.`);
+      }
+      cpNames.add(p.name);
+      localNamespace.add(p.name);
+    }
+
+    for (const [li, lf] of (c.localFunctions || []).entries()) {
+      if (!lf) continue;
+      if (typeof lf.name === "string" && RESERVED_LF_NAMES.has(lf.name)) {
+        err(`${cPath}.localFunctions[${li}].name`,
+            `"${lf.name}" is a built-in local function and must not be declared.`);
+      }
+    }
+
+    // Transition source/target validation.
+    // Valid sources: existing state, "CP_<existing-cp>", "START", "*".
+    // Valid targets: existing state, "CP_<existing-cp>", "[H]".
+    const validSourceLabel = (label) => {
+      if (label === "START" || label === "*") return true;
+      if (stateNames.has(label)) return true;
+      if (label.startsWith("CP_") && cpNames.has(label.slice(3))) return true;
+      return false;
+    };
+    const validTargetLabel = (label) => {
+      if (label === "[H]") return true;
+      if (stateNames.has(label)) return true;
+      if (label.startsWith("CP_") && cpNames.has(label.slice(3))) return true;
+      return false;
+    };
+    const sourceAlternatives = () => [
+      ...stateNames,
+      ...[...cpNames].map(n => "CP_" + n),
+      "START", "*",
+    ];
+    const targetAlternatives = () => [
+      ...stateNames,
+      ...[...cpNames].map(n => "CP_" + n),
+      "[H]",
+    ];
+
+    // Track (source, message) pairs to catch duplicates.
+    const handledPairs = new Set();
+    let startTransitionCount = 0;
+
+    for (const [ti, t] of (c.transitions || []).entries()) {
+      if (!t) continue;
+      const tPath = `${cPath}.transitions[${ti}]`;
+
+      if (typeof t.source !== "string" || !validSourceLabel(t.source)) {
+        err(`${tPath}.source`,
+            `Transition source "${t.source}" does not resolve to any state, choice-point, or pseudostate.`,
+            sourceAlternatives());
+      }
+      if (typeof t.target !== "string" || !validTargetLabel(t.target)) {
+        err(`${tPath}.target`,
+            `Transition target "${t.target}" does not resolve to any state, choice-point, or pseudostate.`,
+            targetAlternatives());
+      }
+
+      // The START transition must be at most once and carry no messages.
+      if (t.source === "START") {
+        startTransitionCount++;
+        if (startTransitionCount > 1) {
+          err(`${tPath}.source`,
+              "Only one transition may have source \"START\".");
+        }
+        if (Array.isArray(t.messages) && t.messages.length > 0) {
+          err(`${tPath}.messages`,
+              "The START transition must have an empty messages array.");
+        }
+      }
+
+      // Per-message checks: ANY-message wildcard placement, duplicate
+      // (source, message) pairs, message references existing.
+      const msgs = Array.isArray(t.messages) ? t.messages : [];
+      for (const [mi, m] of msgs.entries()) {
+        if (!m) continue;
+        const mPath = `${tPath}.messages[${mi}]`;
+        // ANY-message wildcard: only valid as the sole message on a
+        // self-transition. Caught here so Claude isn't tempted to use
+        // it on regular state-to-state transitions.
+        const isAnyWildcard = m.interface === "*" && m.name === "*";
+        if (isAnyWildcard) {
+          if (msgs.length !== 1) {
+            err(mPath, "ANY-message wildcard must be the sole message on its transition.");
+          }
+          if (t.source !== t.target) {
+            err(mPath, "ANY-message wildcard is only valid on a self-transition (source equals target).");
+          }
+          continue; // no further checks for the wildcard
+        }
+        // Real messages must reference a known interface and a known
+        // message name on that interface.
+        if (typeof m.interface !== "string" || !knownInterfaceNames.has(m.interface)) {
+          err(mPath + ".interface",
+              `Message references unknown interface "${m.interface}".`,
+              [...knownInterfaceNames].sort());
+          continue;
+        }
+        const messagesOnInterface = m.interface === "Logical" ? new Set(["Yes", "No"])
+                                  : m.interface === "Timer"   ? new Set(["Timeout"])
+                                  : (messagesByInterface.get(m.interface) || new Set());
+        if (typeof m.name !== "string" || !messagesOnInterface.has(m.name)) {
+          err(mPath + ".name",
+              `Message "${m.interface}:${m.name}" is not declared.`,
+              [...messagesOnInterface].sort());
+          continue;
+        }
+        // (source, message) duplicate check. Only for non-START
+        // transitions; START has no messages.
+        const key = t.source + "/" + m.interface + ":" + m.name;
+        if (handledPairs.has(key)) {
+          err(mPath,
+              `(source "${t.source}", message "${m.interface}:${m.name}") is handled more than once in this component.`);
+        }
+        handledPairs.add(key);
+      }
+    }
+  }
+
+  // 6. Connections must reference existing components / handlers and
+  // must not use built-in interfaces.
+  for (const [i, cn] of (data.connections || []).entries()) {
+    if (!cn) continue;
+    if (!deviceEntityNames.has(cn.component)) {
+      err(`connections[${i}].component`,
+          `Connection references unknown component "${cn.component}".`);
+    }
+    if (BUILTIN_INTERFACES.has(cn.interface)) {
+      err(`connections[${i}].interface`,
+          `Connections must not reference built-in interface "${cn.interface}".`);
+    } else if (!interfaceNames.has(cn.interface)) {
+      err(`connections[${i}].interface`,
+          `Connection references unknown interface "${cn.interface}".`,
+          [...interfaceNames].sort());
+    }
+  }
+  for (const [i, hc] of (data.handlerConnections || []).entries()) {
+    if (!hc) continue;
+    if (!deviceEntityNames.has(hc.handler)) {
+      err(`handlerConnections[${i}].handler`,
+          `Handler connection references unknown handler "${hc.handler}".`);
+    }
+    if (BUILTIN_INTERFACES.has(hc.interface)) {
+      err(`handlerConnections[${i}].interface`,
+          `Handler connections must not reference built-in interface "${hc.interface}".`);
+    } else if (!interfaceNames.has(hc.interface)) {
+      err(`handlerConnections[${i}].interface`,
+          `Handler connection references unknown interface "${hc.interface}".`,
+          [...interfaceNames].sort());
+    }
+  }
+  for (const [i, hc] of (data.handlerCalls || []).entries()) {
+    if (!hc) continue;
+    if (!deviceEntityNames.has(hc.component)) {
+      err(`handlerCalls[${i}].component`,
+          `Handler call references unknown component "${hc.component}".`);
+    }
+    if (!deviceEntityNames.has(hc.handler)) {
+      err(`handlerCalls[${i}].handler`,
+          `Handler call references unknown handler "${hc.handler}".`);
+    }
+  }
+
+  // 7. Multiplication invariant: at most one multiplied component
+  // wired to any given interface.
+  const multipliedByInterface = new Map();
+  for (const [i, cn] of (data.connections || []).entries()) {
+    if (!cn) continue;
+    const comp = (data.components || []).find(c => c && c.name === cn.component);
+    if (!comp) continue;
+    const isMultiplied = typeof comp.multiplication === "string"
+                       && comp.multiplication.trim().length > 0;
+    if (!isMultiplied) continue;
+    const list = multipliedByInterface.get(cn.interface) || [];
+    list.push({ component: cn.component, connectionIndex: i });
+    multipliedByInterface.set(cn.interface, list);
+  }
+  for (const [iface, list] of multipliedByInterface.entries()) {
+    if (list.length > 1) {
+      const names = list.map(x => `"${x.component}"`).join(", ");
+      for (const x of list) {
+        err(`connections[${x.connectionIndex}]`,
+            `Interface "${iface}" is wired to multiple multiplied components (${names}). At most one multiplied component may share an interface.`);
+      }
+    }
+  }
+
+  return errors.length === 0 ? { ok: true } : { ok: false, errors };
+}
+
+// Replace the in-memory model with the supplied stadiae-v4 document.
+// Used by the bridge's `replace_model` method. Distinct from the File
+// → Open path in two ways: it pushes a history entry first (so undo
+// reverts the Claude-generated change), and it leaves the saved
+// filename untouched (the model has changed, but the user did not open
+// a different file). Throws on validation failure with a structured
+// error payload that the bridge can surface to Claude.
+//
+// Optimistic concurrency: if `expectedVersion` is supplied and does not
+// match `Model.version`, the call is rejected without applying any
+// change. The error envelope carries the current version so the caller
+// can refetch and reapply on top of fresh state. The check happens
+// before schema validation — there's no point reporting field errors
+// against a model the caller is going to refetch anyway.
+function replaceModelFromBridge(data, expectedVersion) {
+  if (typeof expectedVersion === "number" && expectedVersion !== Model.version) {
+    const e = new Error("Model has been modified since you read it.");
+    e.errors = [{
+      path: "expectedVersion",
+      message: `Submitted expectedVersion ${expectedVersion} but the current model version is ${Model.version}. The user has edited the model since the last get_model. Refetch with get_model and reapply your edit on top of the new state.`,
+      currentVersion: Model.version,
+    }];
+    throw e;
+  }
+  const result = validateBridgeModel(data);
+  if (!result.ok) {
+    const e = new Error("Model validation failed");
+    e.errors = result.errors;
+    throw e;
+  }
+  pushHistory();
+  loadModel(data);
+  Selection.clearAll();
+  Model.dirty = true;
+  refresh();
+  return { ok: true, version: Model.version };
+}
+
+// Method registry. Each entry receives the request `params` and returns
+// the result object (or a promise resolving to one). Throwing converts
+// to an error frame on the wire; if the thrown Error carries a `.errors`
+// array, the dispatcher passes it through as structured detail.
+const bridgeMethods = {
+  // Returns the current model as a stadiae-v4 JSON document, alongside
+  // the model's current version. Read-only; does not mutate state. Each
+  // call is a fresh snapshot.
+  //
+  // The version is the optimistic-concurrency stamp: pass it back as
+  // `expectedVersion` to a subsequent `replace_model` call to assert
+  // that the model has not changed in the meantime.
+  get_model: (_params) => ({
+    model: buildSerializedModel(),
+    version: Model.version,
+  }),
+
+  // Replaces the current model with the supplied stadiae-v4 document
+  // after strict validation. Requires `expectedVersion` matching the
+  // version returned by the most recent `get_model`; on mismatch the
+  // call is rejected with a structured error containing the current
+  // version, so the caller can refetch.
+  replace_model: (params) => {
+    if (!params || typeof params.model !== "object" || params.model === null) {
+      const e = new Error("replace_model requires a `model` parameter containing a stadiae-v4 JSON object.");
+      e.errors = [{ path: "model", message: "Missing or non-object `model` parameter." }];
+      throw e;
+    }
+    if (typeof params.expectedVersion !== "number") {
+      const e = new Error("replace_model requires an `expectedVersion` parameter (the version returned by the most recent get_model).");
+      e.errors = [{
+        path: "expectedVersion",
+        message: "Missing or non-numeric `expectedVersion`. Call get_model first; pass back the `version` field it returned.",
+      }];
+      throw e;
+    }
+    return replaceModelFromBridge(params.model, params.expectedVersion);
+  },
+};
+
+// Keep the menubar bridge indicator in sync with Bridge.state.
+function updateBridgeStatus() {
+  const el = document.getElementById("bridge-status");
+  const val = document.getElementById("bridge-status-value");
+  if (!el || !val) return;
+  el.classList.remove("connecting", "connected");
+  switch (Bridge.state) {
+    case "connecting":
+      el.classList.add("connecting");
+      val.textContent = "connecting";
+      el.title = "Bridge: connecting to " + Bridge.url + " — click to configure";
+      break;
+    case "connected":
+      el.classList.add("connected");
+      val.textContent = "on";
+      el.title = "Bridge: connected to " + Bridge.url + " — click to configure";
+      break;
+    default:
+      val.textContent = "off";
+      el.title = "Bridge: disconnected — click to configure";
+      break;
+  }
+}
+
+// If the bridge dialog is currently open, refresh its status line and
+// connect/disconnect button to reflect the latest Bridge.state. Called
+// from setBridgeState so the dialog tracks the live connection without
+// the user having to close and reopen it.
+function refreshBridgeDialogState() {
+  const dlg = document.getElementById("bridge-dialog");
+  if (!dlg) return;
+  const statusEl = document.getElementById("bridge-dialog-status");
+  const btn = document.getElementById("bridge-dialog-toggle");
+  if (statusEl) {
+    let text;
+    switch (Bridge.state) {
+      case "connecting": text = "Connecting…"; break;
+      case "connected":  text = "Connected."; break;
+      default:           text = Bridge.lastError || "Disconnected."; break;
+    }
+    statusEl.textContent = text;
+    statusEl.className = "bridge-dialog-status " + Bridge.state;
+  }
+  if (btn) {
+    if (Bridge.state === "connected") {
+      btn.textContent = "Disconnect";
+      btn.disabled = false;
+    } else if (Bridge.state === "connecting") {
+      btn.textContent = "Connecting…";
+      btn.disabled = true;
+    } else {
+      btn.textContent = "Connect";
+      btn.disabled = false;
+    }
+  }
+}
+
+function showBridgeDialog() {
+  const url = Bridge.url;
+  modalContainer.innerHTML = `
+    <div class="title" id="bridge-dialog">Bridge</div>
+    <div class="body srv-body">
+      <p class="srv-intro">A local Node process that lets Claude Desktop read and edit your Stadiæ model. The URL below is the bridge's WebSocket address; change it only if you've reconfigured the bridge to listen elsewhere. The connection is local-only and not visible to the network.</p>
+      <div class="srv-url-block">
+        <label class="srv-url-label" for="bridge-url">WebSocket URL</label>
+        <input type="text" id="bridge-url" value="${escapeHTML(url)}" placeholder="ws://127.0.0.1:7531">
+      </div>
+      <div class="bridge-dialog-status-row">
+        <span class="bridge-dialog-status-label">Status:</span>
+        <span class="bridge-dialog-status" id="bridge-dialog-status"></span>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="bridge-dialog-toggle"></button>
+      <button id="bridge-dialog-close" class="cancel">Close</button>
+    </div>`;
+  modalContainer.className = "modal bridge-modal";
+  modalOverlay.classList.add("show");
+
+  const urlInput = document.getElementById("bridge-url");
+
+  // Render initial state.
+  refreshBridgeDialogState();
+
+  document.getElementById("bridge-dialog-toggle").onclick = () => {
+    if (Bridge.state === "connected") {
+      disconnectBridge();
+      return;
+    }
+    // Connecting (or reconnecting after a disconnect) — read the URL
+    // field, validate, save if changed, and connect.
+    const raw = urlInput.value.trim().replace(/\/+$/, "");
+    if (!/^wss?:\/\/.+/i.test(raw)) {
+      showAlert("Invalid URL", "Enter a URL starting with ws:// or wss:// — e.g. ws://127.0.0.1:7531");
+      return;
+    }
+    if (raw !== Bridge.url) {
+      Bridge.url = raw;
+      saveBridgeConfig();
+    }
+    connectBridge();
+  };
+  document.getElementById("bridge-dialog-close").onclick = hideModal;
 }
 
 // ---------- Autosave to localStorage ----------
@@ -3092,12 +3870,14 @@ function pushHistory() {
   if (History.past.length > 100) History.past.shift();
   History.future = [];
   Model.dirty = true;
+  Model.version++;
 }
 function undo() {
   if (History.past.length === 0) return;
   History.future.push(snapshot());
   restore(History.past.pop());
   Selection.clearAll();
+  Model.version++;
   refresh();
 }
 function redo() {
@@ -3105,6 +3885,7 @@ function redo() {
   History.past.push(snapshot());
   restore(History.future.pop());
   Selection.clearAll();
+  Model.version++;
   refresh();
 }
 
@@ -8070,6 +8851,7 @@ function showManual() {
     {id: "editing", title: "Editing & Deleting"},
     {id: "files", title: "Saving, Opening & Exporting"},
     {id: "server", title: "PlantUML Server"},
+    {id: "bridge", title: "Claude Desktop Bridge"},
     {id: "rules", title: "Rules Reference"},
     {id: "shortcuts", title: "Keyboard Shortcuts"},
     {id: "troubleshooting", title: "Troubleshooting"}
@@ -8658,6 +9440,36 @@ function manualContent() {
       <p>If the configured server cannot be reached — the local daemon is down, the URL is wrong, or the network is unavailable — the canvas shows <em>"Could not render diagram."</em>. Open the <em>PlantUML server</em> dialog to verify or change the setting. Switching back to <em>Online</em> is a quick way to confirm whether the problem is your local setup or something else.</p>
     </section>
 
+    <section id="m-bridge">
+      <h2>Claude Desktop Bridge</h2>
+      <p>Stadiæ has an <strong>optional</strong> integration with <a href="https://claude.ai/download" target="_blank">Claude Desktop</a> that lets Claude read your current model and propose edits to it. The integration is off by default and the editor works exactly as before whether or not it is configured. Once enabled, you can ask Claude in natural language to add states, refactor a state machine, describe a component, or build a model from a description, and the change appears in the editor immediately.</p>
+      <p>The integration uses two pieces: a small <strong>bridge process</strong> (a Node program you install separately, spawned by Claude Desktop) and a <strong>WebSocket client</strong> built into Stadiæ. The two communicate over <code>ws://127.0.0.1:7531</code> — local-only, never reachable from outside your machine. Setup instructions for Linux are in the project's GitHub repository: <a href="https://github.com/computerguided/stadiae/blob/main/bridge-setup-linux.md" target="_blank">bridge-setup-linux.md</a>. The rest of this section assumes the bridge process is already installed and running.</p>
+
+      <h3>Connecting and disconnecting</h3>
+      <p>Open the configuration dialog in one of two ways:</p>
+      <ul>
+        <li>Use <em>File → Bridge…</em>.</li>
+        <li>Click the small <strong>bridge:</strong> indicator at the upper-right of the menu bar. It reads <code>off</code> when disconnected, <code>connecting</code> while attempting a connection (amber), and <code>on</code> when connected (green).</li>
+      </ul>
+      <p>The dialog has a single editable field — the WebSocket URL, pre-filled with the default <code>ws://127.0.0.1:7531</code> — a status line, and a <em>Connect</em> / <em>Disconnect</em> button. Click <em>Connect</em>; the status updates through <em>Connecting…</em> to <em>Connected</em>. Close the dialog. Claude Desktop can now access your model.</p>
+      <div class="tip">The connection is opt-in every session. Stadiæ remembers the URL you configured but never auto-connects when you reload the page — you have to click <em>Connect</em> again. This means a page reload is always a clean slate, with no risk of an earlier conversation regaining access without your knowledge.</div>
+      <p>To revoke access without closing the editor, open the same dialog and click <em>Disconnect</em>. The WebSocket closes; Claude's next attempt to read or modify the model fails with a friendly <em>"Stadiæ is not connected"</em> message until you reconnect.</p>
+
+      <h3>What Claude can do once connected</h3>
+      <p>The bridge exposes exactly three tools to Claude:</p>
+      <ul>
+        <li><strong>Read the model.</strong> Claude can fetch the current model as a <code>stadiae-v4</code> JSON document — the same byte-minimal format that <em>File → Save</em> produces. Used for any question that depends on what's in the editor.</li>
+        <li><strong>Read the schema reference.</strong> Claude can fetch the <code>stadiae-v4</code> schema document and the FCM design conventions, so it grounds its answers in the project's own vocabulary rather than generic state-machine terminology.</li>
+        <li><strong>Replace the model.</strong> Claude can submit a new <code>stadiae-v4</code> document. The editor runs a strict validator on it; on success the model is replaced, the canvas re-renders, and the change is undoable in one <code>Ctrl+Z</code>. On validation failure no change is applied — Claude receives a structured per-field error report and self-corrects on the next attempt.</li>
+      </ul>
+      <p>Two things make the integration safe to use during live editing. First, <em>any</em> change Claude applies is one undo step away — your last action before the change is fully recoverable. Second, the editor tags every submission Claude makes with a <strong>version stamp</strong> from when it last read the model: if you've edited the model in the meantime, the submission is rejected without any change being applied, and Claude refetches and reapplies on top of your fresh state. You will never have your work silently overwritten because Claude's response took a few seconds longer than expected.</p>
+      <div class="tip">The model that Claude reads is exactly what <em>Save</em> would write — defaults stripped, built-ins removed, optional empty arrays omitted. Claude does not see autosaved drafts, your filename, or anything outside the model itself.</div>
+
+      <h3>When the bridge is unreachable</h3>
+      <p>If you click <em>Connect</em> and the bridge process isn't running (or is on a different URL), the status line shows the failure and the indicator stays at <code>off</code>. Check that the bridge process is running and that the URL matches; the bridge-setup document on GitHub has a checklist for the common causes.</p>
+      <p>If the bridge drops after a successful connection — Claude Desktop restarts, the bridge is killed for diagnostic reasons, the OS sleeps and wakes — the indicator turns amber and Stadiæ retries the connection automatically with bounded backoff (1 second, then 2, then 4, capped at 30). The connection comes back without you having to do anything once the bridge process is back up. To stop the auto-retry (because you no longer want the bridge connected), open <em>File → Bridge…</em> and click <em>Disconnect</em>.</p>
+    </section>
+
     <section id="m-rules">
       <h2>Rules Reference</h2>
       <h3>Naming</h3>
@@ -8714,6 +9526,10 @@ function manualContent() {
       <h2>Troubleshooting</h2>
       <h3>The canvas shows "Could not render diagram"</h3>
       <p>Stadiæ renders diagrams by sending the PlantUML source to a PlantUML server — either the public <code>plantuml.com</code> server or a local one you've configured. If the server is unreachable the canvas shows this error; the rest of the editor still works, and rendering is retried on every change. Open the <em>PlantUML server</em> dialog (<em>File → PlantUML server…</em> or the badge at the bottom-right) to verify or change the setting. See <a href="#m-server" data-target="m-server">PlantUML Server</a>.</p>
+      <h3>Claude says "Stadiæ is not connected"</h3>
+      <p>The Claude Desktop bridge needs an active WebSocket between Claude and the editor. Open <em>File → Bridge…</em> (or click the <code>bridge:</code> indicator in the menu bar) and check the status line. If it reads <em>Disconnected</em>, click <em>Connect</em>. If it stays at <em>Connecting…</em> the bridge process is probably not running — see the bridge-setup document for diagnostic steps. The integration is opt-in every session; reloading the page disconnects intentionally and you have to reconnect explicitly. See <a href="#m-bridge" data-target="m-bridge">Claude Desktop Bridge</a>.</p>
+      <h3>Claude's edit was rejected with a "stale version" error</h3>
+      <p>This means you edited the model in the editor between Claude reading it and Claude submitting its replacement. The rejection is intentional — it prevents your work from being silently overwritten — and Claude is expected to refetch and reapply on top of your fresh state without further input from you. If Claude doesn't retry on its own, ask it to <em>"check the model again and reapply your edit"</em>.</p>
       <h3>Add Transition is greyed out</h3>
       <p>The current selection doesn't match any of the valid patterns. Common causes: you haven't selected a message; you picked Yes/No from a non-choice-point source; the source already handles the message you picked; you have too many nodes selected.</p>
       <h3>Edit is greyed out</h3>
@@ -15198,6 +16014,7 @@ function applyLoadedModel(data, suggestedFilename) {
   History.past = []; History.future = [];
   Model.dirty = false;
   Model.savedFilename = suggestedFilename;
+  Model.version++;
   refresh();
 }
 
@@ -15577,6 +16394,7 @@ document.querySelectorAll(".menubar .dropdown .item").forEach(item => {
       case "export-svg": exportSVG(); break;
       case "export-spec": openSpecificationModal(); break;
       case "plantuml-server": showPlantUMLServerDialog(); break;
+      case "bridge": showBridgeDialog(); break;
       case "exit": showAlert("Exit", "In a desktop app this would close the application. Close the browser tab to exit."); break;
       case "change-name":
         // Edit name + display name of the active component via the same
@@ -15678,6 +16496,7 @@ document.getElementById("btn-print-diagram").onclick = printCurrentDiagram;
 // Server-status indicator in the menubar — click opens the PlantUML
 // server config dialog.
 document.getElementById("server-status").onclick = showPlantUMLServerDialog;
+document.getElementById("bridge-status").onclick = showBridgeDialog;
 
 // Vertical resize handle: drag to change lists-grid height
 (function() {
@@ -16455,6 +17274,8 @@ document.addEventListener("keydown", e => {
 // ---------- Bootstrap ----------
 loadPlantUMLServerConfig();
 updateServerStatus();
+loadBridgeConfig();
+updateBridgeStatus();
 initActionPanel();
 initStepsPanel();
 initDescriptionPanel();

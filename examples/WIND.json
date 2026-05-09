@@ -11,7 +11,7 @@
     },
     {
       "name": "Peripherals",
-      "description": "Status indications of all the peripherals."
+      "description": "Status indications from the peripherals."
     },
     {
       "name": "Content",
@@ -19,18 +19,22 @@
     },
     {
       "name": "Audio",
-      "description": "Status indication from the audio."
+      "description": "Status indications from the audio peripheral."
     },
     {
       "name": "Display",
       "description": "Display status and control messages."
+    },
+    {
+      "name": "Proximity",
+      "description": "Indications from the proximity detector about user presence."
     }
   ],
   "messages": [
     {
       "interface": "Device",
       "name": "ReadyInd",
-      "description": "All peripherals are ready and the device can be initialised."
+      "description": "All peripherals are ready and the device can be initialized."
     },
     {
       "interface": "Device",
@@ -40,24 +44,12 @@
     {
       "interface": "Connection",
       "name": "ConnectReq",
-      "description": "Request received to connect to a server.",
+      "description": "A server is requesting to connect.",
       "parameters": [
         {
           "name": "serverId",
           "type": "uint",
-          "description": "ID of the server what wants to connect."
-        }
-      ]
-    },
-    {
-      "interface": "Connection",
-      "name": "AdvertiseInd",
-      "description": "Broadcast to be discoverable.",
-      "parameters": [
-        {
-          "name": "id",
-          "type": "uint",
-          "description": "ID of the device."
+          "description": "ID of the server that wants to connect."
         }
       ]
     },
@@ -74,29 +66,22 @@
     {
       "interface": "Connection",
       "name": "DisconnectedInd",
-      "description": "The transceiver detected that the server is disconnected."
+      "description": "The server is no longer connected."
     },
     {
       "interface": "Peripherals",
       "name": "ReadyInd",
-      "description": "Indication that a specific peripheral is ready.",
-      "parameters": [
-        {
-          "name": "peripheralId",
-          "type": "uint",
-          "description": "ID of the peripheral that became operational."
-        }
-      ]
+      "description": "Indication that a peripheral is ready."
     },
     {
       "interface": "Peripherals",
       "name": "FailureInd",
-      "description": "A peripheral initialisation failed or is no longer operational."
+      "description": "A peripheral has failed."
     },
     {
       "interface": "Content",
       "name": "ContentInd",
-      "description": "A new image to display with touch map and audio queues.",
+      "description": "A new image to display with touch map and audio cues.",
       "parameters": [
         {
           "name": "image",
@@ -118,12 +103,12 @@
     {
       "interface": "Audio",
       "name": "ReadyInd",
-      "description": "Indication that the audio device is ready.",
+      "description": "Indication that the audio peripheral is ready.",
       "parameters": [
         {
           "name": "numSounds",
           "type": "uint",
-          "description": "The number of stored sounds in the audio device."
+          "description": "The number of stored sounds in the audio peripheral."
         }
       ]
     },
@@ -169,7 +154,7 @@
         {
           "name": "id",
           "type": "uint",
-          "description": "The ID of the location where to place the sound."
+          "description": "The ID of the sound to update."
         },
         {
           "name": "soundData",
@@ -177,6 +162,36 @@
           "description": "The audio samples."
         }
       ]
+    },
+    {
+      "interface": "Content",
+      "name": "StartUpdateReq",
+      "description": "The server requests to start an update transaction. The device replies with `Content:StartUpdateAccepted` if it can accept the update or with `Content:StartUpdateRejected` if it cannot. On accept, the device disables touch input and accepts content/sound updates until `UpdateDoneInd` is received."
+    },
+    {
+      "interface": "Content",
+      "name": "StartUpdateAccepted",
+      "description": "The device accepts the pending update request. The server may now push content and sound updates and must terminate the transaction with `Content:UpdateDoneInd`."
+    },
+    {
+      "interface": "Content",
+      "name": "StartUpdateRejected",
+      "description": "The device rejects the pending update request because it cannot be handled in the current state (typically because a user is interacting). The server is expected to retry later — typically after a `sendUserLeft()` notification."
+    },
+    {
+      "interface": "Content",
+      "name": "UpdateDoneInd",
+      "description": "The server signals the end of an update transaction. The device re-enables touch input if a user is present."
+    },
+    {
+      "interface": "Proximity",
+      "name": "UserDetectedInd",
+      "description": "Indication that a user has been detected in front of the device."
+    },
+    {
+      "interface": "Proximity",
+      "name": "UserLeftInd",
+      "description": "Indication that the previously detected user has left."
     }
   ],
   "components": [
@@ -187,14 +202,14 @@
       "states": [
         {
           "name": "Advertising",
-          "description": "Broadcasting advertisement packets on the network to be discoverable by a server. "
+          "description": "Broadcasting advertisement packets on the network to be discoverable by a server."
         },
         {
-          "name": "Initialising",
-          "description": "Waiting until all components are ready."
+          "name": "Initializing",
+          "description": "Waiting for the radio frontend to come up."
         },
         {
-          "name": "Uninitialised",
+          "name": "Uninitialized",
           "description": "Waiting for the device to become ready."
         },
         {
@@ -210,173 +225,161 @@
         {
           "name": "WhiteListed",
           "question": "Is Server\\nWhitelisted?",
-          "description": "Check whether the server that tries to connect is whitelisted."
+          "description": "Check whether the server that tries to connect is in the `whitelist` of permitted servers."
         }
       ],
       "transitions": [
         {
-          "source": "START",
-          "target": "Uninitialised",
-          "messages": [],
           "connector": "Down",
-          "length": 1
+          "length": 1,
+          "messages": [],
+          "source": "START",
+          "target": "Uninitialized"
         },
         {
-          "source": "Uninitialised",
-          "target": "Initialising",
+          "connector": "Down",
+          "length": 1,
           "messages": [
             {
               "interface": "Device",
               "name": "ReadyInd"
             }
           ],
-          "connector": "Down",
-          "length": 1
+          "source": "Uninitialized",
+          "target": "Initializing"
         },
         {
-          "source": "Initialising",
-          "target": "Advertising",
+          "connector": "Down",
+          "length": 1,
           "messages": [
             {
+              "action": "Call `doAdvertise()`.",
               "interface": "Connection",
-              "name": "ReadyInd",
-              "action": "Call `doAdvertise()`.\n\n"
+              "name": "ReadyInd"
             }
           ],
-          "connector": "Down",
-          "length": 1
+          "source": "Initializing",
+          "target": "Advertising"
         },
         {
-          "source": "Advertising",
-          "target": "CP_WhiteListed",
-          "messages": [
-            {
-              "interface": "Connection",
-              "name": "ConnectReq",
-              "action": "Stop the timer.\n`serverId` =`ConnectReq:serverId`"
-            }
-          ],
           "connector": "Left",
-          "length": 1
-        },
-        {
-          "source": "CP_WhiteListed",
-          "target": "Advertising",
+          "length": 1,
           "messages": [
             {
-              "interface": "Logical",
-              "name": "No",
-              "action": "Call the `WirelessTransceiver:rejectServer()`.\nCall the `WirelessTransceiver:sendAdvertisementPacket()`.\nStart the timer with the `ADVERTISEMENT` interval."
+              "action": "Call `TimerHandler:cancelTimeout`(`advertiseTimerId`).\nSet `serverId` to `ConnectReq:serverId`.",
+              "interface": "Connection",
+              "name": "ConnectReq"
             }
           ],
-          "connector": "Right",
-          "length": 1
+          "source": "Advertising",
+          "target": "CP_WhiteListed"
         },
         {
-          "source": "Connecting",
-          "target": "Connected",
+          "connector": "Right",
+          "length": 1,
           "messages": [
             {
+              "action": "Call `WirelessTransceiver:rejectServer`(`serverId`).\nCall `doAdvertise()`.",
+              "interface": "Logical",
+              "name": "No"
+            }
+          ],
+          "source": "CP_WhiteListed",
+          "target": "Advertising"
+        },
+        {
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `TimerHandler:cancelTimeout`(`connectTimerId`).",
               "interface": "Connection",
               "name": "ConnectedInd"
             }
           ],
-          "connector": "Right",
-          "length": 1
-        },
-        {
-          "source": "Connected",
-          "target": "Advertising",
-          "messages": [
-            {
-              "interface": "Connection",
-              "name": "DisconnectedInd",
-              "action": "Call `doAdvertise()`."
-            }
-          ],
-          "connector": "Up",
-          "length": 1
-        },
-        {
-          "source": "Advertising",
-          "target": "Advertising",
-          "messages": [
-            {
-              "interface": "Timer",
-              "name": "Timeout",
-              "action": "Call `doAdvertise()`."
-            }
-          ],
-          "connector": "Right",
-          "length": 1
-        },
-        {
-          "source": "CP_WhiteListed",
-          "target": "Connecting",
-          "messages": [
-            {
-              "interface": "Logical",
-              "name": "Yes",
-              "action": "Call `WirelessTransceiver:connectServer`(`serverId`).\nStart the timer with the `CONNECTION_TIMEOUT` interval."
-            }
-          ],
-          "connector": "Down",
-          "length": 1
-        },
-        {
           "source": "Connecting",
-          "target": "Advertising",
-          "messages": [
-            {
-              "interface": "Timer",
-              "name": "Timeout",
-              "action": "Call `doAdvertise()`."
-            }
-          ],
+          "target": "Connected"
+        },
+        {
           "connector": "Up",
-          "length": 1
-        },
-        {
-          "source": "*",
-          "target": "Uninitialised",
+          "length": 1,
           "messages": [
             {
-              "interface": "Device",
-              "name": "ErrorInd",
-              "action": "Call the `WirelessTransceiver:disable()`."
-            }
-          ],
-          "connector": "Right",
-          "length": 1
-        },
-        {
-          "source": "Connected",
-          "target": "Connected",
-          "messages": [
-            {
+              "action": "Call `doAdvertise()`.",
               "interface": "Connection",
-              "name": "ConnectedInd",
-              "action": ""
+              "name": "DisconnectedInd"
             }
           ],
-          "connector": "Right",
-          "length": 1
+          "source": "Connected",
+          "target": "Advertising"
         },
         {
-          "source": "Uninitialised",
-          "target": "Uninitialised",
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `doAdvertise()`.",
+              "interface": "Timer",
+              "name": "Timeout"
+            }
+          ],
+          "source": "Advertising",
+          "target": "Advertising"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `WirelessTransceiver:connectServer`(`serverId`).\nCall `TimerHandler:setTimeout`(`CONNECTION_TIMEOUT`, `connectTimerId`).",
+              "interface": "Logical",
+              "name": "Yes"
+            }
+          ],
+          "source": "CP_WhiteListed",
+          "target": "Connecting"
+        },
+        {
+          "connector": "Up",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `doAdvertise()`.",
+              "interface": "Timer",
+              "name": "Timeout"
+            }
+          ],
+          "source": "Connecting",
+          "target": "Advertising"
+        },
+        {
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `TimerHandler:cancelTimeout`(`advertiseTimerId`).\nCall `TimerHandler:cancelTimeout`(`connectTimerId`).\nCall `WirelessTransceiver:disable()`.",
+              "interface": "Device",
+              "name": "ErrorInd"
+            }
+          ],
+          "source": "*",
+          "target": "Uninitialized"
+        },
+        {
+          "connector": "Right",
+          "length": 1,
           "messages": [
             {
               "interface": "*",
               "name": "*"
             }
           ],
-          "connector": "Right",
-          "length": 1
+          "source": "Uninitialized",
+          "target": "Uninitialized"
         }
       ],
       "displayName": "Server\\nConnector",
-      "description": "Controls and establishes the connection with the server. It waits for the device to become ready and then starts advertising its presence on the network to be discoverable by a server.",
+      "description": "Controls and establishes the connection with the server. It waits for the device to become ready and then starts advertising its presence on the network to be discoverable by a server.\n\n# Behavior\n\nThe component is responsible for bringing up the wireless link and managing the lifecycle of the server connection over that link.\n\n## Start-up\n\nOn construction, the component initializes the radio frontend. It must not begin advertising until both the device as a whole signals readiness and the radio frontend itself signals it is ready for operation. Activity received before both conditions are met is silently discarded.\n\n## Discovery\n\nWhen ready, the component makes the device discoverable by broadcasting an advertisement packet every `ADVERTISEMENT` milliseconds. This continues until a server attempts to connect or the link is lost.\n\n## Connection request\n\nA server may at any time during discovery request to connect, identifying itself with a `serverId`. The component must:\n\n- Stop advertising while the request is being evaluated.\n- If the server is not in the `whitelist` of permitted servers, reject the request via the radio so further requests from the same server are blocked, then resume discovery.\n- Otherwise, instruct the radio to establish the connection and wait at most `CONNECTION_TIMEOUT` milliseconds for confirmation.\n\nIf confirmation arrives in time, the device is considered connected to the identified server. If the timeout elapses first, the connection attempt is abandoned and discovery resumes.\n\n## Disconnection\n\nIf the radio reports that an established connection has been lost, the component must return to discovery so that a new server can find the device.\n\n## Error\n\nIf the device as a whole reports an unrecoverable error, the component must cancel any pending timers, disable the radio frontend, and return to its uninitialized condition. It must accept no further activity from the radio until the device signals readiness again.",
       "stateVariables": [
         {
           "name": "serverId",
@@ -386,14 +389,28 @@
         {
           "name": "whitelist",
           "type": "uintArray",
-          "description": "Whitelist of servers."
+          "description": "The IDs of the servers that are permitted to connect."
+        },
+        {
+          "name": "connectTimerId",
+          "type": "TimerID",
+          "description": "Handle of the connection-attempt timer."
+        },
+        {
+          "name": "advertiseTimerId",
+          "type": "TimerID",
+          "description": "Handle of the advertisement-interval timer."
         }
       ],
       "localFunctions": [
         {
           "name": "doAdvertise",
-          "description": "Send advertisement packet and start timer.",
-          "steps": "Call the `WirelessTransceiver:sendAdvertisementPacket()`.\nCall `TimerHandler:setTimeout`(`ADVERTISEMENT`)."
+          "description": "Send an advertisement packet and (re)start the advertisement-interval timer.",
+          "steps": "Call `WirelessTransceiver:sendAdvertisementPacket()`.\nCall `TimerHandler:setTimeout`(`ADVERTISEMENT`, `advertiseTimerId`)."
+        },
+        {
+          "name": "initialize",
+          "steps": "Call `WirelessTransceiver:initialize()`."
         }
       ],
       "constants": [
@@ -425,114 +442,121 @@
         },
         {
           "name": "Error",
-          "description": "Initialisation of the device failed or peripherals became unavailable."
+          "description": "A peripheral failed, either during start-up or after the device became operational."
         }
       ],
       "choicePoints": [
         {
           "name": "AllReady",
           "question": "All Peripherals\\nOperational?",
-          "description": "Are all expected `NUM_PERIPHERALS` peripherals operational?"
+          "description": "Check whether `numReady` equals `NUM_PERIPHERALS`."
         }
       ],
       "transitions": [
         {
-          "source": "START",
-          "target": "AwaitingPeripherals",
-          "messages": [],
           "connector": "Down",
-          "length": 1
+          "length": 1,
+          "messages": [],
+          "source": "START",
+          "target": "AwaitingPeripherals"
         },
         {
-          "source": "AwaitingPeripherals",
-          "target": "CP_AllReady",
+          "connector": "Down",
+          "length": 1,
           "messages": [
             {
+              "action": "Increment `numReady`.",
               "interface": "Peripherals",
-              "name": "ReadyInd",
-              "action": "Add the `ReadyInd:peripheralId` in the peripherals list."
+              "name": "ReadyInd"
             }
           ],
-          "connector": "Down",
-          "length": 1
+          "source": "AwaitingPeripherals",
+          "target": "CP_AllReady"
         },
         {
-          "source": "CP_AllReady",
-          "target": "AwaitingPeripherals",
+          "connector": "Up",
+          "length": 1,
           "messages": [
             {
               "interface": "Logical",
               "name": "No"
             }
           ],
-          "connector": "Up",
-          "length": 1
-        },
-        {
           "source": "CP_AllReady",
-          "target": "Operational",
+          "target": "AwaitingPeripherals"
+        },
+        {
+          "connector": "Right",
+          "length": 1,
           "messages": [
             {
+              "action": "Send the `Device:ReadyInd` message.",
               "interface": "Logical",
-              "name": "Yes",
-              "action": "Send the `Device:ReadyInd` message."
+              "name": "Yes"
             }
           ],
-          "connector": "Right",
-          "length": 1
+          "source": "CP_AllReady",
+          "target": "Operational"
         },
         {
-          "source": "AwaitingPeripherals",
-          "target": "Error",
-          "messages": [
-            {
-              "interface": "Peripherals",
-              "name": "FailureInd",
-              "action": "Send the `Device:ErrorInd` message."
-            }
-          ],
           "connector": "Right",
-          "length": 1
-        },
-        {
-          "source": "Operational",
-          "target": "Error",
+          "length": 1,
           "messages": [
             {
+              "action": "Send the `Device:ErrorInd` message.",
               "interface": "Peripherals",
               "name": "FailureInd"
             }
           ],
-          "connector": "Up",
-          "length": 1
+          "source": "AwaitingPeripherals",
+          "target": "Error"
         },
         {
-          "source": "Error",
-          "target": "Error",
+          "connector": "Up",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Send the `Device:ErrorInd` message.",
+              "interface": "Peripherals",
+              "name": "FailureInd"
+            }
+          ],
+          "source": "Operational",
+          "target": "Error"
+        },
+        {
+          "connector": "Right",
+          "length": 1,
           "messages": [
             {
               "interface": "*",
               "name": "*"
             }
           ],
-          "connector": "Right",
-          "length": 1
+          "source": "Error",
+          "target": "Error"
         }
       ],
       "displayName": "Device Status\\nController",
-      "description": "Takes care of initializing the components in the device by waiting for all the peripherals to be operational.",
+      "description": "Takes care of initializing the device by waiting for all the peripherals to be operational.\n\n# Behavior\n\nThe component is responsible for determining when the device as a whole is ready and for detecting peripheral failures.\n\n## Peripherals\n\nThe device has four peripherals: the wireless transceiver, the audio peripheral, the touch display, and the proximity detector. The wireless transceiver is a peripheral like any other for the purposes of readiness counting and failure handling — it is brought up by `PeripheralHandler:start()` together with the rest, and signals readiness and failure on the `Peripherals` interface like the others. Its `Connection:ReadyInd` is a separate, downstream signal addressed to the `ServerConnector` and is *not* what `DeviceStatusController` counts here.\n\n## Start-up\n\nOn construction, the component starts the peripherals and begins counting how many of them have come up. The device must not be reported as ready until `NUM_PERIPHERALS` peripherals have signalled they are operational.\n\nEach peripheral that becomes operational signals so; the component counts the signals and re-evaluates whether the full set has been received. As soon as the count reaches `NUM_PERIPHERALS`, the component announces device-wide readiness by emitting `Device:ReadyInd`. From that point on the device is considered operational.\n\n## Failure\n\nIf any peripheral reports failure, whether before or after the device has reached the operational condition, the component announces device-wide failure by emitting `Device:ErrorInd` and enters a terminal failed condition. While failed, the component is inert: it makes no further announcements, and recovery requires reconstruction of the component.",
       "stateVariables": [
         {
-          "name": "peripherals",
-          "type": "uintArray",
-          "description": "List of operational peripherals."
+          "name": "numReady",
+          "type": "uint",
+          "description": "Count of peripherals that have signalled they are operational."
+        }
+      ],
+      "localFunctions": [
+        {
+          "name": "initialize",
+          "steps": "Call `PeripheralHandler:start()`."
         }
       ],
       "constants": [
         {
           "name": "NUM_PERIPHERALS",
-          "value": "3",
-          "description": "Number of expected peripherals."
+          "value": "4",
+          "description": "Number of expected peripherals: wireless transceiver, audio, touch display, and proximity detector."
         }
       ]
     },
@@ -542,13 +566,13 @@
       "stateFontSize": 12,
       "states": [
         {
-          "name": "Uninitialised",
+          "name": "Uninitialized",
           "description": "Waiting for the device to become ready."
         },
         {
-          "name": "InitialisingAudio",
+          "name": "InitializingAudio",
           "displayName": "Initializing\\nAudio",
-          "description": "Initializing the audio device."
+          "description": "Initializing the audio peripheral."
         },
         {
           "name": "InitializingDisplay",
@@ -556,127 +580,269 @@
           "description": "Initializing the touch display."
         },
         {
-          "name": "Operational",
-          "description": "Ready to interact."
+          "name": "AwaitingContent",
+          "displayName": "Awaiting\\nContent",
+          "description": "Display is ready but no content has been loaded yet."
+        },
+        {
+          "name": "ContentReady",
+          "displayName": "Content\\nReady",
+          "description": "Content is loaded but the display is unresponsive because no user is present, or because the user just touched the screen and the device is awaiting the server's next update. Update requests are accepted from this state."
         },
         {
           "name": "Interacting",
-          "description": "Interactive content is shown on the display."
+          "description": "Content is loaded, a user is present, and the display is responsive. Update requests are rejected from this state."
+        },
+        {
+          "name": "Updating",
+          "description": "An update transaction is in progress. Touch input is disabled while the server pushes new content and/or sounds. Further update requests are rejected from this state."
         }
       ],
-      "choicePoints": [],
+      "choicePoints": [
+        {
+          "name": "UserPresent",
+          "question": "User\\nPresent?",
+          "description": "Check whether `userPresent` is true. If so, the display can be made responsive immediately; otherwise wait for the user to be detected before making the display responsive."
+        }
+      ],
       "transitions": [
         {
-          "source": "START",
-          "target": "Uninitialised",
-          "messages": [],
-          "connector": "Down",
-          "length": 1
-        },
-        {
-          "source": "Uninitialised",
-          "target": "InitialisingAudio",
-          "messages": [
-            {
-              "interface": "Device",
-              "name": "ReadyInd",
-              "action": "Call `AudioHandler:initialize()`."
-            }
-          ],
-          "connector": "Left",
-          "length": 1
-        },
-        {
-          "source": "InitialisingAudio",
-          "target": "InitializingDisplay",
-          "messages": [
-            {
-              "interface": "Audio",
-              "name": "ReadyInd",
-              "action": "`numSounds` = `ReadyInd:numSounds`.\nCall the `TouchDisplay:initialize()`."
-            }
-          ],
-          "connector": "Down",
-          "length": 1
-        },
-        {
-          "source": "InitializingDisplay",
-          "target": "Operational",
-          "messages": [
-            {
-              "interface": "Display",
-              "name": "ReadyInd",
-              "action": "Send `WirelessTransceiver:sendContentDimensions()` with the `ReadyInd:width` and `ReadyInd:height` as parameters."
-            }
-          ],
           "connector": "Right",
-          "length": 1
+          "length": 1,
+          "messages": [],
+          "source": "START",
+          "target": "Uninitialized"
         },
         {
-          "source": "Operational",
-          "target": "Interacting",
+          "connector": "Down",
+          "length": 1,
           "messages": [
             {
-              "interface": "Content",
-              "name": "ContentInd",
-              "action": "`image` = `ContentInd:image`\nCall `TouchDisplay:display`(`image`).\n`touchMap` = `ContentInd:touchMap`\n`soundMap` = `ContentInd:soundMap`"
+              "action": "Call `AudioHandler:initialize()`.",
+              "interface": "Device",
+              "name": "ReadyInd"
             }
           ],
-          "connector": "Down",
-          "length": 1
+          "source": "Uninitialized",
+          "target": "InitializingAudio"
         },
         {
-          "source": "Interacting",
-          "target": "Operational",
+          "connector": "Right",
+          "length": 1,
           "messages": [
             {
+              "action": "Set `numSounds` to `ReadyInd:numSounds`.\nCall `TouchDisplay:initialize()`.",
+              "interface": "Audio",
+              "name": "ReadyInd"
+            }
+          ],
+          "source": "InitializingAudio",
+          "target": "InitializingDisplay"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `WirelessTransceiver:sendContentDimensions`(`ReadyInd:width`, `ReadyInd:height`).",
               "interface": "Display",
-              "name": "TouchedInd",
-              "action": "`touchedAreaId` = `touchMap`[`TouchedInd:x`][`TouchedInd:y`]\n`soundId` = `soundMap`[`touchedAreaId`]\nCall `AudioHandler:playSound`(`soundId`).\nCall  `TouchDisplay:unresponsive()`.\nCall `WirelessTransceiver:sendTouchEvent()`.\n"
+              "name": "ReadyInd"
+            }
+          ],
+          "source": "InitializingDisplay",
+          "target": "AwaitingContent"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `WirelessTransceiver:sendUpdateAccepted()`.",
+              "interface": "Content",
+              "name": "StartUpdateReq"
+            }
+          ],
+          "source": "AwaitingContent",
+          "target": "Updating"
+        },
+        {
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `userPresent` to true.\nCall `WirelessTransceiver:sendUserDetected()`.\nCall `TouchDisplay:responsive()`.",
+              "interface": "Proximity",
+              "name": "UserDetectedInd"
+            }
+          ],
+          "source": "ContentReady",
+          "target": "Interacting"
+        },
+        {
+          "connector": "Up",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `WirelessTransceiver:sendUpdateAccepted()`.",
+              "interface": "Content",
+              "name": "StartUpdateReq"
+            }
+          ],
+          "source": "ContentReady",
+          "target": "Updating"
+        },
+        {
+          "connector": "Left",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `touchedAreaId` to `touchMap`[`TouchedInd:x`][`TouchedInd:y`].\nSet `soundId` to `soundMap`[`touchedAreaId`].\nCall `AudioHandler:playSound`(`soundId`).\nCall `TouchDisplay:unresponsive()`.\nCall `WirelessTransceiver:sendTouchEvent`(`touchedAreaId`).",
+              "interface": "Display",
+              "name": "TouchedInd"
             },
             {
-              "interface": "Content",
-              "name": "SoundInd",
-              "action": "Call `TouchDisplay:unresponsive()`\n`soundId` = `SoundInd:id`\n`sampleData` = `SoundInd:soundData`"
+              "action": "Set `userPresent` to false.\nCall `TouchDisplay:unresponsive()`.\nCall `WirelessTransceiver:sendUserLeft()`.",
+              "interface": "Proximity",
+              "name": "UserLeftInd"
             }
           ],
-          "connector": "Right",
-          "length": 1
+          "source": "Interacting",
+          "target": "ContentReady"
         },
         {
-          "source": "*",
-          "target": "Uninitialised",
+          "connector": "Right",
+          "length": 1,
           "messages": [
             {
+              "action": "Call `WirelessTransceiver:sendUpdateRejected()`.",
+              "interface": "Content",
+              "name": "StartUpdateReq"
+            }
+          ],
+          "source": "Interacting",
+          "target": "Interacting"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `image` to `ContentInd:image`.\nSet `touchMap` to `ContentInd:touchMap`.\nSet `soundMap` to `ContentInd:soundMap`.\nCall `TouchDisplay:display`(`image`).",
+              "interface": "Content",
+              "name": "ContentInd"
+            },
+            {
+              "action": "Set `soundId` to `SoundInd:id`.\nSet `sampleData` to `SoundInd:soundData`.\nCall `updateSound()`.",
+              "interface": "Content",
+              "name": "SoundInd"
+            },
+            {
+              "action": "Set `userPresent` to true.\nCall `WirelessTransceiver:sendUserDetected()`.",
+              "interface": "Proximity",
+              "name": "UserDetectedInd"
+            },
+            {
+              "action": "Set `userPresent` to false.\nCall `WirelessTransceiver:sendUserLeft()`.",
+              "interface": "Proximity",
+              "name": "UserLeftInd"
+            },
+            {
+              "action": "Call `WirelessTransceiver:sendUpdateRejected()`.",
+              "interface": "Content",
+              "name": "StartUpdateReq"
+            }
+          ],
+          "source": "Updating",
+          "target": "Updating"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "interface": "Content",
+              "name": "UpdateDoneInd"
+            }
+          ],
+          "source": "Updating",
+          "target": "CP_UserPresent"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `TouchDisplay:responsive()`.",
+              "interface": "Logical",
+              "name": "Yes"
+            }
+          ],
+          "source": "CP_UserPresent",
+          "target": "Interacting"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "interface": "Logical",
+              "name": "No"
+            }
+          ],
+          "source": "CP_UserPresent",
+          "target": "ContentReady"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `TouchDisplay:unresponsive()`.\nCall `TouchDisplay:displayError()`.\nSet `userPresent` to false.",
               "interface": "Device",
-              "name": "ErrorInd",
-              "action": "Call `TouchDisplay:unresponsive()`.\nCall the `TouchDisplay:displayError()`."
+              "name": "ErrorInd"
             }
           ],
-          "connector": "Left",
-          "length": 1
+          "source": "*",
+          "target": "Uninitialized"
         },
         {
-          "source": "Operational",
-          "target": "Operational",
+          "connector": "Right",
+          "length": 1,
           "messages": [
             {
-              "interface": "Content",
-              "name": "SoundInd",
-              "action": "`soundId` = `SoundInd:id`\n`sampleData` = `SoundInd:soundData`\nCall `updateSound()`."
+              "interface": "*",
+              "name": "*"
             }
           ],
+          "source": "Uninitialized",
+          "target": "Uninitialized"
+        },
+        {
           "connector": "Right",
-          "length": 1
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `userPresent` to true.",
+              "interface": "Proximity",
+              "name": "UserDetectedInd"
+            },
+            {
+              "action": "Set `userPresent` to false.",
+              "interface": "Proximity",
+              "name": "UserLeftInd"
+            }
+          ],
+          "source": "*",
+          "target": "[H]"
         }
       ],
       "displayName": "UI\\nController",
-      "description": "Controls the user interaction by interfacing with the `TouchDisplay` and the `AudioHandler`.",
+      "description": "Displays content from the server, captures user interaction, and tracks user presence in front of the device.\n\n# Behavior\n\nThe component is responsible for displaying content received from the server, capturing the user's interaction with that content, reporting interaction back to the server, and reporting user presence to the server.\n\n## Start-up\n\nThe component must not present any content or accept any input until the device as a whole signals readiness. Once ready, the component initializes the audio peripheral, then the touch display. Each peripheral signals when it is itself ready; the audio peripheral additionally reports the number of stored sounds it can hold (`numSounds`), which the component records.\n\nWhen the touch display is ready, it reports its pixel dimensions. The component forwards these dimensions to the server so that the server knows the canvas size for any content it pushes. The component is then ready to receive content.\n\n## Presence and responsiveness\n\nThe component tracks user presence in `userPresent`. The flag is updated unconditionally on every `Proximity:UserDetectedInd` and `Proximity:UserLeftInd`, regardless of what else the component is doing.\n\nOn top of this baseline, presence transitions are also reported to the server, but only once content has been loaded — the server does not care about presence before there is anything to interact with. Once content is loaded, every subsequent presence transition is reported, including transitions that happen while an update transaction is in progress.\n\nThe touch display is only made responsive when *both* a user is detected in front of the device *and* content is currently loaded. When the user leaves while interaction is enabled, the component makes the display unresponsive and notifies the server. The display is *not* cleared by the device — the server decides whether to push fresh content for the next user.\n\nThe proximity detector is contracted to emit `UserDetectedInd` and `UserLeftInd` strictly on transitions — never two `UserDetectedInd` in a row, nor two `UserLeftInd` in a row. The component therefore does not handle redundant presence events; receiving one would indicate a contract violation by the detector.\n\n## Update transaction\n\nThe server is in charge of sequencing content. To prevent the user from interacting with content that is in the process of being replaced, every update is initiated by the server as a request and must be explicitly accepted by the device before the server pushes any content.\n\n### Accepting or rejecting a request\n\nOn `Content:StartUpdateReq`, the component decides whether the update can be handled right now. The request is rejected with `Content:StartUpdateRejected` in any of the following circumstances:\n\n- A user is currently interacting with the content. The component remains available for interaction, and the server is expected to retry later — typically after it observes a `sendUserLeft()` notification.\n- An update transaction is already in progress. The server is contractually not expected to issue overlapping update requests, but the device rejects defensively.\n- The device is not yet ready to receive content, for example because the peripherals are still being initialized.\n\nOtherwise, the component replies with `Content:StartUpdateAccepted` and disables the touch display so that no user touches are registered while content is being replaced.\n\n### Applying updates\n\nAfter accepting, the component applies each `Content:ContentInd` received during the update by storing the new image, touch map, and sound map, and showing the new image on the display. It applies each `Content:SoundInd` by storing the indicated sound at the indicated index in the audio peripheral. Any number of either kind may be received in a single update.\n\n### Completion\n\nOn `Content:UpdateDoneInd`, content is now loaded. If a user is currently present, the component re-enables touch input and proceeds to interaction. Otherwise, it leaves touch input disabled and waits for the user to be detected.\n\nIt is the server's responsibility to follow this protocol — the device does not enforce a timeout on the update transaction. If the server fails to issue `Content:UpdateDoneInd` after the device has accepted, the component remains in the update transaction until a device-wide error or restart intervenes.\n\n## Interaction\n\nWhile content is being displayed, the touch display is responsive, and the user may touch the screen. On a touch event identified by an (x, y) pixel coordinate, the component must:\n\n- Look up the touch area in the stored touch map and identify the corresponding sound from the stored sound map.\n- Play that sound through the audio peripheral.\n- Make the touch display unresponsive so that no further touches are registered before the server reacts.\n- Report the touched area to the server.\n\nThe component then awaits the server's next update request, which will typically push the next screen of content.\n\n## Error\n\nIf the device as a whole reports an unrecoverable error, the component must make the touch display unresponsive, show the default error screen, clear the local presence flag, and return to its uninitialized condition.",
       "stateVariables": [
         {
           "name": "numSounds",
           "type": "uint",
-          "description": "Number of sounds stored in the audio device."
+          "description": "Number of sounds stored in the audio peripheral."
         },
         {
           "name": "touchMap",
@@ -686,17 +852,17 @@
         {
           "name": "image",
           "type": "byteArray",
-          "description": "The PNG image currently displayed or to be displayed."
+          "description": "The PNG image currently displayed."
         },
         {
           "name": "soundMap",
           "type": "uintArray",
-          "description": "Maps a touch ID with a sound ID."
+          "description": "Maps a touch ID to a sound ID."
         },
         {
           "name": "soundId",
           "type": "uint",
-          "description": "Sound to play or that is playing."
+          "description": "ID of the sound to play or update."
         },
         {
           "name": "touchedAreaId",
@@ -706,14 +872,19 @@
         {
           "name": "sampleData",
           "type": "byteArray",
-          "description": "Sample data of a sound."
+          "description": "Audio samples for a sound being uploaded."
+        },
+        {
+          "name": "userPresent",
+          "type": "bool",
+          "description": "Whether a user is currently detected in front of the device."
         }
       ],
       "localFunctions": [
         {
           "name": "updateSound",
           "description": "Update a sound on the audio peripheral.",
-          "steps": "Call `AudioHandler:updateSound()`with `soundId` and `sampleData` as parameters."
+          "steps": "Call `AudioHandler:updateSound`(`soundId`, `sampleData`)."
         }
       ]
     }
@@ -766,22 +937,28 @@
       "interface": "Content",
       "connector": "Down",
       "length": 1
+    },
+    {
+      "component": "UiController",
+      "interface": "Proximity",
+      "connector": "Left",
+      "length": 1
     }
   ],
-  "activeComponentIndex": 0,
+  "activeComponentIndex": 2,
   "handlers": [
     {
       "name": "WirelessTransceiver",
       "displayName": "Wireless\\nTransceiver",
-      "description": "This handler takes care of receiving and transmitting data packets on the radio front-end by interfacing with the radio hardware peripheral. By looking at the message-type of incoming messages, indications are forwarded either to the `Connection` or `Content` interface.",
+      "description": "This handler takes care of receiving and transmitting data packets on the radio frontend by interfacing with the radio hardware peripheral. By looking at the message-type of incoming messages, indications are forwarded either to the `Connection` or `Content` interface.\n\nThe wireless transceiver is one of the device's peripherals: it is brought up by `PeripheralHandler:start()` together with the audio peripheral, the touch display, and the proximity detector, and it signals its readiness and any failure on the `Peripherals` interface so that `DeviceStatusController` can include it in its readiness count. The `Connection:ReadyInd` it additionally emits is a separate, transceiver-specific signal addressed to `ServerConnector`, indicating that the radio link layer is ready for advertising — it is not what `DeviceStatusController` counts.",
       "functions": [
         {
           "name": "sendAdvertisementPacket",
           "description": "Send a single advertisement packet to become discoverable."
         },
         {
-          "name": "initialise",
-          "description": "Initialise the radio frontend."
+          "name": "initialize",
+          "description": "Initialize the radio frontend."
         },
         {
           "name": "connectServer",
@@ -814,7 +991,7 @@
           "description": "Send the touch event information to the server.",
           "parameters": [
             {
-              "name": "touchAreaId",
+              "name": "touchedAreaId",
               "type": "uint",
               "description": "ID of the area that was touched."
             }
@@ -835,17 +1012,33 @@
               "description": "The height of the display in pixels."
             }
           ]
+        },
+        {
+          "name": "sendUserDetected",
+          "description": "Inform the server that a user has been detected in front of the device."
+        },
+        {
+          "name": "sendUserLeft",
+          "description": "Inform the server that the previously detected user has left."
+        },
+        {
+          "name": "sendUpdateAccepted",
+          "description": "Inform the server that the device accepts the pending update request and is ready to receive content and sound updates."
+        },
+        {
+          "name": "sendUpdateRejected",
+          "description": "Inform the server that the device rejects the pending update request because it cannot be handled in the current state. The server is expected to retry later."
         }
       ]
     },
     {
       "name": "PeripheralHandler",
       "displayName": "Peripheral\\nHandler",
-      "description": "Takes care of detecting, initializing and configuring hardware peripherals, e.g. by accessing low level drivers and serial communication lines.",
+      "description": "Takes care of detecting, initializing and configuring hardware peripherals — the wireless transceiver, the audio peripheral, the touch display, and the proximity detector — e.g. by accessing low level drivers and serial communication lines. All four are brought up together by `start()` and report readiness and failures on the `Peripherals` interface.",
       "functions": [
         {
           "name": "start",
-          "description": "Start initialising and configuring the peripherals."
+          "description": "Start initializing and configuring the peripherals."
         }
       ]
     },
@@ -856,7 +1049,11 @@
       "functions": [
         {
           "name": "unresponsive",
-          "description": "Disable the touch sensitivity to allow for handling the touch event first."
+          "description": "Disable the touch sensitivity."
+        },
+        {
+          "name": "responsive",
+          "description": "Re-enable touch sensitivity."
         },
         {
           "name": "initialize",
@@ -886,7 +1083,7 @@
       "functions": [
         {
           "name": "initialize",
-          "description": "Initialize the audio device."
+          "description": "Initialize the audio peripheral."
         },
         {
           "name": "playSound",
@@ -906,16 +1103,21 @@
             {
               "name": "soundId",
               "type": "uint",
-              "description": "Index of the sound."
+              "description": "The ID of the sound to update."
             },
             {
-              "name": "sample",
+              "name": "sampleData",
               "type": "byteArray",
-              "description": "Sample data"
+              "description": "The audio samples."
             }
           ]
         }
       ]
+    },
+    {
+      "name": "ProximityDetector",
+      "displayName": "Proximity\\nDetector",
+      "description": "Interfaces with the proximity peripheral to detect when a user steps in front of the device and when they leave. Brought up by `PeripheralHandler:start()` along with the other peripherals; signals readiness via the `Peripherals` interface and emits presence events on the `Proximity` interface.\n\nContractually emits `UserDetectedInd` and `UserLeftInd` strictly on transitions: never two of the same kind in a row. The `UiController` relies on this contract and does not handle redundant events."
     }
   ],
   "handlerConnections": [
@@ -947,6 +1149,12 @@
       "handler": "WirelessTransceiver",
       "interface": "Content",
       "connector": "Left",
+      "length": 1
+    },
+    {
+      "handler": "ProximityDetector",
+      "interface": "Proximity",
+      "connector": "Up",
       "length": 1
     }
   ],
@@ -983,7 +1191,7 @@
     }
   ],
   "deviceDisplayName": "Wireless Interactive Networked Display (WIND)",
-  "deviceSpecification": "The device is a Wireless Interactive Networked Display (WIND) which is controlled by a central server (not in scope). It operates by creating a connection to the server and then handling requests to display content formatted as a PNG image.\nSome content must be interactive which is enabled by the display being touch sensitive and the server sending an indexed coordinates map of touch-squares on the display. The device must be extremely low cost, so interaction is limited by the device mapping touch coordinates to the proper id and sending that id back to the server.\n\nThe device further has a speaker for supplying audio cues, which comprises a set of indexed predefined sounds. Each square on the touch-map can have an audio cue associated with it, specified by the index of the sound. The server can update the stored audio samples.",
+  "deviceSpecification": "The device is a Wireless Interactive Networked Display (WIND) which is controlled by a central server (not in scope). It operates by creating a connection to the server and then handling requests to display content formatted as a PNG image.\nSome content must be interactive which is enabled by the display being touch sensitive and the server sending an indexed coordinates map of touch-squares on the display. The device must be extremely low cost, so interaction is limited by the device mapping touch coordinates to the proper id and sending that id back to the server.\n\nThe device further has a speaker for supplying audio cues, which comprises a set of indexed predefined sounds. Each square on the touch-map can have an audio cue associated with it, specified by the index of the sound. The server can update the stored audio samples.\n\nThe device has four peripherals: the wireless transceiver, the audio peripheral, the touch display, and the proximity detector. All four are managed uniformly by the peripheral handler and report their readiness and failures on the `Peripherals` interface.\n\nA proximity detector tells the device when a user is standing in front of it and when the user has left. The display is only made responsive when both a user is present and content is loaded. Updates are gated by the device: the server initiates each update with a request, and the device only accepts the request when no user is currently interacting with the displayed content. This guarantees that updates pushed by the server cannot land in the middle of an interaction. Presence transitions are also reported to the server (once content is loaded), so the server knows when it is worth retrying a previously rejected update request.",
   "types": [
     {
       "name": "byteArray",
@@ -1009,6 +1217,11 @@
       "name": "uintMatrix",
       "description": "2-dimensional array of integers.",
       "specification": "`uint`[][]"
+    },
+    {
+      "name": "bool",
+      "description": "Boolean value.",
+      "specification": "true or false."
     }
   ]
 }

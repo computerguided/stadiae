@@ -231,7 +231,7 @@ Some subtleties worth noting:
 
   Centralised in four small helpers: `getDefaultLocalFunctions()` returns the canonical list (with each entry's `stepsEditable` policy), `isDefaultLocalFunction(lf)` is the "is this any default?" predicate, `isDefaultLocalFunctionStepsEditable(lf)` is the per-default policy lookup, and `ensureDefaultLocalFunctions(component)` is the idempotent injector. `makeEmptyComponent` calls `ensureDefaultLocalFunctions` before returning, so every creation path (initial Model, `resetModel`, `addComponent`, post-deletion fallback) gets both defaults for free; the file-load path runs it on every loaded component, which both re-injects missing records and upgrades any pre-existing user record under a reserved name to carry the `isDefault` flag and canonical description. For editable-step defaults the user's `steps` are preserved; for fixed-step defaults the canonical (empty) `steps` overwrite. The save path mirrors the device-wide convention with the per-default twist: a fixed-step default is always stripped; an editable-step default is stripped when its `steps` are empty and persisted as `{name, steps}` otherwise (description and `isDefault` are reconstructable on load).
 
-  This pattern is the recommended template for any future per-component built-in — append a record to `getDefaultLocalFunctions()` with the desired `stepsEditable` flag and the rest falls out (list styling, toolbar gating, save/load round-trip, Steps-panel visibility). See the matching extension recipe in §17.
+  This pattern is the recommended template for any future per-component built-in — append a record to `getDefaultLocalFunctions()` with the desired `stepsEditable` flag and the rest falls out (list styling, toolbar gating, save/load round-trip, Steps-panel visibility). See the matching extension recipe in §18.
 
 - **Interfaces and messages are device-wide.** They live on `Model` rather than in each component. Every component references the same interfaces and messages by name. Rename/delete of an interface or message cascades to every component's transitions — see the cascade-handling in `openInterfaceDialog`, `openMessageDialog` and `actionDelete`. This models the real-world semantic: an interface like `RTx` is a contract between components, not a per-component detail.
 
@@ -1449,7 +1449,127 @@ Every potentially-empty section falls back to a one-line italic statement rather
 
 ---
 
-## 16. Known limitations
+## 16. The optional MCP bridge
+
+Stadiæ ships with an optional WebSocket client that lets [Claude Desktop](https://claude.ai/download) read the user's current model and propose edits to it. The client lives entirely inside the editor's HTML file and adds no runtime dependency: the bridge process, on the other hand, is a separate Node program (`bridge.mjs`, designed in `bridge_design.md`) that the user installs separately and that Claude Desktop spawns over MCP/stdio. The editor talks to the bridge over `ws://127.0.0.1:7531` using a small JSON-RPC-shaped frame format.
+
+The integration is **opt-in**: the editor never auto-connects on load. The user clicks `File → Bridge…`, confirms the URL, and presses *Connect*. Once enabled, transient bridge restarts and network blips are recovered transparently via bounded exponential backoff.
+
+This section covers the browser-side surface: the `Bridge` singleton, the method registry, the optimistic-concurrency stamp on the model, the strict validator, and the model-replacement path. The bridge process itself — its MCP catalogue, dispatch, schema-document delivery, signal handling — is documented in `bridge_design.md`.
+
+### 16.1 `Model.version` — optimistic concurrency stamp
+
+The model carries a single new field for the bridge: `Model.version`, a monotonic integer initialised at `1` and incremented on every state-changing operation. It exists for one reason — to let the bridge detect that the user has edited the model in the editor between Claude reading it and Claude submitting a replacement. Without that detection, a Claude turn that takes seconds (or minutes) to compose would silently overwrite anything the user did during the wait.
+
+The increment sites are exactly three:
+
+- `pushHistory()` — the editor's standard "I'm about to mutate" entry point. Every dialog OK, every drag, every keystroke that opens an undo session, every cascading rename, every delete: all of them go through `pushHistory()` first.
+- `undo()` and `redo()` — they change the visible model from what was last read, even though the user did not "edit" in the conventional sense. A Claude turn whose `expectedVersion` predates an undo deserves the same stale-version rejection as one that predates a typed change.
+- `applyLoadedModel()` (the inner of `loadModel` and the bridge's `replaceModelFromBridge`) — the model is wholly replaced, so any prior version stamp is meaningless.
+
+Operations that don't change model state (canvas pan, zoom, opening dialogs without saving, switching the active component) do not increment.
+
+The version is **not** persisted to the saved JSON, **not** part of the `stadiae-v4` on-disk format, and **not** exposed in the UI. It's a session-local counter. A page reload resets it to `1`; clients that survive a reload should refetch via `get_model` and use the fresh stamp. The `bridge_design.md` doc explains the bridge's mirror of this story (a bridge restart also resets nothing because the bridge holds no state — the version always lives on the browser side).
+
+### 16.2 The `Bridge` singleton
+
+A module-level object holds the entire client state:
+
+```js
+const Bridge = {
+  url: "ws://127.0.0.1:7531",   // user-configurable, persisted to localStorage
+  enabled: false,                 // true once the user clicked Connect
+  socket: null,                   // current WebSocket, if any
+  state: "disconnected",          // "disconnected" | "connecting" | "connected"
+  lastError: "",                  // most recent failure message, for the dialog
+  reconnectTimer: null,           // setTimeout handle for the next backoff attempt
+  backoffMs: 1000,                // current backoff delay, doubles up to 30s
+};
+```
+
+Three of the fields drive the UI: `state` is the menubar `bridge: off / connecting / on` indicator and the dialog's status line; `lastError` is shown under the URL field after a failed attempt; `url` is the editable field in the dialog. The other three are mechanism for the connect/disconnect/backoff state machine.
+
+**Lifecycle.** `connectBridge()` is called from one place — the *Connect* button in the Bridge dialog. It cancels any pending reconnect, closes any prior socket, sets `enabled = true`, transitions through `connecting → connected` (or `connecting → disconnected → reconnect-scheduled` on failure). `disconnectBridge()` is the symmetric exit — clears `enabled`, closes the socket, cancels the reconnect timer, resets backoff. `enabled` is the "do I want to be connected?" flag; it's not the same as `state`, which is "what's actually happening on the wire?".
+
+**Why no auto-reconnect on page load.** A reload is a deliberate moment, and silently re-establishing a connection that could surface model edits to a possibly-different conversation context would be surprising. The user's URL is persisted to `localStorage` (`stadiae.bridge`) so the dialog opens with the right value, but `enabled` is not — every session starts disconnected.
+
+**Why auto-reconnect mid-session.** Once the user has opted in, transient bridge restarts (a Claude Desktop restart, a bridge `pkill` for diagnostic reasons) and the network blips that come with running a local WebSocket should not require manual intervention. The backoff is bounded — initial 1s, doubling to a 30s cap — so the editor isn't hammering a downed bridge while it stays at "still down for the next hour".
+
+### 16.3 Frame format and `bridgeMethods`
+
+The wire protocol is JSON-RPC-shaped without claiming JSON-RPC compliance:
+
+```
+bridge → browser:  { id, method, params }
+browser → bridge:  { id, result }              on success
+browser → bridge:  { id, error: { message } }  on failure
+```
+
+`id` is assigned by the bridge; the browser echoes it on every response. Frames that fail to parse are silently dropped (the browser is not expected to be a perfect peer); frames addressed to unknown methods produce an explicit error frame so the bridge can surface it to Claude.
+
+The dispatch layer is `handleBridgeFrame(frame)`. It looks the method up in the `bridgeMethods` registry, awaits the handler's return value, and responds. Errors thrown from handlers are caught and forwarded as error frames; the optional `.errors` array on a thrown `Error` (used by the validator's structured per-field detail) is preserved through the wire so the bridge can pass it to the LLM in actionable form.
+
+The registry is two methods today:
+
+- `get_model(_params)` returns `{ model: buildSerializedModel(), version: Model.version }`. The serialiser is the same one the *Save* path uses, so bridge clients see byte-identical JSON to what the user would save — defaults stripped, built-ins removed, optional empty arrays omitted.
+- `replace_model({model, expectedVersion})` validates the parameters (both required), checks `expectedVersion` against `Model.version`, runs the strict validator, and on success replaces the model via `replaceModelFromBridge`.
+
+Adding a new browser-side method is a single-line change to the `bridgeMethods` registry plus the matching tool entry on the bridge process. The shape is intentionally a flat record: no class hierarchy, no method-discovery protocol, no auto-generated stubs. New methods are added when they're needed and deleted when they're not.
+
+### 16.4 `validateBridgeModel` — strict validator
+
+The existing `loadModel` path is forgiving by design: it normalises malformed input (defensive defaults, slug-and-promote for legacy `name` fields with spaces, drop-dangling for connections referring to missing endpoints). This makes hand-edited files easy to recover. But Claude-generated input benefits from the opposite discipline: a strict pass that catches the specific violations Claude is likely to emit, with structured per-field detail, so a single round-trip can surface every problem and the LLM can self-correct in one retry.
+
+`validateBridgeModel(data)` is a pure function — no `Model` access, no mutation of `data` — that returns `{ ok: true }` or `{ ok: false, errors: [...] }`. Each error has `path` (a JSON-pointer-like locator), `message`, and an optional `valid` array suggesting alternatives where one applies (e.g. the set of declared interface names when an unknown one is referenced).
+
+The checks, in order:
+
+1. **Top-level structure.** Object shape, `format === "stadiae-v4"`, at least one component. Format and shape errors short-circuit the rest.
+2. **Built-in vocabulary that must not be declared.** `Logical`, `Timer` (interfaces), `TimerHandler` (handler), `Time`, `TimerID` (types), and `resendLastReceivedMessage` (reserved local-function name). The forgiving loader silently overwrites these on duplicate; the strict validator rejects so Claude gets a clear signal rather than ignored input.
+3. **Identifier-safety and uniqueness.** Every name field that should match `^[A-Za-z][A-Za-z0-9_]*$` does. Interface names unique across `interfaces`. Component and handler names share one device-wide namespace and are checked against it together. Type names unique across `types`. Within each component, state and choice-point names share one namespace and are checked together.
+4. **Message references.** Each message references a known interface (built-in or user-defined); message names unique within their interface.
+5. **Per-component checks.** Reserved-name local functions; transition source/target validity (existing state, `CP_<existing-cp>`, `START`/`*` for source; existing state, `CP_<existing-cp>`, `[H]` for target); at-most-one-START rule; the START transition's empty-messages requirement; per-message ANY-message-wildcard placement (sole-on-self-transition); duplicate `(source, message)` pairs within one component.
+6. **Connection references.** `connections` and `handlerConnections` reject built-in interfaces and unknown endpoints; `handlerCalls` rejects unknown components/handlers.
+7. **Multiplication invariant.** At most one component carrying a non-empty `multiplication` may be wired to any given interface.
+
+Crucially, **all errors found are returned, not first-failure-wins**. A model with three problems gets all three reported in one validator pass, the bridge passes them through to Claude as a structured `errors` array, Claude fixes all three on the next attempt. The alternative — surfacing only the first error — would force Claude into a sequential whack-a-mole loop where each retry fixes one thing and exposes the next.
+
+The validator does not catch design issues — a Component that should be split, a description that names internal states, a state name that violates house style. Those are the bridge-process schema doc's job, not the validator's. The validator is the structural floor; the schema doc is the design ceiling.
+
+### 16.5 `replaceModelFromBridge` — the mutation path
+
+The `replace_model` method, on success, replaces the entire in-memory model with the supplied document. The implementation is `replaceModelFromBridge(data, expectedVersion)`:
+
+1. **Optimistic-concurrency check.** If `expectedVersion !== Model.version`, throw an `Error` with a structured `errors[0]` containing `path: "expectedVersion"`, a message that says exactly what the submitted and current versions are, and a `currentVersion` field for sufficiently sophisticated clients that want to short-circuit a refetch. The check happens **before** schema validation: there's no value in reporting field errors against a model the caller is going to refetch and recompose anyway.
+2. **Schema validation.** `validateBridgeModel(data)`. On failure, throw an `Error` with the structured `errors` array attached.
+3. **Apply.** `pushHistory()` → `loadModel(data)` → `Selection.clearAll()` → `Model.dirty = true` → `refresh()`. Two non-obvious choices here: (a) `pushHistory()` is called first so the user can undo the Claude-applied change in one step, restoring whatever was there before; (b) `Model.savedFilename` is intentionally **not** cleared — the model has changed, but the user did not open a different file, so the *Save* path continues to overwrite the same file when the user chooses to save.
+4. **Return** `{ ok: true, version: Model.version }`. The new version is one ahead of the rejected request's `expectedVersion`, which gives the bridge a fresh stamp it can use to chain follow-up calls without an intervening `get_model`.
+
+The "live save" behaviour around per-keystroke editing (Action panel, Description panel, Steps panel) is unaffected: each of those calls `pushHistory()` exactly once per session via its session-coalescer, so a Claude `replace_model` arriving mid-typing-session correctly increments `Model.version` past the in-flight session's snapshot. The user's Ctrl+Z still backs out their typing as a single step; an immediately following Ctrl+Z backs out the Claude change.
+
+### 16.6 The Bridge dialog and menubar indicator
+
+Two pieces of UI surface the bridge to the user. Both are deliberately minimal — the bridge is opt-in, and the editor's job is to make it visible without making it loud.
+
+**Menubar indicator.** A small button to the right of the menus shows `bridge: off` / `bridge: connecting` / `bridge: on` (with green/amber/grey colour-coding via CSS classes). It mirrors the existing PlantUML server indicator in placement and styling. Clicking it opens the Bridge dialog directly — same behaviour as `File → Bridge…`. The text is intentionally lowercase and matter-of-fact; a more eye-catching indicator would compete with the canvas for attention and the bridge is meant to fade into the background once configured.
+
+**Bridge dialog.** Three controls: the WebSocket URL (editable), a status line, and a *Connect / Disconnect* button that re-labels based on `Bridge.state`. Form validation is one rule — the URL must start with `ws://` or `wss://` — and is checked on the OK path. The URL is persisted to `localStorage` so the dialog opens with the user's last value next session; `enabled` is not, per §16.2.
+
+The dialog's status line is updated by `refreshBridgeDialogState()`, which is called from `setBridgeState()` whenever the connection state changes. So opening the dialog mid-connect, or while a backoff timer is pending, shows the live state without the user needing to re-open the dialog.
+
+### 16.7 Why the validator is here, not on the bridge process
+
+A reasonable alternative would have been to put `validateBridgeModel` in the bridge process — that's where `replace_model` is dispatched, and validating once at the boundary feels architecturally cleaner. Three reasons it lives in the editor:
+
+1. **Schema knowledge.** The browser already has all the validation rules baked into its existing model code (`isValidIdentifier`, the cascade helpers, the loader's normalisation). Putting them in the bridge would mean either duplicating ~350 lines of validation code or shipping a shared schema file that both sides import — and "shared schema file" pulls a build step in by the back door, which the design has consistently refused.
+2. **Single source of truth.** When the schema evolves (a new field added, a constraint relaxed), it evolves in the editor first. The bridge stays unchanged. A validator on the bridge would have to be updated in lockstep with every editor schema change, and the user would have to update the bridge process to pick it up. The current architecture means a schema change is a stadiae.html change only.
+3. **Locality of error context.** The browser knows what the *current* model looks like (alternative interface names, state names, etc.) and can populate the `valid: [...]` field in error reports with real choices the user has on the canvas. A bridge-side validator would either lose that information or have to do an extra `get_model` round-trip to recover it.
+
+The trade-off: malformed `replace_model` calls travel one extra hop before being rejected. In practice, validation runs in microseconds and the round-trip is dominated by the WebSocket and stdio latencies anyway — moving it earlier in the pipeline would save nothing measurable.
+
+---
+
+## 17. Known limitations
 
 - **PlantUML server dependency for rendering.** Live diagram rendering requires a reachable PlantUML server. The default is the public `plantuml.com`; the user can point to a local server via `File → PlantUML server…` (the setting is persisted to `localStorage`). The export-as-`.puml` path works fully offline — it emits source without rendering — but canvas preview, PNG export, and the specification export all require a server round-trip per diagram.
 - **Canvas selection depends on CORS.** If the configured PlantUML server stops sending `Access-Control-Allow-Origin: *` on PNG responses, the mask pixel read becomes impossible in the browser and canvas-click selection silently fails (list-based selection continues to work). Same constraint applies to the specification exporter's image fetching.
@@ -1458,10 +1578,13 @@ Every potentially-empty section falls back to a one-line italic statement rather
 - **No composite/nested states.** The model is intentionally flat; PlantUML supports composite states but Stadiæ doesn't currently expose them.
 - **No multi-select on the canvas.** Clicks are single-toggle only; multi-select is only available through the side lists and transition table.
 - **Server-side layout.** The user can influence arrow direction and length per transition, but the overall layout is decided by PlantUML. Manual drag-positioning of nodes is not supported.
+- **MCP bridge requires a separate Node process.** The optional Claude Desktop integration depends on `bridge.mjs` running locally, which the user installs separately and Claude Desktop spawns over MCP. The editor's WebSocket client is part of the HTML file; the bridge is not. See `bridge_design.md` for the full bridge architecture.
+- **No multi-tab support for the bridge.** The bridge keeps one browser connection at a time — last connection wins. A second tab connecting will cut off the first. Single-user desktop tool, single editor tab.
+- **`Model.version` resets on page reload.** The optimistic-concurrency stamp is session-local and not persisted. A reload makes any prior `expectedVersion` Claude is holding stale by definition; clients that survive a reload should refetch via `get_model`.
 
 ---
 
-## 17. Pointers for extension
+## 18. Pointers for extension
 
 If you want to:
 
@@ -1484,6 +1607,8 @@ If you want to:
 - **Persist across sessions**: the model serialises cleanly via `snapshot()`. Writing that string to `localStorage` on every `pushHistory` and restoring on startup would add autosave without touching the rest of the code.
 
 - **Support offline rendering**: replace `plantUMLImageURL(source)` with a call to a local PlantUML instance (e.g. served via `plantuml -picoweb`), keeping everything else the same — `plantUMLSVGURL` follows the same pattern for the spec export. The selection-mask technique works identically as long as the local server sends CORS headers.
+
+- **Add a new bridge method** (browser-side surface for a new Claude tool): append an entry to the `bridgeMethods` registry (see §16.3) with the method name as key and a function `(params) => result-or-promise` as value. Throwing an `Error` from the handler converts to an error frame on the wire; if the thrown `Error` carries a `.errors` array (the validator's structured per-field detail), the dispatcher passes it through to the bridge — and from there to Claude — unmodified. Mutating methods should call `pushHistory()` before changing the model and rely on the existing `Model.version` increment chain so the optimistic-concurrency contract stays intact (see §16.1). The matching bridge-process change (a new tool entry plus a `case` arm forwarding to the new browser method) is documented in `bridge_design.md`.
 
 ---
 

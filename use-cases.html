@@ -695,6 +695,7 @@ footer.foot a:hover { color: var(--accent); }
 <details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-10"><span class="sb-num">UC&#8209;10</span><span class="sb-title">Configure view and layout</span></a></summary><ul class="sb-ucs"><li><a href="#uc-10.1"><span class="idx">10.1</span><span class="sb-uc-title">Adjust component-level font sizes</span></a></li><li><a href="#uc-10.2"><span class="idx">10.2</span><span class="sb-uc-title">Resize panels and dividers</span></a></li><li><a href="#uc-10.3"><span class="idx">10.3</span><span class="sb-uc-title">Print the current diagram</span></a></li></ul></details>
 <details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-11"><span class="sb-num">UC&#8209;11</span><span class="sb-title">Export</span></a></summary><ul class="sb-ucs"><li><a href="#uc-11.1"><span class="idx">11.1</span><span class="sb-uc-title">Export the active diagram as PlantUML source</span></a></li><li><a href="#uc-11.2"><span class="idx">11.2</span><span class="sb-uc-title">Export the active diagram as PNG</span></a></li><li><a href="#uc-11.3"><span class="idx">11.3</span><span class="sb-uc-title">Export the active component&#x27;s transitions as Markdown</span></a></li><li><a href="#uc-11.4"><span class="idx">11.4</span><span class="sb-uc-title">Export the full specification (HTML or .docx)</span></a></li></ul></details>
 <details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-12"><span class="sb-num">UC&#8209;12</span><span class="sb-title">Get help</span></a></summary><ul class="sb-ucs"><li><a href="#uc-12.1"><span class="idx">12.1</span><span class="sb-uc-title">Open the user manual</span></a></li><li><a href="#uc-12.2"><span class="idx">12.2</span><span class="sb-uc-title">Open the About dialog</span></a></li></ul></details>
+<details class="sb-sec" open><summary><a class="sb-uc-link" href="#sec-13"><span class="sb-num">UC&#8209;13</span><span class="sb-title">Use the Claude Desktop bridge</span></a></summary><ul class="sb-ucs"><li><a href="#uc-13.1"><span class="idx">13.1</span><span class="sb-uc-title">Connect to the Claude Desktop bridge</span></a></li><li><a href="#uc-13.2"><span class="idx">13.2</span><span class="sb-uc-title">Change the bridge URL</span></a></li><li><a href="#uc-13.3"><span class="idx">13.3</span><span class="sb-uc-title">Disconnect from the bridge</span></a></li><li><a href="#uc-13.4"><span class="idx">13.4</span><span class="sb-uc-title">Have Claude inspect the current model</span></a></li><li><a href="#uc-13.5"><span class="idx">13.5</span><span class="sb-uc-title">Have Claude modify the model</span></a></li><li><a href="#uc-13.6"><span class="idx">13.6</span><span class="sb-uc-title">Recover from a stale-version rejection</span></a></li><li><a href="#uc-13.7"><span class="idx">13.7</span><span class="sb-uc-title">Recover from a transient bridge disconnect</span></a></li></ul></details>
 <details class="sb-sec"><summary><a class="sb-uc-link" href="#appendix"><span class="sb-num">A</span><span class="sb-title">invariants &amp; rules</span></a></summary><ul class="sb-ucs"><li><a href="#appendix"><span class="idx"></span><span class="sb-uc-title">Appendix A</span></a></li></ul></details>
 
     <h4>Source</h4>
@@ -1506,6 +1507,76 @@ footer.foot a:hover { color: var(--accent); }
 <li>A small modal shows the editor's name, version, license attribution, and a credits line for PlantUML.</li>
 <li>The User dismisses the modal.</li></ol>
 <p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The User has seen the version information.</p>
+</article>
+</div>
+</section>
+<section class="block" id="sec-13"><div class="sec-head"><h2><span class="uc-badge">UC&#8209;13</span>Use the Claude Desktop bridge</h2></div><div class="sec-body">
+<p class="lbl-meta"><span class="lbl-tag">Goal.</span> Connect Stadiæ to the optional MCP bridge so that Claude Desktop can read the current model and propose edits to it. The bridge is a separate Node process the User installs locally; the editor's WebSocket client is part of <code>stadiae.html</code>.</p>
+<p class="lbl-meta"><span class="lbl-tag">Scenarios.</span> Connecting and disconnecting, changing the URL, having Claude read or modify the model, and recovering from the two failure modes the User is likely to encounter — a stale-version rejection and a transient bridge disconnect.</p>
+<p class="lbl-meta"><span class="lbl-tag">Note.</span> All bridge scenarios assume the bridge process is installed and running locally. The setup is documented in <em>bridge-setup-linux.md</em> in the project repository and is out of scope here.</p>
+<article class="uc" id="uc-13.1"><header class="uc-head"><span class="uc-id" aria-label="Scenario 13.1"><span class="uc-id-tag">scenario</span><span class="uc-id-num">13.1</span></span><h3 class="uc-title">Connect to the Claude Desktop bridge</h3><a class="uc-permalink" href="#uc-13.1" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Stadiæ is open. The bridge process is running on the local machine. The User wishes to give Claude Desktop access to the current model.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User opens the configuration dialog via <em>File → Bridge…</em> or by clicking the small <code>bridge: off</code> indicator in the menu bar.</li>
+<li>The dialog presents a single editable field — the WebSocket URL, pre-filled with <code>ws://127.0.0.1:7531</code> (or whatever URL the User configured last) — a status line, and a <em>Connect</em> button.</li>
+<li>The User clicks <em>Connect</em>. The status line updates through <em>Connecting…</em> to <em>Connected</em>; the menu-bar indicator turns green and reads <code>bridge: on</code>.</li>
+<li>The User dismisses the dialog. Claude Desktop can now invoke the editor's <code>get_model</code> and <code>replace_model</code> tools whenever the User asks it to inspect or modify the current model.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> Stadiæ holds an active WebSocket connection to the bridge. The connection auto-reconnects with bounded exponential backoff if it drops mid-session (see <em><a class="uc-ref" href="#uc-13.7">Scenario&nbsp;13.7</a></em>). The connection is <strong>not</strong> re-established automatically when the User reloads the page — every session starts disconnected and the User opts in explicitly.</p>
+</article>
+<article class="uc" id="uc-13.2"><header class="uc-head"><span class="uc-id" aria-label="Scenario 13.2"><span class="uc-id-tag">scenario</span><span class="uc-id-num">13.2</span></span><h3 class="uc-title">Change the bridge URL</h3><a class="uc-permalink" href="#uc-13.2" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> The bridge process has been reconfigured to listen on a non-default port (or the User wants to point Stadiæ at a different bridge instance).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User opens <em>File → Bridge…</em>.</li>
+<li>The User edits the URL field. The URL must start with <code>ws://</code> or <code>wss://</code>; other schemes are rejected with an explanatory alert when the User clicks <em>Connect</em>.</li>
+<li>The User clicks <em>Connect</em>. Any existing connection to the previous URL is closed cleanly; a new connection attempt starts against the new URL.</li>
+<li>Stadiæ remembers the new URL between sessions. <code>enabled</code> state is <em>not</em> remembered — the User reconnects explicitly each session.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The bridge connection (if any) is now against the new URL. The dialog opens with this URL pre-filled the next time the User opens it.</p>
+</article>
+<article class="uc" id="uc-13.3"><header class="uc-head"><span class="uc-id" aria-label="Scenario 13.3"><span class="uc-id-tag">scenario</span><span class="uc-id-num">13.3</span></span><h3 class="uc-title">Disconnect from the bridge</h3><a class="uc-permalink" href="#uc-13.3" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Stadiæ is connected to the bridge. The User wishes to revoke Claude Desktop's access without closing the editor.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User opens <em>File → Bridge…</em>. The button below the URL field reads <em>Disconnect</em>.</li>
+<li>The User clicks <em>Disconnect</em>. The WebSocket is closed, the auto-reconnect timer (if any) is cancelled, and the menu-bar indicator turns grey reading <code>bridge: off</code>.</li>
+<li>Any in-flight tool call from Claude (e.g. a <code>replace_model</code> the User triggered moments earlier) will surface as a connection failure on Claude's side; the corresponding model change is <em>not</em> applied locally.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> Stadiæ is disconnected. Subsequent attempts by Claude to call any bridge tool fail with <em>"Stadiæ is not connected. Open the Stadiæ editor in your browser so it can connect to this bridge."</em> until the User reconnects.</p>
+</article>
+<article class="uc" id="uc-13.4"><header class="uc-head"><span class="uc-id" aria-label="Scenario 13.4"><span class="uc-id-tag">scenario</span><span class="uc-id-num">13.4</span></span><h3 class="uc-title">Have Claude inspect the current model</h3><a class="uc-permalink" href="#uc-13.4" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Stadiæ is connected to the bridge. The User has a model open in the editor.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>In Claude Desktop, the User asks a question that depends on the model — for example <em>"What components and handlers are in my current device?"</em> or <em>"Which states does <code>ServerConnector</code> have?"</em>.</li>
+<li>Claude calls the bridge's <code>get_model</code> tool, which forwards the call to Stadiæ.</li>
+<li>Stadiæ serialises the current model (the same byte-minimal <code>stadiae-v4</code> JSON the <em>Save</em> path produces) along with the model's session-local version stamp, and returns it.</li>
+<li>Claude reads the JSON and answers the User's question.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The model is unchanged. The version stamp is unchanged. The User has Claude's answer; Claude has the version stamp it would need for any subsequent modification.</p>
+</article>
+<article class="uc" id="uc-13.5"><header class="uc-head"><span class="uc-id" aria-label="Scenario 13.5"><span class="uc-id-tag">scenario</span><span class="uc-id-num">13.5</span></span><h3 class="uc-title">Have Claude modify the model</h3><a class="uc-permalink" href="#uc-13.5" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Stadiæ is connected to the bridge. The User wants Claude to make a structural change — add a state, add a transition, refactor a component, generate a new model from a description.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>In Claude Desktop, the User asks for the change — for example <em>"Add a <code>Reconnecting</code> state to <code>ServerConnector</code> with a transition from <code>Connected</code> on <code>Connection:Disconnected</code>."</em></li>
+<li>Claude calls <code>get_model</code> first to ground its edit in the current state of the model. It receives the model JSON and the version stamp.</li>
+<li>Claude composes the modified model and calls <code>replace_model</code>, passing the new document and the version stamp from step&nbsp;2 as <code>expectedVersion</code>.</li>
+<li>Stadiæ runs the strict validator on the supplied document. On success, the editor pushes a single undo snapshot, replaces the in-memory model, clears the selection, marks the model dirty, and re-renders the canvas. The User sees the change appear immediately.</li>
+<li>If validation fails, no change is applied. Claude receives a structured <code>errors</code> array — one entry per problem found, with a JSON-pointer-like path, a message, and (where relevant) a list of valid alternatives — and self-corrects on the next attempt.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> On success, the model has been replaced and the version stamp has incremented. The change is undoable in one <code>Ctrl+Z</code> step. <em>Save</em> still targets the same file as before — the saved-filename pointer is preserved, only <em>dirty</em> flips to true.</p>
+</article>
+<article class="uc" id="uc-13.6"><header class="uc-head"><span class="uc-id" aria-label="Scenario 13.6"><span class="uc-id-tag">scenario</span><span class="uc-id-num">13.6</span></span><h3 class="uc-title">Recover from a stale-version rejection</h3><a class="uc-permalink" href="#uc-13.6" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Claude has read the model via <code>get_model</code> and is composing a modification. The User edits the model directly in the editor in the meantime — adds a state, types in a description, presses Undo, etc.</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The User's edit increments the model's session-local version stamp through the editor's normal mutation path.</li>
+<li>Claude finishes composing its replacement and calls <code>replace_model</code> with the version stamp from <em>before</em> the User's edit.</li>
+<li>Stadiæ detects the mismatch and rejects the call without applying any change. The editor's state — including the User's recent edit — is preserved exactly. The rejection carries the current version stamp so Claude can resync without an extra round-trip if it chooses.</li>
+<li>Claude reacts by calling <code>get_model</code> again to refetch the current state, reapplying its intended edit on top of the User's, and resubmitting <code>replace_model</code> with the fresh version stamp.</li>
+<li>The User sees the change appear (or, if the User's edit and Claude's edit conflict in some way the LLM can detect, Claude pauses to ask).</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The User's intermediate edit is never silently overwritten. The optimistic-concurrency contract guarantees that any <code>replace_model</code> that succeeds was composed on top of the model the User currently has.</p>
+</article>
+<article class="uc" id="uc-13.7"><header class="uc-head"><span class="uc-id" aria-label="Scenario 13.7"><span class="uc-id-tag">scenario</span><span class="uc-id-num">13.7</span></span><h3 class="uc-title">Recover from a transient bridge disconnect</h3><a class="uc-permalink" href="#uc-13.7" aria-label="Permalink">#</a></header>
+<p class="lbl-pre"><span class="lbl-tag">Precondition.</span> Stadiæ is connected to the bridge. The bridge process exits and restarts (a Claude Desktop restart, a <code>pkill</code> for diagnostic reasons, an OS sleep/wake cycle).</p>
+<p class="lbl"><strong>Sequence.</strong></p>
+<ol class="seq"><li>The bridge's WebSocket closes. The menu-bar indicator turns amber reading <code>bridge: connecting</code>.</li>
+<li>Stadiæ schedules a reconnect attempt. The first attempt fires after 1&nbsp;s; if it fails the delay doubles to 2&nbsp;s, then 4&nbsp;s, and so on, capped at 30&nbsp;s. Once at the cap, attempts continue every 30&nbsp;s until success.</li>
+<li>When the bridge process is back up, the next reconnect attempt succeeds. The indicator turns green; the User does not have to interact with the editor to recover the connection.</li>
+<li>Any tool call Claude had in flight when the bridge dropped surfaces as <em>"Stadiæ did not respond in time"</em> after the bridge's 30-second timeout. Claude can retry once the indicator is green again.</li></ol>
+<p class="lbl-post"><span class="lbl-tag">Postcondition.</span> The connection is restored. The User did nothing. Tool calls submitted after the reconnect succeed normally. <em>Connection drops that the User does not want recovered</em> are handled by <em><a class="uc-ref" href="#uc-13.3">Scenario&nbsp;13.3</a></em> — explicit disconnect cancels both the WebSocket and the auto-reconnect schedule.</p>
 </article>
 </div>
 </section>
