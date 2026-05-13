@@ -39,6 +39,18 @@ const SCHEMA_PATH = process.env.STADIAE_SCHEMA_PATH
   : resolve(dirname(fileURLToPath(import.meta.url)), SCHEMA_FILENAME);
 const SCHEMA_URI = "stadiae://schema";
 
+// Use-cases document location. The use-cases catalogue describes how to
+// perform every editor operation — adding components, wiring interfaces,
+// renaming, deleting, configuring. Served as both an MCP resource and a
+// tool, exactly like the schema doc. Defaults to a sibling file alongside
+// this script; override with STADIAE_USE_CASES_PATH. Same read-on-every-
+// request behaviour as the schema so edits propagate without restarting.
+const USE_CASES_FILENAME = "use-cases.html";
+const USE_CASES_PATH = process.env.STADIAE_USE_CASES_PATH
+  ? resolve(process.env.STADIAE_USE_CASES_PATH)
+  : resolve(dirname(fileURLToPath(import.meta.url)), USE_CASES_FILENAME);
+const USE_CASES_URI = "stadiae://use-cases";
+
 // Optional icon for the server, surfaced in the Claude Desktop connector
 // list as an entry in the `icons` array of the server's Implementation
 // object (per the MCP `icons` extension). The icon is optional — if no
@@ -220,6 +232,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "get_use_cases",
+      description:
+        "Returns the Stadiæ use-cases catalogue (HTML) — step-by-step instructions for every editor operation: " +
+        "adding/renaming/deleting components, handlers, interfaces, messages, states, choice-points, transitions; " +
+        "wiring components to interfaces; setting per-component multiplication; configuring type definitions; " +
+        "navigating between component and device views; saving and exporting; connecting and disconnecting the " +
+        "Claude Desktop bridge. Call this whenever the user asks how to do something in the editor — phrases like " +
+        "\"how do I add a…\", \"how do I rename…\", \"what does the X button do\", \"how do I export…\", \"how do I " +
+        "connect the bridge\". This catalogue describes the user interface, not the data model — for questions about " +
+        "what makes a model valid or well-designed, use get_schema instead. The same content is also available as " +
+        "the `stadiae://use-cases` MCP resource. Episodic: do not load proactively; call only when a question about " +
+        "editor operations arises.",
+      inputSchema: {
+        type: "object",
+        properties: {},
+      },
+    },
+    {
       name: "replace_model",
       description:
         "Replaces the user's current Stadiæ model with the supplied stadiae-v4 JSON document. The new model is " +
@@ -245,6 +275,40 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
         },
         required: ["model", "expectedVersion"],
+      },
+    },
+    {
+      name: "get_diagram",
+      description:
+        "Returns an SVG rendering of one of the user's Stadiæ diagrams. With `scope: \"device\"` returns the " +
+        "device-level diagram — every component, handler, and interface and their wiring. With `scope: \"component\"` " +
+        "and a `component` name returns the state-machine diagram for that one component. The SVG is always rendered " +
+        "clean, with no selection highlight. " +
+        "Use this when the user asks to see a diagram (\"show me the device\", \"what does ServerConnector look like\", " +
+        "\"render the state machine\"), or when you want to visually verify the layout of an edit you just applied. " +
+        "The SVG is fetched fresh on every call — no caching — so the result reflects whatever is currently in the " +
+        "editor. The response shape is `{svg, scope, component?}`; `component` is echoed back only when scope was " +
+        "\"component\". " +
+        "When showing a diagram to the user, prefer rendering the SVG inline rather than dumping the markup as text. " +
+        "Diagram SVGs can be several kilobytes; the inline content is what the user wants to see. " +
+        "If the user has not configured a PlantUML server, or the configured one is unreachable, this call returns " +
+        "an error explaining what went wrong — the diagram cannot be rendered without it. The same server powers " +
+        "the editor's canvas preview, so any failure here likely also breaks live editing. " +
+        "Read-only: does not modify the model or its version.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          scope: {
+            type: "string",
+            enum: ["device", "component"],
+            description: 'Which diagram to fetch. "device" for the device-level diagram, "component" for one component\'s state machine.',
+          },
+          component: {
+            type: "string",
+            description: 'The component name. Required when scope is "component"; ignored otherwise. Must match an existing component in the current model — call get_model first if you are not sure of the available names.',
+          },
+        },
+        required: ["scope"],
       },
     },
   ],
@@ -277,6 +341,12 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           content: [{ type: "text", text }],
         };
       }
+      case "get_use_cases": {
+        const text = await readUseCases();
+        return {
+          content: [{ type: "text", text }],
+        };
+      }
       case "replace_model": {
         const response = await callBrowser("replace_model", {
           model: args.model,
@@ -287,6 +357,25 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
             {
               type: "text",
               text: JSON.stringify(response.result ?? { ok: true }),
+            },
+          ],
+        };
+      }
+      case "get_diagram": {
+        // Browser-forwarding: the editor owns the model and the
+        // PlantUML pipeline, so it produces the SVG. The bridge just
+        // relays. Argument validation lives on the browser side too —
+        // it knows the current component names and can populate the
+        // `valid` array with real choices.
+        const response = await callBrowser("get_diagram", {
+          scope: args.scope,
+          component: args.component,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(response.result ?? response),
             },
           ],
         };
@@ -308,10 +397,12 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 });
 
 // Resource catalogue — what Claude sees when it asks "what resources are
-// available?". One resource: the stadiae-v4 reference document, served
-// at the URI advertised by the get_schema tool. Clients that surface
-// resources to the LLM (Claude Desktop included, in current builds)
-// will pull this in without an explicit tool call.
+// available?". Two resources today: the stadiae-v4 reference document
+// (the schema and design conventions) and the use-cases catalogue (the
+// editor-operations guide). Both are also exposed as tools (get_schema,
+// get_use_cases) for clients that don't auto-surface resources. Clients
+// that do surface resources to the LLM will pull these in without an
+// explicit tool call.
 server.setRequestHandler(ListResourcesRequestSchema, async () => ({
   resources: [
     {
@@ -322,26 +413,48 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => ({
         "Read at the start of any conversation involving Stadiæ models.",
       mimeType: "text/markdown",
     },
+    {
+      uri: USE_CASES_URI,
+      name: "Stadiæ use-cases catalogue",
+      description:
+        "Step-by-step instructions for every editor operation: adding/renaming/deleting model elements, " +
+        "wiring components, navigating views, saving, exporting, and configuring the bridge. " +
+        "Consult when the user asks how to do something in the editor — operational \"how do I\" questions " +
+        "rather than modelling questions. Episodic: not needed for modelling conversations.",
+      mimeType: "text/html",
+    },
   ],
 }));
 
-// Resource read — returns the schema document content. Reads from disk
-// on every request so edits to the file propagate without restarting
-// the bridge.
+// Resource read — dispatches on URI and returns the document content.
+// Reads from disk on every request so edits to the file propagate without
+// restarting the bridge.
 server.setRequestHandler(ReadResourceRequestSchema, async (req) => {
-  if (req.params.uri !== SCHEMA_URI) {
-    throw new Error(`Unknown resource: ${req.params.uri}`);
+  if (req.params.uri === SCHEMA_URI) {
+    const text = await readSchema();
+    return {
+      contents: [
+        {
+          uri: SCHEMA_URI,
+          mimeType: "text/markdown",
+          text,
+        },
+      ],
+    };
   }
-  const text = await readSchema();
-  return {
-    contents: [
-      {
-        uri: SCHEMA_URI,
-        mimeType: "text/markdown",
-        text,
-      },
-    ],
-  };
+  if (req.params.uri === USE_CASES_URI) {
+    const text = await readUseCases();
+    return {
+      contents: [
+        {
+          uri: USE_CASES_URI,
+          mimeType: "text/html",
+          text,
+        },
+      ],
+    };
+  }
+  throw new Error(`Unknown resource: ${req.params.uri}`);
 });
 
 // Reads the schema document from disk. Both the get_schema tool and the
@@ -354,6 +467,19 @@ async function readSchema() {
     throw new Error(
       `Could not read schema document at ${SCHEMA_PATH}: ${err?.message || err}. ` +
       `Set the STADIAE_SCHEMA_PATH environment variable to point at the file.`
+    );
+  }
+}
+
+// Reads the use-cases catalogue from disk. Parallel to readSchema — both
+// the get_use_cases tool and the MCP resource handler funnel through here.
+async function readUseCases() {
+  try {
+    return await readFile(USE_CASES_PATH, "utf8");
+  } catch (err) {
+    throw new Error(
+      `Could not read use-cases catalogue at ${USE_CASES_PATH}: ${err?.message || err}. ` +
+      `Set the STADIAE_USE_CASES_PATH environment variable to point at the file.`
     );
   }
 }
@@ -404,6 +530,18 @@ try {
     `[stadiae-bridge] Warning: schema document not found at ${SCHEMA_PATH}. ` +
     `get_schema and the stadiae://schema resource will return errors until this is resolved. ` +
     `Set STADIAE_SCHEMA_PATH to override the default location.`
+  );
+}
+
+// Parallel sanity check for the use-cases catalogue. Same policy: warn,
+// don't crash. The other tools keep working without it.
+try {
+  await access(USE_CASES_PATH);
+} catch (_) {
+  console.error(
+    `[stadiae-bridge] Warning: use-cases catalogue not found at ${USE_CASES_PATH}. ` +
+    `get_use_cases and the stadiae://use-cases resource will return errors until this is resolved. ` +
+    `Set STADIAE_USE_CASES_PATH to override the default location.`
   );
 }
 

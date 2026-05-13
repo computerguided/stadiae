@@ -3165,6 +3165,50 @@ function validateBridgeModel(data) {
     typeNames.add(t.name);
   }
 
+  // 3.5. Display-label conventions. Display labels (deviceDisplayName,
+  // every displayName, every choicePoint.question) carry line breaks
+  // as the literal two-character marker `\n` — backslash plus the
+  // letter n. The PlantUML generator translates that marker into the
+  // line-break syntax the renderer understands. A raw newline (U+000A)
+  // in one of these fields means the marker was double-escaped or the
+  // author confused string-source-level "\n" with the marker; either
+  // way it produces a label that the generator won't recognise and
+  // that won't round-trip through Save → Open identically. Reject
+  // with a clear hint so the caller can fix it on the next try.
+  //
+  // Other free-text fields (every description, transition action,
+  // localFunction.steps, type.specification, constant.value,
+  // deviceSpecification) are full-prose surfaces and use real
+  // newlines normally — they are NOT checked here.
+  const checkNoRawNewline = (path, label, value) => {
+    if (typeof value === "string" && value.includes("\n")) {
+      err(path,
+          `${label} contains a raw newline. Use the literal two-character marker \\n (backslash plus n) for line breaks in display labels.`);
+    }
+  };
+
+  checkNoRawNewline("deviceDisplayName", "deviceDisplayName", data.deviceDisplayName);
+  for (const [ci, c] of (data.components || []).entries()) {
+    if (!c) continue;
+    checkNoRawNewline(`components[${ci}].displayName`,
+                      "Component displayName", c.displayName);
+    for (const [si, s] of (c.states || []).entries()) {
+      if (!s) continue;
+      checkNoRawNewline(`components[${ci}].states[${si}].displayName`,
+                        "State displayName", s.displayName);
+    }
+    for (const [pi, p] of (c.choicePoints || []).entries()) {
+      if (!p) continue;
+      checkNoRawNewline(`components[${ci}].choicePoints[${pi}].question`,
+                        "Choice-point question", p.question);
+    }
+  }
+  for (const [hi, h] of (data.handlers || []).entries()) {
+    if (!h) continue;
+    checkNoRawNewline(`handlers[${hi}].displayName`,
+                      "Handler displayName", h.displayName);
+  }
+
   // 4. Messages must reference an existing interface (built-in or
   // user-defined), and message names must be unique within their
   // interface.
@@ -3453,6 +3497,33 @@ function replaceModelFromBridge(data, expectedVersion) {
   return { ok: true, version: Model.version };
 }
 
+// Fetch a diagram from the configured PlantUML server and return the
+// SVG markup as a string. Thin wrapper around plantUMLSVGURL plus
+// `fetch().text()`; isolates the network failure modes so `get_diagram`
+// can translate them into structured errors.
+//
+// The SVG is fetched fresh on every call. No caching: the spec
+// exporter doesn't cache either (see design.md §15), and a diagram is
+// a function of the model — a stale cache would be invisible until
+// it produced a wrong answer. The cost is one HTTP round-trip per
+// call, dominated by PlantUML server latency (hundreds of ms typical).
+async function fetchPlantUMLSVG(source) {
+  const url = plantUMLSVGURL(source);
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (err) {
+    // Network-level failure: server unreachable, CORS preflight rejected,
+    // DNS error. The browser doesn't expose distinguishing detail for
+    // security reasons, so we keep the message generic but actionable.
+    throw new Error(`Could not reach the PlantUML server at ${activePlantUMLBaseUrl()}. ${err?.message || ""}`.trim());
+  }
+  if (!response.ok) {
+    throw new Error(`PlantUML server returned HTTP ${response.status} for the diagram request.`);
+  }
+  return await response.text();
+}
+
 // Method registry. Each entry receives the request `params` and returns
 // the result object (or a promise resolving to one). Throwing converts
 // to an error frame on the wire; if the thrown Error carries a `.errors`
@@ -3490,6 +3561,75 @@ const bridgeMethods = {
       throw e;
     }
     return replaceModelFromBridge(params.model, params.expectedVersion);
+  },
+
+  // Returns an SVG rendering of one of the device's diagrams. With
+  // `scope: "device"` returns the device-level diagram showing every
+  // component, handler, and interface with their wiring. With
+  // `scope: "component"` and a `component` name returns the
+  // state-machine diagram for that component. The SVG is always rendered
+  // clean (no selection highlight) — selection is a UI concept and the
+  // bridge surface stays free of it.
+  //
+  // The diagram is rendered by the user's configured PlantUML server
+  // (the same one the canvas preview and spec export use). A
+  // misconfigured or unreachable server surfaces as a structured error
+  // with a clear message; the model itself is never touched.
+  //
+  // Read-only: does not mutate state, does not increment Model.version.
+  // Each call is a fresh snapshot — no caching.
+  get_diagram: async (params) => {
+    if (!params || (params.scope !== "device" && params.scope !== "component")) {
+      const e = new Error('get_diagram requires `scope` of "device" or "component".');
+      e.errors = [{
+        path: "scope",
+        message: "Missing or invalid scope.",
+        valid: ["device", "component"],
+      }];
+      throw e;
+    }
+    if (params.scope === "device") {
+      const source = generateComponentDiagramPlantUML({
+        withSelection: false,
+        includeSalt: false,
+      });
+      const svg = await fetchPlantUMLSVG(source);
+      return { svg, scope: "device" };
+    }
+    // scope === "component"
+    if (typeof params.component !== "string" || !params.component) {
+      const e = new Error('get_diagram with scope "component" requires a `component` name.');
+      e.errors = [{
+        path: "component",
+        message: "Missing or empty component name.",
+        valid: Model.components.map((c) => c.name),
+      }];
+      throw e;
+    }
+    const idx = Model.components.findIndex((c) => c && c.name === params.component);
+    if (idx === -1) {
+      const e = new Error(`Unknown component "${params.component}".`);
+      e.errors = [{
+        path: "component",
+        message: `No component named "${params.component}" in the current model.`,
+        valid: Model.components.map((c) => c.name),
+      }];
+      throw e;
+    }
+    // The state-machine generator reads from Model.activeComponentIndex
+    // via the Component proxy. Swap-generate-restore is the established
+    // idiom in this codebase (see the spec exporter's per-component
+    // rendering loop in buildSpecificationDocx).
+    const savedActiveIndex = Model.activeComponentIndex;
+    let source;
+    try {
+      Model.activeComponentIndex = idx;
+      source = generatePlantUML({ withSelection: false, includeSalt: false });
+    } finally {
+      Model.activeComponentIndex = savedActiveIndex;
+    }
+    const svg = await fetchPlantUMLSVG(source);
+    return { svg, scope: "component", component: params.component };
   },
 };
 
@@ -13694,6 +13834,132 @@ async function fetchDiagramAsInlineSVG(plantUMLSource) {
   }
 }
 
+// Post-process an inlined PlantUML SVG to make diagram elements clickable
+// links into the same HTML document. PlantUML emits each declared element
+// as `<g id="elem_<name>">…</g>`, where `<name>` is the identifier-safe
+// model name we passed to it. We walk those groups, resolve each id to a
+// model entity, and wrap the group in an `<a href="#<anchor>">` so the
+// element jumps to its definition in the spec.
+//
+// Two contexts:
+//   - "device" — the SVG comes from generateComponentDiagramPlantUML.
+//     Ids resolve as components, handlers, or interfaces.
+//   - "component" — the SVG comes from generatePlantUML (state machine
+//     of one component). Ids resolve as states or choice points within
+//     that component. Choice points have a `CP_` prefix in PlantUML.
+//
+// Elements that don't resolve to a known entity are left untouched: this
+// covers PlantUML's synthetic nodes (`START`, `ANY`), wrapper rectangles
+// (`<comp>xN`), and any internal structural groups. Wrapping a stray id
+// in `<a href="#nonexistent">` would create dead links, which is worse
+// than the no-op of leaving it alone.
+//
+// The wrap happens in the SVG namespace. SVG2 supports the plain `href`
+// attribute on `<a>` so we don't need the legacy `xlink:href`. CSS
+// (in the generated stylesheet) attaches the `cursor: pointer` affordance
+// scoped to `.diagram a[href]`.
+//
+// Implementation: a single regex pass over `<g id="elem_…" …>` openers.
+// PlantUML's nested groups close in order, so we don't need to balance —
+// we just inject `<a href="…">` immediately before the group and `</a>`
+// immediately after the matching `</g>`. To find the matching `</g>`
+// we scan forward and count nesting, which a small state machine handles.
+function linkifyDiagramSVG(svg, ctx) {
+  if (!svg) return svg;
+
+  // Resolver: id (with `elem_` already stripped) → anchor href, or null.
+  // `ctx.kind === "device"` resolves component/handler/interface names;
+  // `ctx.kind === "component"` resolves state/CP names inside the
+  // component named by `ctx.componentName`.
+  const resolveAnchor = (id) => {
+    if (!id) return null;
+    if (ctx.kind === "device") {
+      if (Model.components.some(c => c.name === id)) return anchorComp(id);
+      if (Model.handlers.some(h => h.name === id && !h.isDefault)) return anchorHandler(id);
+      if (Model.interfaces.some(i => i.name === id && !i.isDefault)) return anchorIface(id);
+      return null;
+    }
+    if (ctx.kind === "component") {
+      const comp = Model.components.find(c => c.name === ctx.componentName);
+      if (!comp) return null;
+      if (id.startsWith("CP_")) {
+        const cpName = id.slice(3);
+        if ((comp.choicePoints || []).some(p => p.name === cpName)) {
+          return anchorCP(comp.name, cpName);
+        }
+        return null;
+      }
+      // States. Skip synthetic ids that aren't user-defined entities.
+      if (id === "START" || id === "ANY") return null;
+      if ((comp.states || []).some(s => s.name === id)) {
+        return anchorState(comp.name, id);
+      }
+      return null;
+    }
+    return null;
+  };
+
+  // Walk the SVG. For every `<g id="elem_…">` whose id resolves, find
+  // the matching `</g>` and wrap the whole group in `<a href="…">…</a>`.
+  // The PlantUML output is well-formed, so a counted scan suffices.
+  const GROUP_OPEN_RE = /<g\b[^>]*\bid\s*=\s*"elem_([^"]+)"[^>]*>/gi;
+  const out = [];
+  let cursor = 0;
+  let match;
+  GROUP_OPEN_RE.lastIndex = 0;
+  while ((match = GROUP_OPEN_RE.exec(svg)) !== null) {
+    const rawId = match[1];
+    const anchor = resolveAnchor(rawId);
+    if (!anchor) continue;
+    const openStart = match.index;
+    const openEnd = match.index + match[0].length;
+    // Find the matching </g>. Count nested <g …> openings (any <g>,
+    // not just elem_ ones) and corresponding </g> closings starting
+    // from depth 1 at openEnd.
+    let depth = 1;
+    let scan = openEnd;
+    const NESTED = /<g\b[^>]*>|<\/g\s*>/gi;
+    NESTED.lastIndex = scan;
+    let nest;
+    let closeStart = -1, closeEnd = -1;
+    while ((nest = NESTED.exec(svg)) !== null) {
+      if (nest[0].toLowerCase().startsWith("</g")) {
+        depth--;
+        if (depth === 0) {
+          closeStart = nest.index;
+          closeEnd = nest.index + nest[0].length;
+          break;
+        }
+      } else {
+        depth++;
+      }
+    }
+    if (closeEnd === -1) {
+      // Malformed input — bail out on this match, leave the rest of
+      // the SVG untouched.
+      continue;
+    }
+    // Emit everything from `cursor` up to (and not including) the
+    // <g elem_…> opener, then the <a> opener, then the group itself
+    // verbatim, then </a>. Advance cursor past the </g> we matched.
+    out.push(svg.slice(cursor, openStart));
+    out.push(`<a href="#${escapeHTML(anchor)}">`);
+    out.push(svg.slice(openStart, closeEnd));
+    out.push(`</a>`);
+    cursor = closeEnd;
+    // The outer regex's lastIndex was advanced past the opener already,
+    // but inner groups we walked may have included nested elem_ ids the
+    // outer regex would have matched separately. Force the outer regex
+    // past everything we just consumed so we don't re-wrap a nested
+    // group that's already inside an <a>. (Nested elem_ groups are
+    // unusual in PlantUML output but possible inside multiplied-component
+    // rectangles, where a `<comp>xN` wrapper contains a `<comp>` group.)
+    GROUP_OPEN_RE.lastIndex = closeEnd;
+  }
+  out.push(svg.slice(cursor));
+  return out.join("");
+}
+
 // Build the sidebar TOC HTML. Tree structure: Device → Interfaces →
 // Components (each expandable to its sections) → Handlers. Mirrors
 // the body order: interfaces before components because messages are
@@ -14003,6 +14269,12 @@ code.ref-unresolved {
    viewports. No border — the diagram speaks for itself. */
 .diagram svg { max-width: 100%; height: auto; }
 .diagram img { max-width: 100%; }
+/* Diagram elements are wrapped in <a href="#..."> by linkifyDiagramSVG
+   so clicking a state, choice point, component, handler, or interface
+   jumps to its definition in the spec. The affordance is intentionally
+   subtle: pointer cursor on hover, no visual highlight — the diagram's
+   own shape and label already make the target obvious. */
+.diagram a[href] { cursor: pointer; }
 .diagram-missing {
   padding: 24px;
   background: var(--surface);
@@ -14336,7 +14608,7 @@ async function buildSpecBody(idx, progress) {
     const devSrc = generateComponentDiagramPlantUML({ withSelection: false, includeSalt: false });
     const devSvg = await fetchDiagramAsInlineSVG(devSrc);
     if (devSvg) {
-      parts.push(`<div class="diagram">${devSvg}</div>`);
+      parts.push(`<div class="diagram">${linkifyDiagramSVG(devSvg, { kind: "device" })}</div>`);
     } else {
       parts.push(`<div class="diagram-missing">Device diagram could not be rendered (PlantUML server unavailable).</div>`);
     }
@@ -14489,7 +14761,7 @@ async function buildSpecBody(idx, progress) {
     });
     const ctxSvg = await fetchDiagramAsInlineSVG(ctxSrc);
     if (ctxSvg) {
-      parts.push(`<div class="diagram">${ctxSvg}</div>`);
+      parts.push(`<div class="diagram">${linkifyDiagramSVG(ctxSvg, { kind: "device" })}</div>`);
     } else {
       parts.push(`<div class="diagram-missing">Context diagram could not be rendered.</div>`);
     }
@@ -14593,7 +14865,7 @@ async function buildSpecBody(idx, progress) {
     }
     const sdSvg = await fetchDiagramAsInlineSVG(sdSrc);
     if (sdSvg) {
-      parts.push(`<div class="diagram">${sdSvg}</div>`);
+      parts.push(`<div class="diagram">${linkifyDiagramSVG(sdSvg, { kind: "component", componentName: c.name })}</div>`);
     } else {
       parts.push(`<div class="diagram-missing">State diagram could not be rendered.</div>`);
     }

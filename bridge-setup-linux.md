@@ -80,9 +80,10 @@ mkdir -p ~/.config/Claude/logs
 
    - `bridge.mjs` — the bridge itself.
    - `stadiae_mcp_instructions.md` — the schema reference document the bridge serves to Claude.
+   - `use-cases.html` — the use-cases catalogue the bridge serves alongside the schema. Lets Claude answer "how do I…" questions about editor operations.
    - *(optional)* `stadiae-icon.png` (or `.svg`) — a custom icon for the connector list.
 
-   All three live in the same directory. The bridge resolves them by sibling-file lookup; no environment variables required.
+   All four live in the same directory. The bridge resolves them by sibling-file lookup; no environment variables required.
 
 3. **Install dependencies.** The bridge depends on the MCP SDK and the `ws` WebSocket library:
 
@@ -169,6 +170,7 @@ After setup the layout is:
 ~/stadiae-bridge/
 ├── bridge.mjs                        # the bridge
 ├── stadiae_mcp_instructions.md       # schema doc served to Claude
+├── use-cases.html                    # use-cases catalogue served to Claude
 ├── stadiae-icon.png                  # (optional) connector-list icon
 ├── package.json                      # created by npm init
 ├── package-lock.json                 # created by npm install
@@ -239,6 +241,20 @@ If missing, copy it there and restart Claude Desktop.
 
 If the file is present but Claude still gets the schema wrong, ask Claude explicitly *"use the `get_schema` tool to read the reference doc, then answer my previous question."* Some Claude Desktop builds advertise the schema as an MCP resource without auto-loading it; the `get_schema` tool is the bulletproof fallback.
 
+### "Claude can't answer 'how do I…' questions about the editor"
+
+Symptoms include Claude giving generic state-machine-editor guesses to operational questions, or referencing menus and buttons that don't exist in Stadiæ. Means the use-cases catalogue isn't reaching Claude.
+
+Check that `use-cases.html` is sitting next to `bridge.mjs`:
+
+```bash
+ls /home/<your-username>/stadiae-bridge/use-cases.html
+```
+
+If missing, copy it there and restart Claude Desktop.
+
+If the file is present but Claude still struggles with editor operations, ask Claude explicitly *"use the `get_use_cases` tool to read the catalogue, then answer my previous question."* Same fallback pattern as the schema: the `get_use_cases` tool always works even when MCP resource auto-loading doesn't.
+
 ### "I changed the config but the bridge is still using old behaviour"
 
 Claude Desktop reads the config at startup. After editing, **fully quit and relaunch** — closing the window isn't enough; the spawned MCP servers stay alive. Use `pkill -f bridge.mjs` if you want to be certain the old process is gone before relaunching.
@@ -247,7 +263,7 @@ Claude Desktop reads the config at startup. After editing, **fully quit and rela
 
 To install a newer bridge:
 
-1. Replace `bridge.mjs` (and `stadiae_mcp_instructions.md` if it changed) in `~/stadiae-bridge/`.
+1. Replace `bridge.mjs` (and `stadiae_mcp_instructions.md` and/or `use-cases.html` if they changed) in `~/stadiae-bridge/`.
 2. `pkill -f bridge.mjs` to terminate the running instance.
 3. Fully quit and relaunch Claude Desktop.
 

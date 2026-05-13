@@ -86,7 +86,16 @@ A file is a single JSON object with the following keys. `format` is mandatory an
 
 **Byte-minimality.** The save format is *byte-minimal*: any optional field whose value equals its default is omitted. Empty arrays are omitted entirely (e.g. a model with no handlers omits the `handlers`, `handlerConnections`, and `handlerCalls` keys). Empty strings are omitted. Do not include empty arrays, empty strings, or fields equal to their defaults in the JSON.
 
-**Identifiers.** Wherever a field is described below as *identifier-safe*, the value must match the regex `^[A-Za-z][A-Za-z0-9_]*$` — start with a letter, then letters / digits / underscores only. No spaces, no punctuation, no leading digit. Display labels (`displayName`, `question`, etc.) have no such restriction and may contain spaces and the literal two-character marker `\n` to break long labels onto multiple lines.
+**Identifiers.** Wherever a field is described below as *identifier-safe*, the value must match the regex `^[A-Za-z][A-Za-z0-9_]*$` — start with a letter, then letters / digits / underscores only. No spaces, no punctuation, no leading digit. Display labels (`displayName`, `question`, etc.) have no such restriction and may contain spaces, and follow the line-break rule below.
+
+**Display-label line breaks.** Display labels — every `displayName` on components, states, handlers; choice-point `question`s; the top-level `deviceDisplayName` — break onto multiple lines via a single explicit marker: the **literal two-character sequence backslash + `n`**. In JSON source that is written `"\\n"`, which deserialises to the two characters `\` and `n`. The editor's PlantUML generator translates that marker into the renderer's line-break syntax.
+
+A raw newline character (U+000A) in one of these fields is **not** the same thing and is rejected by the strict validator. The trap is that JSON source's `"\n"` is one character (a real newline), whereas the marker is two characters (a backslash followed by an `n`), so the JSON source needs `"\\n"`.
+
+- ✅ `"displayName": "Server\\nConnector"` — JSON source contains `\\n`, the deserialised value contains `\n` (two characters), the editor renders as two lines.
+- ❌ `"displayName": "Server\nConnector"` — JSON source contains `\n`, the deserialised value contains a real newline (one character), validator rejects.
+
+This rule applies only to display labels. Every other free-text field — every `description`, transition `action`, local-function `steps`, type `specification`, constant `value`, and the top-level `deviceSpecification` — is full prose and uses real newlines normally. Write `"\n"` in those, not `"\\n"`.
 
 ## Built-in vocabulary — do not declare
 
@@ -603,6 +612,11 @@ Before submitting a model, run through these checks:
 - [ ] Within each component: state names + choice-point names form one unique set; state variables, constants, and local functions each unique within their own list.
 - [ ] Within each interface: message names unique. Within each handler: function names unique. Within each message/function: parameter names unique.
 - [ ] Across `types`: type names unique (device-wide), and don't collide with built-in types (`Time`, `TimerID`).
+
+**Display labels**
+
+- [ ] Every display label (`deviceDisplayName`, every `displayName`, choice-point `question`) uses the literal two-character marker for line breaks — JSON source `"\\n"`, deserialised value `\n` (backslash plus `n`). A raw newline character in any of these fields is rejected.
+- [ ] Other free-text fields (every `description`, transition `action`, local-function `steps`, type `specification`, constant `value`, `deviceSpecification`) use real newlines normally — JSON source `"\n"`, **not** `"\\n"`.
 
 **Built-ins**
 

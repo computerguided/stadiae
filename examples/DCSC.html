@@ -462,7 +462,14 @@ code.ref-unresolved {
     {
       "interface": "Control",
       "name": "ReleaseDoorReq",
-      "description": "Request to release a door for operation."
+      "description": "Request to release a door for operation.",
+      "parameters": [
+        {
+          "name": "timeout",
+          "type": "Time",
+          "description": "Maximum time the door is allowed to remain open before an alarm is raised."
+        }
+      ]
     },
     {
       "interface": "Control",
@@ -667,125 +674,122 @@ code.ref-unresolved {
       ],
       "transitions": [
         {
-          "source": "START",
-          "target": "Idle",
+          "connector": "Right",
+          "length": 1,
           "messages": [],
-          "connector": "Right",
-          "length": 1
+          "source": "START",
+          "target": "Idle"
         },
         {
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "interface": "Config",
+              "name": "InitializedInd"
+            }
+          ],
           "source": "Idle",
-          "target": "Standby",
-          "messages": [
-            {
-              "interface": "Config",
-              "name": "InitializedInd",
-              "action": ""
-            }
-          ],
-          "connector": "Right",
-          "length": 1
+          "target": "Standby"
         },
         {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `ConfigurationDatabase:getBackendUrl()`.",
+              "interface": "Admin",
+              "name": "BackendUrlReq"
+            }
+          ],
           "source": "Standby",
-          "target": "Retrieving",
-          "messages": [
-            {
-              "interface": "Admin",
-              "name": "BackendUrlReq",
-              "action": "Call `ConfigurationDatabase:getBackendUrl()`."
-            }
-          ],
-          "connector": "Down",
-          "length": 1
+          "target": "Retrieving"
         },
         {
+          "connector": "Left",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `backendUrl` to `BackendUrlInd:url`.\nSend `Admin:BackendUrlRsp` with parameter `backendUrl`.",
+              "interface": "Config",
+              "name": "BackendUrlInd"
+            }
+          ],
           "source": "Retrieving",
-          "target": "Ready",
-          "messages": [
-            {
-              "interface": "Config",
-              "name": "BackendUrlInd",
-              "action": "Set `backendUrl` to `BackendUrlInd:url`.\nSend `Admin:BackendUrlRsp` with parameter `backendUrl`."
-            }
-          ],
-          "connector": "Left",
-          "length": 1
+          "target": "Ready"
         },
         {
-          "source": "Ready",
-          "target": "Storing",
-          "messages": [
-            {
-              "interface": "Admin",
-              "name": "DoorLockChangedInd",
-              "action": "Set `event `to \"Door \" + `DoorLockChangedInd:doorId` + \" is \".\n**IF** `DoorLockChangedInd:locked` **THEN**  `event` += \"locked\" **ELSE** `event` += \"unlocked\".\nCall `ConfigurationDatabase:storeEvent`(`event`)."
-            },
-            {
-              "interface": "Admin",
-              "name": "DoorStateChangedInd",
-              "action": "Set `event `to \"Door \" + `DoorStateChangedInd:doorId` + \" is \".\n**IF** `DoorStateChangedInd:open` **THEN**  `event` += \"open\" **ELSE** `event` += \"closed\".\nCall `ConfigurationDatabase:storeEvent`(`event`)."
-            }
-          ],
           "connector": "Down",
-          "length": 1
-        },
-        {
-          "source": "Storing",
-          "target": "Storing",
+          "length": 1,
           "messages": [
             {
+              "action": "Set `event `to \"Door \" + `DoorLockChangedInd:doorId` + \" is \".\n**IF** `DoorLockChangedInd:locked` **THEN**  `event` += \"locked\" **ELSE** `event` += \"unlocked\".\nCall `ConfigurationDatabase:storeEvent`(`event`).",
               "interface": "Admin",
-              "name": "DoorLockChangedInd",
-              "action": "Set `event` to \"Door \" + `DoorLockChangedInd:doorId` + \" is \".\n**IF** `DoorLockChangedInd:locked` **THEN**  `event` += \"locked\" **ELSE** `event` += \"unlocked\".\nAdd `event` to `pendingEvents`."
+              "name": "DoorLockChangedInd"
             },
             {
+              "action": "Set `event `to \"Door \" + `DoorStateChangedInd:doorId` + \" is \".\n**IF** `DoorStateChangedInd:open` **THEN**  `event` += \"open\" **ELSE** `event` += \"closed\".\nCall `ConfigurationDatabase:storeEvent`(`event`).",
               "interface": "Admin",
-              "name": "DoorStateChangedInd",
-              "action": "Set `event `to \"Door \" + `DoorStateChangedInd:doorId` + \" is \".\n**IF** `DoorStateChangedInd:open` **THEN**  `event` += \"open\" **ELSE** `event` += \"closed\".\nAdd `event` to `pendingEvents`."
+              "name": "DoorStateChangedInd"
             }
           ],
-          "connector": "Right",
-          "length": 1
+          "source": "Ready",
+          "target": "Storing"
         },
         {
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `event` to \"Door \" + `DoorLockChangedInd:doorId` + \" is \".\n**IF** `DoorLockChangedInd:locked` **THEN**  `event` += \"locked\" **ELSE** `event` += \"unlocked\".\nAdd `event` to `pendingEvents`.",
+              "interface": "Admin",
+              "name": "DoorLockChangedInd"
+            },
+            {
+              "action": "Set `event `to \"Door \" + `DoorStateChangedInd:doorId` + \" is \".\n**IF** `DoorStateChangedInd:open` **THEN**  `event` += \"open\" **ELSE** `event` += \"closed\".\nAdd `event` to `pendingEvents`.",
+              "interface": "Admin",
+              "name": "DoorStateChangedInd"
+            }
+          ],
           "source": "Storing",
-          "target": "CP_PendingEvents",
+          "target": "Storing"
+        },
+        {
+          "connector": "Left",
+          "length": 1,
           "messages": [
             {
               "interface": "Config",
-              "name": "EventStoredInd",
-              "action": ""
+              "name": "EventStoredInd"
             }
           ],
-          "connector": "Left",
-          "length": 1
+          "source": "Storing",
+          "target": "CP_PendingEvents"
         },
         {
-          "source": "CP_PendingEvents",
-          "target": "Ready",
-          "messages": [
-            {
-              "interface": "Logical",
-              "name": "No",
-              "action": ""
-            }
-          ],
           "connector": "Up",
-          "length": 1
-        },
-        {
-          "source": "CP_PendingEvents",
-          "target": "Storing",
+          "length": 1,
           "messages": [
             {
               "interface": "Logical",
-              "name": "Yes",
-              "action": "Pop the next element from `pendingEvents` and store in `event`.\nCall `ConfigurationDatabase:storeEvent()` with `event` as the parameter."
+              "name": "No"
             }
           ],
+          "source": "CP_PendingEvents",
+          "target": "Ready"
+        },
+        {
           "connector": "Right",
-          "length": 1
+          "length": 1,
+          "messages": [
+            {
+              "action": "Pop the next element from `pendingEvents` and store in `event`.\nCall `ConfigurationDatabase:storeEvent()` with `event` as the parameter.",
+              "interface": "Logical",
+              "name": "Yes"
+            }
+          ],
+          "source": "CP_PendingEvents",
+          "target": "Storing"
         }
       ],
       "description": "Initializes and exchanges information with the database.\n\n# Behaviour\n\nWhen the Administrator initializes, it needs to also initialize the Configuration Database by calling its `ConfigurationDatabase:initDatabase()` function. When the database is initialized, the `Config:InitializedInd` message is received.\n\nWhen the Configuration Database is initialized, the Administrator can receive the `Admin:BackendUrlReq` which is a request to retrieve the backend URL. As a result it calls the `ConfigurationDatabase:getBackendUrl()`. When the database extracted the backend URL, the Administrator received the `Config:BackendUrlInd` message. This is forwarded by sending the `Admin:BackendUrlRsp` message.\n\nThe Administrator converts the messages on the Admin interface to a proper event description and adds this to the database by calling the `ConfigurationDatabase:storeEvent()` function. When the database has properly stored the event, the `Config:EventStoredInd` is received. Only one event can be stored each time, so storing any intermediate events is postponed.\n\n# Initialization\nAs stated, when the Administrator initializes, it needs to also initialize the Configuration Database. Therefore, the default `initialize()` method must be overridden to call the`ConfigurationDatabase:initDatabase()` function.",
@@ -864,242 +868,240 @@ code.ref-unresolved {
       ],
       "transitions": [
         {
-          "source": "START",
-          "target": "AwaitDoors",
+          "connector": "Down",
+          "length": 1,
           "messages": [],
-          "connector": "Down",
-          "length": 1
+          "source": "START",
+          "target": "AwaitDoors"
         },
         {
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Add `Control:DoorDetectedInd:doorId` to `detectedDoors`.",
+              "interface": "Control",
+              "name": "DoorDetectedInd"
+            }
+          ],
           "source": "AwaitDoors",
-          "target": "CP_AllDoorsDetected",
-          "messages": [
-            {
-              "interface": "Control",
-              "name": "DoorDetectedInd",
-              "action": "Add `Control:DoorDetectedInd:doorId` to `detectedDoors`."
-            }
-          ],
-          "connector": "Right",
-          "length": 1
+          "target": "CP_AllDoorsDetected"
         },
         {
-          "source": "CP_AllDoorsDetected",
-          "target": "AwaitDoors",
-          "messages": [
-            {
-              "interface": "Logical",
-              "name": "No",
-              "action": ""
-            }
-          ],
           "connector": "Left",
-          "length": 1
-        },
-        {
-          "source": "CP_AllDoorsDetected",
-          "target": "Initializing",
+          "length": 1,
           "messages": [
             {
               "interface": "Logical",
-              "name": "Yes",
-              "action": "Send `Admin:BackendUrlReq`."
+              "name": "No"
             }
           ],
-          "connector": "Down",
-          "length": 1
+          "source": "CP_AllDoorsDetected",
+          "target": "AwaitDoors"
         },
         {
-          "source": "Initializing",
-          "target": "Connecting",
+          "connector": "Down",
+          "length": 1,
           "messages": [
             {
+              "action": "Send `Admin:BackendUrlReq`.",
+              "interface": "Logical",
+              "name": "Yes"
+            }
+          ],
+          "source": "CP_AllDoorsDetected",
+          "target": "Initializing"
+        },
+        {
+          "connector": "Left",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `BackendInterface:connect()` with `BackendUrlRsp:url` as the parameter.",
               "interface": "Admin",
-              "name": "BackendUrlRsp",
-              "action": "Call `BackendInterface:connect()` with `BackendUrlRsp:url` as the parameter."
+              "name": "BackendUrlRsp"
             }
           ],
-          "connector": "Left",
-          "length": 1
+          "source": "Initializing",
+          "target": "Connecting"
         },
         {
-          "source": "CP_DoorFound",
-          "target": "Ready",
-          "messages": [
-            {
-              "interface": "Logical",
-              "name": "No",
-              "action": "Create a string `lastDoorId` + \" not found!\".\nCall `BackendInterface:error()` with the `lastDoorId` and the string as parameters."
-            }
-          ],
           "connector": "Right",
-          "length": 1
-        },
-        {
-          "source": "CP_DoorFound",
-          "target": "Processing",
+          "length": 1,
           "messages": [
             {
+              "action": "Create a string `lastDoorId` + \" not found!\".\nCall `BackendInterface:error()` with the `lastDoorId` and the string as parameters.",
               "interface": "Logical",
-              "name": "Yes",
-              "action": "Call `resendLastReceivedMessage()`."
+              "name": "No"
             }
           ],
-          "connector": "Right",
-          "length": 1
+          "source": "CP_DoorFound",
+          "target": "Ready"
         },
         {
-          "source": "Ready",
-          "target": "CP_DoorFound",
+          "connector": "Right",
+          "length": 1,
           "messages": [
             {
-              "interface": "Commands",
-              "name": "AddTagInd",
-              "action": "Set `lastDoorIndex` to index of `AddTagInd:doorId`.\nSet `lastDoorId` to `AddTagInd:doorId`."
-            },
-            {
-              "interface": "Commands",
-              "name": "LockDoorInd",
-              "action": "Set `lastDoorIndex` to index of `LockDoorInd:doorId`.\nSet `lastDoorId` to `LockDoorInd:doorId`."
-            },
-            {
-              "interface": "Commands",
-              "name": "RemoveTagInd",
-              "action": "Set `lastDoorIndex` to index of `RemoveTagInd:doorId`.\nSet `lastDoorId` to `RemoveTagInd:doorId`."
-            },
-            {
-              "interface": "Commands",
-              "name": "UnlockDoorInd",
-              "action": "Set `lastDoorIndex` to index of `UnlockDoorInd:doorId`.\nSet `lastDoorId` to `UnlockDoorInd:doorId`."
+              "action": "Call `resendLastReceivedMessage()`.",
+              "interface": "Logical",
+              "name": "Yes"
             }
           ],
+          "source": "CP_DoorFound",
+          "target": "Processing"
+        },
+        {
           "connector": "Down",
-          "length": 1
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `lastDoorIndex` to index of `AddTagInd:doorId`.\nSet `lastDoorId` to `AddTagInd:doorId`.",
+              "interface": "Commands",
+              "name": "AddTagInd"
+            },
+            {
+              "action": "Set `lastDoorIndex` to index of `LockDoorInd:doorId`.\nSet `lastDoorId` to `LockDoorInd:doorId`.",
+              "interface": "Commands",
+              "name": "LockDoorInd"
+            },
+            {
+              "action": "Set `lastDoorIndex` to index of `RemoveTagInd:doorId`.\nSet `lastDoorId` to `RemoveTagInd:doorId`.",
+              "interface": "Commands",
+              "name": "RemoveTagInd"
+            },
+            {
+              "action": "Set `lastDoorIndex` to index of `UnlockDoorInd:doorId`.\nSet `lastDoorId` to `UnlockDoorInd:doorId`.",
+              "interface": "Commands",
+              "name": "UnlockDoorInd"
+            }
+          ],
+          "source": "Ready",
+          "target": "CP_DoorFound"
         },
         {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Send `Control:AddTagInd` to interface index `lastDoorIndex` with `AddTagInd:doorId` and `AddTagInd:tagId` as parameters.",
+              "interface": "Commands",
+              "name": "AddTagInd"
+            },
+            {
+              "action": "Send `Control:SetLockInd` to interface index `lastDoorIndex` with `LockDoorInd:doorId` and _true_ as parameters.",
+              "interface": "Commands",
+              "name": "LockDoorInd"
+            },
+            {
+              "action": "Send `Control:RemoveTagInd` to interface index `lastDoorIndex` with `RemoveTagInd:doorId` and `RemoveTagInd:tagId` as parameters.",
+              "interface": "Commands",
+              "name": "RemoveTagInd"
+            },
+            {
+              "action": "Send `Control:SetLockInd` to interface index `lastDoorIndex` with `UnlockDoorInd:doorId` and _false_ as parameters.",
+              "interface": "Commands",
+              "name": "UnlockDoorInd"
+            }
+          ],
           "source": "Processing",
-          "target": "Ready",
-          "messages": [
-            {
-              "interface": "Commands",
-              "name": "AddTagInd",
-              "action": "Send `Control:AddTagInd` to interface index `lastDoorIndex` with `AddTagInd:doorId` and `AddTagInd:tagId` as parameters."
-            },
-            {
-              "interface": "Commands",
-              "name": "LockDoorInd",
-              "action": "Send `Control:SetLockInd` to interface index `lastDoorIndex` with `LockDoorInd:doorId` and _true_ as parameters."
-            },
-            {
-              "interface": "Commands",
-              "name": "RemoveTagInd",
-              "action": "Send `Control:RemoveTagInd` to interface index `lastDoorIndex` with `RemoveTagInd:doorId` and `RemoveTagInd:tagId` as parameters."
-            },
-            {
-              "interface": "Commands",
-              "name": "UnlockDoorInd",
-              "action": "Send `Control:SetLockInd` to interface index `lastDoorIndex` with `UnlockDoorInd:doorId` and _false_ as parameters."
-            }
-          ],
-          "connector": "Down",
-          "length": 1
+          "target": "Ready"
         },
         {
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `BackendInterface:keepAlive()`.",
+              "interface": "Commands",
+              "name": "KeepAliveInd"
+            }
+          ],
           "source": "*",
-          "target": "[H]",
-          "messages": [
-            {
-              "interface": "Commands",
-              "name": "KeepAliveInd",
-              "action": "Call `BackendInterface:keepAlive()`."
-            }
-          ],
-          "connector": "Right",
-          "length": 1
+          "target": "[H]"
         },
         {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `lastDoorIndex` to 0.",
+              "interface": "Commands",
+              "name": "ConnectedInd"
+            }
+          ],
           "source": "Connecting",
-          "target": "CP_AllReleased",
-          "messages": [
-            {
-              "interface": "Commands",
-              "name": "ConnectedInd",
-              "action": "Set `lastDoorIndex` to 0."
-            }
-          ],
-          "connector": "Down",
-          "length": 1
+          "target": "CP_AllReleased"
         },
         {
-          "source": "CP_AllReleased",
-          "target": "ReleasingDoor",
-          "messages": [
-            {
-              "interface": "Logical",
-              "name": "No",
-              "action": "Send `Control:ReleaseDoorReq` to interface index `lastDoorIndex`."
-            }
-          ],
           "connector": "Left",
-          "length": 1
-        },
-        {
-          "source": "ReleasingDoor",
-          "target": "CP_AllReleased",
+          "length": 1,
           "messages": [
             {
-              "interface": "Control",
-              "name": "ReleaseDoorRsp",
-              "action": "Increment `lastDoorIndex`."
+              "action": "Send `Control:ReleaseDoorReq` to interface index `lastDoorIndex` with `OPEN_DOOR_TIMEOUT_MS` as parameter.",
+              "interface": "Logical",
+              "name": "No"
             }
           ],
-          "connector": "Right",
-          "length": 1
+          "source": "CP_AllReleased",
+          "target": "ReleasingDoor"
         },
         {
-          "source": "CP_AllReleased",
-          "target": "Ready",
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Increment `lastDoorIndex`.",
+              "interface": "Control",
+              "name": "ReleaseDoorRsp"
+            }
+          ],
+          "source": "ReleasingDoor",
+          "target": "CP_AllReleased"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
           "messages": [
             {
               "interface": "Logical",
-              "name": "Yes",
-              "action": ""
+              "name": "Yes"
             }
           ],
-          "connector": "Down",
-          "length": 1
+          "source": "CP_AllReleased",
+          "target": "Ready"
         },
         {
-          "source": "Ready",
-          "target": "Ready",
+          "connector": "Right",
+          "length": 1,
           "messages": [
             {
+              "action": "Call `BackendInterface:doorStateChanged()` with `DoorStateChangedInd:doorId` and `DoorStateChangedInd:open` as parameters.\nSend `Admin:DoorStateChangedInd` with `DoorStateChangedInd:doorId` and `DoorStateChangedInd:open` as parameters.",
               "interface": "Control",
-              "name": "DoorStateChangedInd",
-              "action": "Call `BackendInterface:doorStateChanged()` with `DoorStateChangedInd:doorId` and `DoorStateChangedInd:open` as parameters.\nSend `Admin:DoorStateChangedInd` with `DoorStateChangedInd:doorId` and `DoorStateChangedInd:open` as parameters."
+              "name": "DoorStateChangedInd"
             },
             {
+              "action": "Call `BackendInterface:doorLockChanged()` with `DoorLockChangedInd:doorId` and `DoorLockChangedInd:locked` as parameters.\nSend `Admin:DoorLockChangedInd` with `DoorLockChangedInd:doorId` and `DoorLockChangedInd:locked` as parameters.",
               "interface": "Control",
-              "name": "DoorLockChangedInd",
-              "action": "Call `BackendInterface:doorLockChanged()` with `DoorLockChangedInd:doorId` and `DoorLockChangedInd:locked` as parameters.\nSend `Admin:DoorLockChangedInd` with `DoorLockChangedInd:doorId` and `DoorLockChangedInd:locked` as parameters."
+              "name": "DoorLockChangedInd"
             },
             {
+              "action": "Call `BackendInterface:alarm()` with `AlarmInd:doorId` and `AlarmInd:alarm` as parameters.",
               "interface": "Control",
-              "name": "AlarmInd",
-              "action": "Call `BackendInterface:alarm()` with `AlarmInd:doorId` and `AlarmInd:alarm` as parameters."
+              "name": "AlarmInd"
             },
             {
+              "action": "Call `BackendInterface:error()` with `ErrorInd:doorId` and `ErrorInd:error` as parameters.",
               "interface": "Control",
-              "name": "ErrorInd",
-              "action": "Call `BackendInterface:error()` with `ErrorInd:doorId` and `ErrorInd:error` as parameters."
+              "name": "ErrorInd"
             }
           ],
-          "connector": "Right",
-          "length": 1
+          "source": "Ready",
+          "target": "Ready"
         }
       ],
       "displayName": "Device\\nController",
-      "description": "Coordinate the overall device, manage door states, and interface with the backend and handle commands from the backend such as locking/unlocking doors, and adding/removing tags.\n\n# Behaviour\n\nAt the start, first all doors to be discovered need to be awaited.\n\nThe detection of a door is received via the `Control:DoorDetectedInd` message.\n\nAfter all doors are detected, the device is ready to connect to the backend via the `BackendInterface`. However, in order to do that, it requires the URL of the backend. This can be retrieved via the `Admin:BackendUrlReq` message. When the expected `Admin:BackendUrlRsp` response is received, the `BackendInterface` can be instructed to connect by calling its `BackendInterface:connect()` function.\n\nWhen the backend is connected, the `Commands:ConnectedInd` is received. With the connection established, the doors can be released for operation. This is done by sending a `Control:ReleaseDoorReq` message to each instance of the `Control` interface.\n\nAfter this is done, the system is ready to receive commands from the backend via the `Commands` interface:\n\nWhen the state of a door changes, the `Control:DoorStateChangedInd` is received. Likewise, when the door is locked or unlocked, the `Control:DoorLockChangedInd` is received. These are forwarded to the Backend Interface by calling its `BackendInterface:doorStateChanged()` and `BackendInterface:doorLockChanged()` functions respectively.\n\nAny state change needs to be supplied to the database as well to keep the history. This is done by sending the `Admin:DoorStateChangedInd` and `Admin:DoorLockChangedInd` respectively.\n\nWhen an alarm or error occurs with one of the doors, the `Control:ErrorInd` or `Control:AlarmInd` messages are received respectively. These are forwarded to the backend by calling the `BackendInterface:error()` and `BackendInterface:alarm()` functions.\n\n",
+      "description": "Coordinate the overall device, manage door states, and interface with the backend and handle commands from the backend such as locking/unlocking doors, and adding/removing tags.\n\n# Behaviour\n\nAt the start, first all doors to be discovered need to be awaited.\n\nThe detection of a door is received via the `Control:DoorDetectedInd` message.\n\nAfter all doors are detected, the device is ready to connect to the backend via the `BackendInterface`. However, in order to do that, it requires the URL of the backend. This can be retrieved via the `Admin:BackendUrlReq` message. When the expected `Admin:BackendUrlRsp` response is received, the `BackendInterface` can be instructed to connect by calling its `BackendInterface:connect()` function.\n\nWhen the backend is connected, the `Commands:ConnectedInd` is received. With the connection established, the doors can be released for operation. This is done by sending a `Control:ReleaseDoorReq` message to each instance of the `Control` interface, supplying the configured `OPEN_DOOR_TIMEOUT_MS` as the open-door timeout.\n\nAfter this is done, the system is ready to receive commands from the backend via the `Commands` interface:\n\nWhen the state of a door changes, the `Control:DoorStateChangedInd` is received. Likewise, when the door is locked or unlocked, the `Control:DoorLockChangedInd` is received. These are forwarded to the Backend Interface by calling its `BackendInterface:doorStateChanged()` and `BackendInterface:doorLockChanged()` functions respectively.\n\nAny state change needs to be supplied to the database as well to keep the history. This is done by sending the `Admin:DoorStateChangedInd` and `Admin:DoorLockChangedInd` respectively.\n\nWhen an alarm or error occurs with one of the doors, the `Control:ErrorInd` or `Control:AlarmInd` messages are received respectively. These are forwarded to the backend by calling the `BackendInterface:error()` and `BackendInterface:alarm()` functions.\n\n",
       "stateVariables": [
         {
           "name": "detectedDoors",
@@ -1122,6 +1124,11 @@ code.ref-unresolved {
           "name": "NUM_DOORS",
           "value": "2",
           "description": "The number of expected doors."
+        },
+        {
+          "name": "OPEN_DOOR_TIMEOUT_MS",
+          "value": "30000",
+          "description": "Maximum time a door is allowed to remain open before an alarm is raised, supplied to each `DoorController` in the `Control:ReleaseDoorReq`."
         }
       ]
     },
@@ -1183,277 +1190,275 @@ code.ref-unresolved {
       ],
       "transitions": [
         {
-          "source": "START",
-          "target": "Idle",
+          "connector": "Left",
+          "length": 1,
           "messages": [],
-          "connector": "Left",
-          "length": 1
+          "source": "START",
+          "target": "Idle"
         },
         {
+          "connector": "Left",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `doorId` to `DoorDetectedInd:doorId`.\nSend `Control:DoorDetectedInd` with parameter `doorId`.",
+              "interface": "Sensing",
+              "name": "DoorDetectedInd"
+            }
+          ],
           "source": "Idle",
-          "target": "Standby",
-          "messages": [
-            {
-              "interface": "Sensing",
-              "name": "DoorDetectedInd",
-              "action": "Set `doorId` to `DoorDetectedInd:doorId`.\nSend `Control:DoorDetectedInd` with parameter `doorId`."
-            }
-          ],
-          "connector": "Left",
-          "length": 1
+          "target": "Standby"
         },
         {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `openDoorTimeout` to `ReleaseDoorReq:timeout`.\nCall `SensorHandler:enableDoorSensor`(`doorId`).",
+              "interface": "Control",
+              "name": "ReleaseDoorReq"
+            }
+          ],
           "source": "Standby",
-          "target": "AwaitDoorSensor",
-          "messages": [
-            {
-              "interface": "Control",
-              "name": "ReleaseDoorReq",
-              "action": "Call `SensorHandler:enableDoorSensor`(`doorId`)."
-            }
-          ],
-          "connector": "Down",
-          "length": 1
+          "target": "AwaitDoorSensor"
         },
         {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Send `Control:ReleaseDoorRsp` with the `doorId` as parameter.\nSet `doorState` to `DoorSensorInd:open`.\nCall `sendDoorStateChangedInd()`.",
+              "interface": "Sensing",
+              "name": "DoorSensorInd"
+            }
+          ],
           "source": "AwaitDoorSensor",
-          "target": "CP_Closed",
-          "messages": [
-            {
-              "interface": "Sensing",
-              "name": "DoorSensorInd",
-              "action": "Send `Control:ReleaseDoorRsp` with the `doorId` as parameter.\nSet `doorState` to `DoorSensorInd:open`.\nCall `sendDoorStateChangedInd()`."
-            }
-          ],
-          "connector": "Down",
-          "length": 1
+          "target": "CP_Closed"
         },
         {
-          "source": "CP_Closed",
-          "target": "AwaitLockSensor",
-          "messages": [
-            {
-              "interface": "Logical",
-              "name": "Yes",
-              "action": "Call `SensorHandler:enableLockSensor`(`doorId`)."
-            }
-          ],
           "connector": "Right",
-          "length": 1
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `SensorHandler:enableLockSensor`(`doorId`).",
+              "interface": "Logical",
+              "name": "Yes"
+            }
+          ],
+          "source": "CP_Closed",
+          "target": "AwaitLockSensor"
         },
         {
+          "connector": "Left",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `lockState` to `LockSensorInd:locked`.\nCall `sendDoorLockChangedInd()`.",
+              "interface": "Sensing",
+              "name": "LockSensorInd"
+            }
+          ],
           "source": "AwaitLockSensor",
-          "target": "CP_IsLocked",
-          "messages": [
-            {
-              "interface": "Sensing",
-              "name": "LockSensorInd",
-              "action": "Set `lockState` to `LockSensorInd:locked`.\nCall `sendDoorLockChangedInd()`."
-            }
-          ],
-          "connector": "Left",
-          "length": 1
+          "target": "CP_IsLocked"
         },
         {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `TimerHandler:setTimeout`(`openDoorTimeout`, `openDoorTimerId`).",
+              "interface": "Logical",
+              "name": "No"
+            }
+          ],
           "source": "CP_Closed",
-          "target": "Open",
+          "target": "Open"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
           "messages": [
             {
               "interface": "Logical",
-              "name": "No",
-              "action": "Call `TimerHandler:setTimeout`(`OPEN_DOOR_TIMEOUT_MS`)."
+              "name": "Yes"
             }
           ],
-          "connector": "Down",
-          "length": 1
-        },
-        {
           "source": "CP_IsLocked",
-          "target": "Locked",
+          "target": "Locked"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
           "messages": [
             {
               "interface": "Logical",
-              "name": "Yes",
-              "action": ""
+              "name": "No"
             }
           ],
-          "connector": "Down",
-          "length": 1
-        },
-        {
           "source": "CP_IsLocked",
-          "target": "Unlocked",
-          "messages": [
-            {
-              "interface": "Logical",
-              "name": "No",
-              "action": ""
-            }
-          ],
-          "connector": "Down",
-          "length": 1
+          "target": "Unlocked"
         },
         {
-          "source": "Locked",
-          "target": "Locked",
+          "connector": "Right",
+          "length": 1,
           "messages": [
             {
+              "action": "Call `SensorHandler:addTag`(`doorId`, `AddTagInd:tagId`).",
               "interface": "Control",
-              "name": "AddTagInd",
-              "action": "Call `SensorHandler:addTag`(`doorId`, `AddTagInd:tagId`)."
+              "name": "AddTagInd"
             },
             {
+              "action": "Call `SensorHandler:removeTag`(`doorId`, `RemoveTagInd:tagId`).",
               "interface": "Control",
-              "name": "RemoveTagInd",
-              "action": "Call `SensorHandler:removeTag`(`doorId`, `RemoveTagInd:tagId`)."
+              "name": "RemoveTagInd"
             }
           ],
-          "connector": "Right",
-          "length": 1
-        },
-        {
           "source": "Locked",
-          "target": "Unlocking",
+          "target": "Locked"
+        },
+        {
+          "connector": "Up",
+          "length": 1,
           "messages": [
             {
+              "action": "Call `SensorHandler:unlock`(`doorId`).",
               "interface": "Control",
-              "name": "SetLockInd",
-              "action": "Call `SensorHandler:unlock`(`doorId`)."
+              "name": "SetLockInd"
             }
           ],
-          "connector": "Up",
-          "length": 1
+          "source": "Locked",
+          "target": "Unlocking"
         },
         {
-          "source": "Unlocking",
-          "target": "Unlocked",
-          "messages": [
-            {
-              "interface": "Sensing",
-              "name": "LockSensorInd",
-              "action": "Set `lockState` to `LockSensorInd:locked`.\nCall `sendDoorLockChangedInd()`."
-            }
-          ],
           "connector": "Right",
-          "length": 1
-        },
-        {
-          "source": "Unlocking",
-          "target": "Locked",
+          "length": 1,
           "messages": [
             {
+              "action": "Set `lockState` to `LockSensorInd:locked`.\nCall `sendDoorLockChangedInd()`.",
               "interface": "Sensing",
-              "name": "UnlockFailedInd",
-              "action": "Send `Control:ErrorInd` with parameters `doorId` and \"Unlocking failed\"."
+              "name": "LockSensorInd"
             }
           ],
-          "connector": "Up",
-          "length": 1
+          "source": "Unlocking",
+          "target": "Unlocked"
         },
         {
+          "connector": "Up",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Send `Control:ErrorInd` with parameters `doorId` and \"Unlocking failed\".",
+              "interface": "Sensing",
+              "name": "UnlockFailedInd"
+            }
+          ],
+          "source": "Unlocking",
+          "target": "Locked"
+        },
+        {
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Call `SensorHandler:lock`(`doorId`).",
+              "interface": "Control",
+              "name": "SetLockInd"
+            }
+          ],
           "source": "Unlocked",
-          "target": "Locking",
-          "messages": [
-            {
-              "interface": "Control",
-              "name": "SetLockInd",
-              "action": "Call `SensorHandler:lock`(`doorId`)."
-            }
-          ],
-          "connector": "Right",
-          "length": 1
+          "target": "Locking"
         },
         {
-          "source": "Locking",
-          "target": "Unlocked",
-          "messages": [
-            {
-              "interface": "Sensing",
-              "name": "LockFailInd",
-              "action": "Send `Control:ErrorInd` with parameters `doorId` and \"Locking failed\"."
-            }
-          ],
           "connector": "Left",
-          "length": 1
-        },
-        {
-          "source": "Open",
-          "target": "Unlocked",
+          "length": 1,
           "messages": [
             {
+              "action": "Send `Control:ErrorInd` with parameters `doorId` and \"Locking failed\".",
               "interface": "Sensing",
-              "name": "DoorSensorInd",
-              "action": "Set `doorState` to `DoorSensorInd:open`.\nCall `sendDoorStateChangedInd()`.\nCall `TimerHandler:cancelTimeout`(`openDoorTimerId`)."
+              "name": "LockFailInd"
             }
           ],
-          "connector": "Down",
-          "length": 1
-        },
-        {
-          "source": "Open",
-          "target": "Open",
-          "messages": [
-            {
-              "interface": "Control",
-              "name": "SetLockInd",
-              "action": "Send `Control:ErrorInd` with parameters `doorId` and \"Door lock cannot be changed when open\"."
-            },
-            {
-              "interface": "Timer",
-              "name": "Timeout",
-              "action": "Send `Control:AlarmInd` with parameters `doorId` and \"Door open for too long\"."
-            }
-          ],
-          "connector": "Right",
-          "length": 1
-        },
-        {
           "source": "Locking",
-          "target": "Locked",
-          "messages": [
-            {
-              "interface": "Sensing",
-              "name": "LockSensorInd",
-              "action": "Set `lockState` to `LockSensorInd:locked`.\nCall `sendDoorLockChangedInd()`."
-            }
-          ],
-          "connector": "Right",
-          "length": 1
+          "target": "Unlocked"
         },
         {
-          "source": "Locked",
-          "target": "Unlocked",
-          "messages": [
-            {
-              "interface": "Sensing",
-              "name": "LockSensorInd",
-              "action": "Set `lockState` to `LockSensorInd:locked`.\nCall `sendDoorLockChangedInd()`."
-            }
-          ],
           "connector": "Down",
-          "length": 1
-        },
-        {
-          "source": "*",
-          "target": "[H]",
+          "length": 1,
           "messages": [
             {
+              "action": "Set `doorState` to `DoorSensorInd:open`.\nCall `sendDoorStateChangedInd()`.\nCall `TimerHandler:cancelTimeout`(`openDoorTimerId`).",
+              "interface": "Sensing",
+              "name": "DoorSensorInd"
+            }
+          ],
+          "source": "Open",
+          "target": "Unlocked"
+        },
+        {
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Send `Control:ErrorInd` with parameters `doorId` and \"Door lock cannot be changed when open\".",
               "interface": "Control",
-              "name": "AddTagInd",
-              "action": "Send `Control:ErrorInd` with parameters `doorId` and \"Adding tags not allowed when door not locked!\"."
+              "name": "SetLockInd"
             },
             {
-              "interface": "Control",
-              "name": "RemoveTagInd",
-              "action": "Send `Control:ErrorInd` with parameters `doorId` and \"Removing tags not allowed when door not locked!\"."
+              "action": "Send `Control:AlarmInd` with parameters `doorId` and \"Door open for too long\".",
+              "interface": "Timer",
+              "name": "Timeout"
             }
           ],
+          "source": "Open",
+          "target": "Open"
+        },
+        {
+          "connector": "Right",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `lockState` to `LockSensorInd:locked`.\nCall `sendDoorLockChangedInd()`.",
+              "interface": "Sensing",
+              "name": "LockSensorInd"
+            }
+          ],
+          "source": "Locking",
+          "target": "Locked"
+        },
+        {
           "connector": "Down",
-          "length": 1
+          "length": 1,
+          "messages": [
+            {
+              "action": "Set `lockState` to `LockSensorInd:locked`.\nCall `sendDoorLockChangedInd()`.",
+              "interface": "Sensing",
+              "name": "LockSensorInd"
+            }
+          ],
+          "source": "Locked",
+          "target": "Unlocked"
+        },
+        {
+          "connector": "Down",
+          "length": 1,
+          "messages": [
+            {
+              "action": "Send `Control:ErrorInd` with parameters `doorId` and \"Adding tags not allowed when door not locked!\".",
+              "interface": "Control",
+              "name": "AddTagInd"
+            },
+            {
+              "action": "Send `Control:ErrorInd` with parameters `doorId` and \"Removing tags not allowed when door not locked!\".",
+              "interface": "Control",
+              "name": "RemoveTagInd"
+            }
+          ],
+          "source": "*",
+          "target": "[H]"
         }
       ],
       "displayName": "Door\\nController",
-      "description": "Monitors and controls the state and lock of the door, and handles sensor data and ensure correct responses to door events (e.g., opening, closing, locking).\n\n# Behaviour\n\nWhen the Door Controller starts, it needs to wait for a door to be detected and assigned to it. This happens when the `Sensing:DoorDetectedInd` is received. The id of the door contained in the message is then stored in the `doorId` state variable.\n\nHowever, although the door is detected, its door-sensor is not enabled yet, i.e. the door is not released for operation. This can be done when the `Control:ReleaseDoorReq` is received. Upon receiving this message, the Door Controller can first enable the door sensor by calling the `SensorHandler:enableDoorSensor()` function.\n\nConsequently, the door sensor will respond with its current status via the `Sensing:DoorSensorInd` and as a result the `Control:ReleaseDoorRsp` is sent.\n\nOnly when the door is closed will the lock sensor be operational. Thus, in that case, the lock sensor can be triggered to (re)send its state by calling the `SensorHandler:enableLockSensor()` function.\n\nWhen the door is opened, a timer needs to be started to detect when the door is opened too long.\n\nIn order to lock or unlock the door, the `Control:SetLockInd` message is used. This command can only be handled when the door is closed. Otherwise, the `Control:ErrorInd` message is replied.\n\nNo explicit reply is required for the `Control:SetLockInd `message because the result of the operation is received via the `Sensing:LockSensorInd` message.\n\nWhen a door is opened or closed, the `Sensing:DoorSensorInd` message is received which can be forwarded via the `Control:DoorStateChangedInd` message.\n\nWhen the door is locked, tags can be added or removed from the door’s internal tag administration. Tags are stored at the door itself to allow a door to operate even if the network is down. When it is tried to add or remove tags when the door is not closed, the `Control:ErrorInd` message is sent.",
+      "description": "Monitors and controls the state and lock of the door, and handles sensor data and ensure correct responses to door events (e.g., opening, closing, locking).\n\n# Behaviour\n\nWhen the Door Controller starts, it needs to wait for a door to be detected and assigned to it. This happens when the `Sensing:DoorDetectedInd` is received. The id of the door contained in the message is then stored in the `doorId` state variable.\n\nHowever, although the door is detected, its door-sensor is not enabled yet, i.e. the door is not released for operation. This can be done when the `Control:ReleaseDoorReq` is received. The request carries the timeout value to use when the door is opened, which is stored for later use. Upon receiving this message, the Door Controller can first enable the door sensor by calling the `SensorHandler:enableDoorSensor()` function.\n\nConsequently, the door sensor will respond with its current status via the `Sensing:DoorSensorInd` and as a result the `Control:ReleaseDoorRsp` is sent.\n\nOnly when the door is closed will the lock sensor be operational. Thus, in that case, the lock sensor can be triggered to (re)send its state by calling the `SensorHandler:enableLockSensor()` function.\n\nWhen the door is opened, a timer needs to be started to detect when the door is opened too long. The duration is taken from the `openDoorTimeout` state variable that was set during the release.\n\nIn order to lock or unlock the door, the `Control:SetLockInd` message is used. This command can only be handled when the door is closed. Otherwise, the `Control:ErrorInd` message is replied.\n\nNo explicit reply is required for the `Control:SetLockInd `message because the result of the operation is received via the `Sensing:LockSensorInd` message.\n\nWhen a door is opened or closed, the `Sensing:DoorSensorInd` message is received which can be forwarded via the `Control:DoorStateChangedInd` message.\n\nWhen the door is locked, tags can be added or removed from the door’s internal tag administration. Tags are stored at the door itself to allow a door to operate even if the network is down. When it is tried to add or remove tags when the door is not closed, the `Control:ErrorInd` message is sent.",
       "stateVariables": [
         {
           "name": "doorId",
@@ -1474,6 +1479,11 @@ code.ref-unresolved {
           "name": "openDoorTimerId",
           "type": "TimerID",
           "description": "The timer to handle open door timeouts."
+        },
+        {
+          "name": "openDoorTimeout",
+          "type": "Time",
+          "description": "The maximum time the door is allowed to remain open, as supplied in `Control:ReleaseDoorReq`."
         }
       ],
       "localFunctions": [
@@ -1486,13 +1496,6 @@ code.ref-unresolved {
           "name": "sendDoorStateChangedInd",
           "description": "The door state changed and the `Control:DoorStateChangedInd` message will be sent.",
           "steps": "Send `Control:DoorStateChangedInd` with parameters `doorId` and `doorState`."
-        }
-      ],
-      "constants": [
-        {
-          "name": "OPEN_DOOR_TIMEOUT_MS",
-          "value": "30000",
-          "description": "The time a door is allowed to be open."
         }
       ],
       "multiplication": "NUM_DOORS"
@@ -1542,7 +1545,7 @@ code.ref-unresolved {
       "length": 1
     }
   ],
-  "activeComponentIndex": 2,
+  "activeComponentIndex": 1,
   "handlers": [
     {
       "name": "ConfigurationDatabase",
@@ -1887,7 +1890,7 @@ code.ref-unresolved {
 <tr><td id="iface-Control-msg-DoorStateChangedInd-param-open" class="entity-anchor">open</td><td><a class="ref" href="#type-bool" data-tooltip="Boolean value">bool</a></td><td>Whether the door is open.</td></tr>
 <tr id="iface-Control-msg-ErrorInd" class="entity-anchor"><td rowspan="2">ErrorInd</td><td rowspan="2">Indicates an error related to a door.</td><td id="iface-Control-msg-ErrorInd-param-doorId" class="entity-anchor">doorId</td><td><a class="ref" href="#type-uint" data-tooltip="Unsigned integer value.">uint</a></td><td>ID of the door that has the error.</td></tr>
 <tr><td id="iface-Control-msg-ErrorInd-param-error" class="entity-anchor">error</td><td><a class="ref" href="#type-string" data-tooltip="Array of characters.">string</a></td><td>Error message.</td></tr>
-<tr id="iface-Control-msg-ReleaseDoorReq" class="entity-anchor"><td>ReleaseDoorReq</td><td>Request to release a door for operation.</td><td>—</td><td>—</td><td>—</td></tr>
+<tr id="iface-Control-msg-ReleaseDoorReq" class="entity-anchor"><td rowspan="1">ReleaseDoorReq</td><td rowspan="1">Request to release a door for operation.</td><td id="iface-Control-msg-ReleaseDoorReq-param-timeout" class="entity-anchor">timeout</td><td><a class="ref" href="#type-Time" data-tooltip="Duration value used when scheduling a timer.">Time</a></td><td>Maximum time the door is allowed to remain open before an alarm is raised.</td></tr>
 <tr id="iface-Control-msg-ReleaseDoorRsp" class="entity-anchor"><td rowspan="1">ReleaseDoorRsp</td><td rowspan="1">Response that the door handled the release request.</td><td id="iface-Control-msg-ReleaseDoorRsp-param-doorId" class="entity-anchor">doorId</td><td><a class="ref" href="#type-uint" data-tooltip="Unsigned integer value.">uint</a></td><td>ID of the door that processed the release request.</td></tr>
 <tr id="iface-Control-msg-RemoveTagInd" class="entity-anchor"><td rowspan="1">RemoveTagInd</td><td rowspan="1">Commands to remove a tag from a door.</td><td id="iface-Control-msg-RemoveTagInd-param-tagId" class="entity-anchor">tagId</td><td><a class="ref" href="#type-uint" data-tooltip="Unsigned integer value.">uint</a></td><td>ID of the tag that must be removed.</td></tr>
 <tr id="iface-Control-msg-SetLockInd" class="entity-anchor"><td rowspan="1">SetLockInd</td><td rowspan="1">Commands to set the lock state of a door.</td><td id="iface-Control-msg-SetLockInd-param-locked" class="entity-anchor">locked</td><td><a class="ref" href="#type-bool" data-tooltip="Boolean value">bool</a></td><td>Whether the door must be locked.</td></tr>
@@ -1991,12 +1994,13 @@ code.ref-unresolved {
 </section>
 <section id="comp-DeviceController-description" class="entity-anchor">
 <h2>Description</h2>
-<p>Coordinate the overall device, manage door states, and interface with the backend and handle commands from the backend such as locking/unlocking doors, and adding/removing tags.</p><h3>Behaviour</h3><p>At the start, first all doors to be discovered need to be awaited.</p><p>The detection of a door is received via the <a class="ref" href="#iface-Control-msg-DoorDetectedInd" data-tooltip="Indicates that a door has been detected.">Control:DoorDetectedInd</a> message.</p><p>After all doors are detected, the device is ready to connect to the backend via the <a class="ref" href="#handler-BackendInterface" data-tooltip="Connect to the backend server, communicate changes in door lock states, door states, and alarms, and handle error messages.">BackendInterface</a>. However, in order to do that, it requires the URL of the backend. This can be retrieved via the <a class="ref" href="#iface-Admin-msg-BackendUrlReq" data-tooltip="Requests the backend URL.">Admin:BackendUrlReq</a> message. When the expected <a class="ref" href="#iface-Admin-msg-BackendUrlRsp" data-tooltip="Responds with the backend URL.">Admin:BackendUrlRsp</a> response is received, the <a class="ref" href="#handler-BackendInterface" data-tooltip="Connect to the backend server, communicate changes in door lock states, door states, and alarms, and handle error messages.">BackendInterface</a> can be instructed to connect by calling its <a class="ref" href="#handler-BackendInterface-fn-connect" data-tooltip="Start the connection process to the backend server.">BackendInterface:connect()</a> function.</p><p>When the backend is connected, the <a class="ref" href="#iface-Commands-msg-ConnectedInd" data-tooltip="Indicates a successful connection.">Commands:ConnectedInd</a> is received. With the connection established, the doors can be released for operation. This is done by sending a <a class="ref" href="#iface-Control-msg-ReleaseDoorReq" data-tooltip="Request to release a door for operation.">Control:ReleaseDoorReq</a> message to each instance of the <a class="ref" href="#iface-Control" data-tooltip="Manages the interaction between the Device Controller and Door Controllers, including monitoring door states and executing lock/unlock commands.">Control</a> interface.</p><p>After this is done, the system is ready to receive commands from the backend via the <a class="ref" href="#iface-Commands" data-tooltip="Facilitates communication between the backend and the system controller, enabling actions such as locking/unlocking doors and managing tags.">Commands</a> interface:</p><p>When the state of a door changes, the <a class="ref" href="#iface-Control-msg-DoorStateChangedInd" data-tooltip="Indicates a change in the door state.">Control:DoorStateChangedInd</a> is received. Likewise, when the door is locked or unlocked, the <a class="ref" href="#iface-Control-msg-DoorLockChangedInd" data-tooltip="Indicates a change in the lock state.">Control:DoorLockChangedInd</a> is received. These are forwarded to the Backend Interface by calling its <a class="ref" href="#handler-BackendInterface-fn-doorStateChanged" data-tooltip="Inform the backend that the state of the door changed.">BackendInterface:doorStateChanged()</a> and <a class="ref" href="#handler-BackendInterface-fn-doorLockChanged" data-tooltip="Inform the backend that the status of the door lock changed.">BackendInterface:doorLockChanged()</a> functions respectively.</p><p>Any state change needs to be supplied to the database as well to keep the history. This is done by sending the <a class="ref" href="#iface-Admin-msg-DoorStateChangedInd" data-tooltip="Indicates a change in the state of a door.">Admin:DoorStateChangedInd</a> and <a class="ref" href="#iface-Admin-msg-DoorLockChangedInd" data-tooltip="Indicates a change in the lock state of a door">Admin:DoorLockChangedInd</a> respectively.</p><p>When an alarm or error occurs with one of the doors, the <a class="ref" href="#iface-Control-msg-ErrorInd" data-tooltip="Indicates an error related to a door.">Control:ErrorInd</a> or <a class="ref" href="#iface-Control-msg-AlarmInd" data-tooltip="Indicates an alarm condition related to a door.">Control:AlarmInd</a> messages are received respectively. These are forwarded to the backend by calling the <a class="ref" href="#handler-BackendInterface-fn-error" data-tooltip="Inform the backend that an error occurred with the specified door.">BackendInterface:error()</a> and <a class="ref" href="#handler-BackendInterface-fn-alarm" data-tooltip="Inform the backend about an alarm that was generated for the specified door.">BackendInterface:alarm()</a> functions.</p>
+<p>Coordinate the overall device, manage door states, and interface with the backend and handle commands from the backend such as locking/unlocking doors, and adding/removing tags.</p><h3>Behaviour</h3><p>At the start, first all doors to be discovered need to be awaited.</p><p>The detection of a door is received via the <a class="ref" href="#iface-Control-msg-DoorDetectedInd" data-tooltip="Indicates that a door has been detected.">Control:DoorDetectedInd</a> message.</p><p>After all doors are detected, the device is ready to connect to the backend via the <a class="ref" href="#handler-BackendInterface" data-tooltip="Connect to the backend server, communicate changes in door lock states, door states, and alarms, and handle error messages.">BackendInterface</a>. However, in order to do that, it requires the URL of the backend. This can be retrieved via the <a class="ref" href="#iface-Admin-msg-BackendUrlReq" data-tooltip="Requests the backend URL.">Admin:BackendUrlReq</a> message. When the expected <a class="ref" href="#iface-Admin-msg-BackendUrlRsp" data-tooltip="Responds with the backend URL.">Admin:BackendUrlRsp</a> response is received, the <a class="ref" href="#handler-BackendInterface" data-tooltip="Connect to the backend server, communicate changes in door lock states, door states, and alarms, and handle error messages.">BackendInterface</a> can be instructed to connect by calling its <a class="ref" href="#handler-BackendInterface-fn-connect" data-tooltip="Start the connection process to the backend server.">BackendInterface:connect()</a> function.</p><p>When the backend is connected, the <a class="ref" href="#iface-Commands-msg-ConnectedInd" data-tooltip="Indicates a successful connection.">Commands:ConnectedInd</a> is received. With the connection established, the doors can be released for operation. This is done by sending a <a class="ref" href="#iface-Control-msg-ReleaseDoorReq" data-tooltip="Request to release a door for operation.">Control:ReleaseDoorReq</a> message to each instance of the <a class="ref" href="#iface-Control" data-tooltip="Manages the interaction between the Device Controller and Door Controllers, including monitoring door states and executing lock/unlock commands.">Control</a> interface, supplying the configured <a class="ref" href="#comp-DeviceController-const-OPEN_DOOR_TIMEOUT_MS" data-tooltip="Maximum time a door is allowed to remain open before an alarm is raised, supplied to each `DoorController` in the `Control:ReleaseDoorReq`.">OPEN_DOOR_TIMEOUT_MS</a> as the open-door timeout.</p><p>After this is done, the system is ready to receive commands from the backend via the <a class="ref" href="#iface-Commands" data-tooltip="Facilitates communication between the backend and the system controller, enabling actions such as locking/unlocking doors and managing tags.">Commands</a> interface:</p><p>When the state of a door changes, the <a class="ref" href="#iface-Control-msg-DoorStateChangedInd" data-tooltip="Indicates a change in the door state.">Control:DoorStateChangedInd</a> is received. Likewise, when the door is locked or unlocked, the <a class="ref" href="#iface-Control-msg-DoorLockChangedInd" data-tooltip="Indicates a change in the lock state.">Control:DoorLockChangedInd</a> is received. These are forwarded to the Backend Interface by calling its <a class="ref" href="#handler-BackendInterface-fn-doorStateChanged" data-tooltip="Inform the backend that the state of the door changed.">BackendInterface:doorStateChanged()</a> and <a class="ref" href="#handler-BackendInterface-fn-doorLockChanged" data-tooltip="Inform the backend that the status of the door lock changed.">BackendInterface:doorLockChanged()</a> functions respectively.</p><p>Any state change needs to be supplied to the database as well to keep the history. This is done by sending the <a class="ref" href="#iface-Admin-msg-DoorStateChangedInd" data-tooltip="Indicates a change in the state of a door.">Admin:DoorStateChangedInd</a> and <a class="ref" href="#iface-Admin-msg-DoorLockChangedInd" data-tooltip="Indicates a change in the lock state of a door">Admin:DoorLockChangedInd</a> respectively.</p><p>When an alarm or error occurs with one of the doors, the <a class="ref" href="#iface-Control-msg-ErrorInd" data-tooltip="Indicates an error related to a door.">Control:ErrorInd</a> or <a class="ref" href="#iface-Control-msg-AlarmInd" data-tooltip="Indicates an alarm condition related to a door.">Control:AlarmInd</a> messages are received respectively. These are forwarded to the backend by calling the <a class="ref" href="#handler-BackendInterface-fn-error" data-tooltip="Inform the backend that an error occurred with the specified door.">BackendInterface:error()</a> and <a class="ref" href="#handler-BackendInterface-fn-alarm" data-tooltip="Inform the backend about an alarm that was generated for the specified door.">BackendInterface:alarm()</a> functions.</p>
 </section>
 <section id="comp-DeviceController-constants" class="entity-anchor">
 <h2>Constants</h2>
 <table><thead><tr><th>Name</th><th>Value</th><th>Description</th></tr></thead><tbody>
 <tr id="comp-DeviceController-const-NUM_DOORS" class="entity-anchor"><td>NUM_DOORS</td><td>2</td><td>The number of expected doors.</td></tr>
+<tr id="comp-DeviceController-const-OPEN_DOOR_TIMEOUT_MS" class="entity-anchor"><td>OPEN_DOOR_TIMEOUT_MS</td><td>30000</td><td>Maximum time a door is allowed to remain open before an alarm is raised, supplied to each <a class="ref" href="#comp-DoorController" data-tooltip="Monitors and controls the state and lock of the door, and handles sensor data and ensure correct responses to door events (e.g., opening, closing, locking).">DoorController</a> in the <a class="ref" href="#iface-Control-msg-ReleaseDoorReq" data-tooltip="Request to release a door for operation.">Control:ReleaseDoorReq</a>.</td></tr>
 </tbody></table>
 </section>
 <section id="comp-DeviceController-statevars" class="entity-anchor">
@@ -2036,7 +2040,7 @@ code.ref-unresolved {
 <tr><td>●</td><td>Awaiting Doors</td><td>—</td><td>—</td><td>—</td></tr>
 <tr><td rowspan="1">All Doors Detected?</td><td rowspan="1">Awaiting Doors</td><td>Logical</td><td>No</td><td class="cell-multiline"><em class="muted">—</em></td></tr>
 <tr><td rowspan="1">All Doors Detected?</td><td rowspan="1">Initializing</td><td>Logical</td><td>Yes</td><td class="cell-multiline"><p>Send <a class="ref" href="#iface-Admin-msg-BackendUrlReq" data-tooltip="Requests the backend URL.">Admin:BackendUrlReq</a>.</p></td></tr>
-<tr><td rowspan="1">All Doors Released?</td><td rowspan="1">Releasing Door</td><td>Logical</td><td>No</td><td class="cell-multiline"><p>Send <a class="ref" href="#iface-Control-msg-ReleaseDoorReq" data-tooltip="Request to release a door for operation.">Control:ReleaseDoorReq</a> to interface index <a class="ref" href="#comp-DeviceController-var-lastDoorIndex" data-tooltip="The index of a door in the list. MAX_INT when not present.">lastDoorIndex</a>.</p></td></tr>
+<tr><td rowspan="1">All Doors Released?</td><td rowspan="1">Releasing Door</td><td>Logical</td><td>No</td><td class="cell-multiline"><p>Send <a class="ref" href="#iface-Control-msg-ReleaseDoorReq" data-tooltip="Request to release a door for operation.">Control:ReleaseDoorReq</a> to interface index <a class="ref" href="#comp-DeviceController-var-lastDoorIndex" data-tooltip="The index of a door in the list. MAX_INT when not present.">lastDoorIndex</a> with <a class="ref" href="#comp-DeviceController-const-OPEN_DOOR_TIMEOUT_MS" data-tooltip="Maximum time a door is allowed to remain open before an alarm is raised, supplied to each `DoorController` in the `Control:ReleaseDoorReq`.">OPEN_DOOR_TIMEOUT_MS</a> as parameter.</p></td></tr>
 <tr><td rowspan="1">All Doors Released?</td><td rowspan="1">Ready</td><td>Logical</td><td>Yes</td><td class="cell-multiline"><em class="muted">—</em></td></tr>
 <tr><td rowspan="1">Awaiting Doors</td><td rowspan="1">All Doors Detected?</td><td><a class="ref" href="#iface-Control" data-tooltip="Manages the interaction between the Device Controller and Door Controllers, including monitoring door states and executing lock/unlock commands.">Control</a></td><td><a class="ref" href="#iface-Control-msg-DoorDetectedInd" data-tooltip="Indicates that a door has been detected.">DoorDetectedInd</a></td><td class="cell-multiline"><p>Add <a class="ref" href="#iface-Control-msg-DoorDetectedInd-param-doorId" data-tooltip="ID of the detected door.">Control:DoorDetectedInd:doorId</a> to <a class="ref" href="#comp-DeviceController-var-detectedDoors" data-tooltip="The detected doors that can be controlled.">detectedDoors</a>.</p></td></tr>
 <tr><td rowspan="1">Connecting</td><td rowspan="1">All Doors Released?</td><td><a class="ref" href="#iface-Commands" data-tooltip="Facilitates communication between the backend and the system controller, enabling actions such as locking/unlocking doors and managing tags.">Commands</a></td><td><a class="ref" href="#iface-Commands-msg-ConnectedInd" data-tooltip="Indicates a successful connection.">ConnectedInd</a></td><td class="cell-multiline"><p>Set <a class="ref" href="#comp-DeviceController-var-lastDoorIndex" data-tooltip="The index of a door in the list. MAX_INT when not present.">lastDoorIndex</a> to 0.</p></td></tr>
@@ -2075,13 +2079,11 @@ code.ref-unresolved {
 </section>
 <section id="comp-DoorController-description" class="entity-anchor">
 <h2>Description</h2>
-<p>Monitors and controls the state and lock of the door, and handles sensor data and ensure correct responses to door events (e.g., opening, closing, locking).</p><h3>Behaviour</h3><p>When the Door Controller starts, it needs to wait for a door to be detected and assigned to it. This happens when the <a class="ref" href="#iface-Sensing-msg-DoorDetectedInd" data-tooltip="Indicates that a door has been detected.">Sensing:DoorDetectedInd</a> is received. The id of the door contained in the message is then stored in the <a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a> state variable.</p><p>However, although the door is detected, its door-sensor is not enabled yet, i.e. the door is not released for operation. This can be done when the <a class="ref" href="#iface-Control-msg-ReleaseDoorReq" data-tooltip="Request to release a door for operation.">Control:ReleaseDoorReq</a> is received. Upon receiving this message, the Door Controller can first enable the door sensor by calling the <a class="ref" href="#handler-SensorHandler-fn-enableDoorSensor" data-tooltip="Enable the door sensor.">SensorHandler:enableDoorSensor()</a> function.</p><p>Consequently, the door sensor will respond with its current status via the <a class="ref" href="#iface-Sensing-msg-DoorSensorInd" data-tooltip="Indicates the status of the door sensor.">Sensing:DoorSensorInd</a> and as a result the <a class="ref" href="#iface-Control-msg-ReleaseDoorRsp" data-tooltip="Response that the door handled the release request.">Control:ReleaseDoorRsp</a> is sent.</p><p>Only when the door is closed will the lock sensor be operational. Thus, in that case, the lock sensor can be triggered to (re)send its state by calling the <a class="ref" href="#handler-SensorHandler-fn-enableLockSensor" data-tooltip="Enable the door lock sensor.">SensorHandler:enableLockSensor()</a> function.</p><p>When the door is opened, a timer needs to be started to detect when the door is opened too long.</p><p>In order to lock or unlock the door, the <a class="ref" href="#iface-Control-msg-SetLockInd" data-tooltip="Commands to set the lock state of a door.">Control:SetLockInd</a> message is used. This command can only be handled when the door is closed. Otherwise, the <a class="ref" href="#iface-Control-msg-ErrorInd" data-tooltip="Indicates an error related to a door.">Control:ErrorInd</a> message is replied.</p><p>No explicit reply is required for the <a class="ref" href="#iface-Control-msg-SetLockInd" data-tooltip="Commands to set the lock state of a door.">Control:SetLockInd</a>message because the result of the operation is received via the <a class="ref" href="#iface-Sensing-msg-LockSensorInd" data-tooltip="Indicates the status of the lock sensor.">Sensing:LockSensorInd</a> message.</p><p>When a door is opened or closed, the <a class="ref" href="#iface-Sensing-msg-DoorSensorInd" data-tooltip="Indicates the status of the door sensor.">Sensing:DoorSensorInd</a> message is received which can be forwarded via the <a class="ref" href="#iface-Control-msg-DoorStateChangedInd" data-tooltip="Indicates a change in the door state.">Control:DoorStateChangedInd</a> message.</p><p>When the door is locked, tags can be added or removed from the door’s internal tag administration. Tags are stored at the door itself to allow a door to operate even if the network is down. When it is tried to add or remove tags when the door is not closed, the <a class="ref" href="#iface-Control-msg-ErrorInd" data-tooltip="Indicates an error related to a door.">Control:ErrorInd</a> message is sent.</p>
+<p>Monitors and controls the state and lock of the door, and handles sensor data and ensure correct responses to door events (e.g., opening, closing, locking).</p><h3>Behaviour</h3><p>When the Door Controller starts, it needs to wait for a door to be detected and assigned to it. This happens when the <a class="ref" href="#iface-Sensing-msg-DoorDetectedInd" data-tooltip="Indicates that a door has been detected.">Sensing:DoorDetectedInd</a> is received. The id of the door contained in the message is then stored in the <a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a> state variable.</p><p>However, although the door is detected, its door-sensor is not enabled yet, i.e. the door is not released for operation. This can be done when the <a class="ref" href="#iface-Control-msg-ReleaseDoorReq" data-tooltip="Request to release a door for operation.">Control:ReleaseDoorReq</a> is received. The request carries the timeout value to use when the door is opened, which is stored for later use. Upon receiving this message, the Door Controller can first enable the door sensor by calling the <a class="ref" href="#handler-SensorHandler-fn-enableDoorSensor" data-tooltip="Enable the door sensor.">SensorHandler:enableDoorSensor()</a> function.</p><p>Consequently, the door sensor will respond with its current status via the <a class="ref" href="#iface-Sensing-msg-DoorSensorInd" data-tooltip="Indicates the status of the door sensor.">Sensing:DoorSensorInd</a> and as a result the <a class="ref" href="#iface-Control-msg-ReleaseDoorRsp" data-tooltip="Response that the door handled the release request.">Control:ReleaseDoorRsp</a> is sent.</p><p>Only when the door is closed will the lock sensor be operational. Thus, in that case, the lock sensor can be triggered to (re)send its state by calling the <a class="ref" href="#handler-SensorHandler-fn-enableLockSensor" data-tooltip="Enable the door lock sensor.">SensorHandler:enableLockSensor()</a> function.</p><p>When the door is opened, a timer needs to be started to detect when the door is opened too long. The duration is taken from the <a class="ref" href="#comp-DoorController-var-openDoorTimeout" data-tooltip="The maximum time the door is allowed to remain open, as supplied in `Control:ReleaseDoorReq`.">openDoorTimeout</a> state variable that was set during the release.</p><p>In order to lock or unlock the door, the <a class="ref" href="#iface-Control-msg-SetLockInd" data-tooltip="Commands to set the lock state of a door.">Control:SetLockInd</a> message is used. This command can only be handled when the door is closed. Otherwise, the <a class="ref" href="#iface-Control-msg-ErrorInd" data-tooltip="Indicates an error related to a door.">Control:ErrorInd</a> message is replied.</p><p>No explicit reply is required for the <a class="ref" href="#iface-Control-msg-SetLockInd" data-tooltip="Commands to set the lock state of a door.">Control:SetLockInd</a>message because the result of the operation is received via the <a class="ref" href="#iface-Sensing-msg-LockSensorInd" data-tooltip="Indicates the status of the lock sensor.">Sensing:LockSensorInd</a> message.</p><p>When a door is opened or closed, the <a class="ref" href="#iface-Sensing-msg-DoorSensorInd" data-tooltip="Indicates the status of the door sensor.">Sensing:DoorSensorInd</a> message is received which can be forwarded via the <a class="ref" href="#iface-Control-msg-DoorStateChangedInd" data-tooltip="Indicates a change in the door state.">Control:DoorStateChangedInd</a> message.</p><p>When the door is locked, tags can be added or removed from the door’s internal tag administration. Tags are stored at the door itself to allow a door to operate even if the network is down. When it is tried to add or remove tags when the door is not closed, the <a class="ref" href="#iface-Control-msg-ErrorInd" data-tooltip="Indicates an error related to a door.">Control:ErrorInd</a> message is sent.</p>
 </section>
 <section id="comp-DoorController-constants" class="entity-anchor">
 <h2>Constants</h2>
-<table><thead><tr><th>Name</th><th>Value</th><th>Description</th></tr></thead><tbody>
-<tr id="comp-DoorController-const-OPEN_DOOR_TIMEOUT_MS" class="entity-anchor"><td>OPEN_DOOR_TIMEOUT_MS</td><td>30000</td><td>The time a door is allowed to be open.</td></tr>
-</tbody></table>
+<p class="no-content">This component has no constants.</p>
 </section>
 <section id="comp-DoorController-statevars" class="entity-anchor">
 <h2>State variables</h2>
@@ -2089,6 +2091,7 @@ code.ref-unresolved {
 <tr id="comp-DoorController-var-doorId" class="entity-anchor"><td>doorId</td><td><a class="ref" href="#type-uint" data-tooltip="Unsigned integer value.">uint</a></td><td>ID of the door.</td></tr>
 <tr id="comp-DoorController-var-doorState" class="entity-anchor"><td>doorState</td><td><a class="ref" href="#type-bool" data-tooltip="Boolean value">bool</a></td><td>Detected value of the door sensor.</td></tr>
 <tr id="comp-DoorController-var-lockState" class="entity-anchor"><td>lockState</td><td><a class="ref" href="#type-bool" data-tooltip="Boolean value">bool</a></td><td>Detected value of the lock sensor.</td></tr>
+<tr id="comp-DoorController-var-openDoorTimeout" class="entity-anchor"><td>openDoorTimeout</td><td><a class="ref" href="#type-Time" data-tooltip="Duration value used when scheduling a timer.">Time</a></td><td>The maximum time the door is allowed to remain open, as supplied in <a class="ref" href="#iface-Control-msg-ReleaseDoorReq" data-tooltip="Request to release a door for operation.">Control:ReleaseDoorReq</a>.</td></tr>
 <tr id="comp-DoorController-var-openDoorTimerId" class="entity-anchor"><td>openDoorTimerId</td><td><a class="ref" href="#type-TimerID" data-tooltip="Identifier of a scheduled timer.">TimerID</a></td><td>The timer to handle open door timeouts.</td></tr>
 </tbody></table>
 </section>
@@ -2123,7 +2126,7 @@ code.ref-unresolved {
 <tr><td>●</td><td>Idle</td><td>—</td><td>—</td><td>—</td></tr>
 <tr><td rowspan="1">Await Door Sensor</td><td rowspan="1">Closed?</td><td><a class="ref" href="#iface-Sensing" data-tooltip="Manages and conveys the status of door-related sensors and is responsible for detecting and reporting changes in the state of door sensors and lock sensors.">Sensing</a></td><td><a class="ref" href="#iface-Sensing-msg-DoorSensorInd" data-tooltip="Indicates the status of the door sensor.">DoorSensorInd</a></td><td class="cell-multiline"><p>Send <a class="ref" href="#iface-Control-msg-ReleaseDoorRsp" data-tooltip="Response that the door handled the release request.">Control:ReleaseDoorRsp</a> with the <a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a> as parameter.<br>Set <a class="ref" href="#comp-DoorController-var-doorState" data-tooltip="Detected value of the door sensor.">doorState</a> to <a class="ref" href="#iface-Sensing-msg-DoorSensorInd-param-open" data-tooltip="Whether the door is open.">DoorSensorInd:open</a>.<br>Call <a class="ref" href="#comp-DoorController-lfn-sendDoorStateChangedInd" data-tooltip="The door state changed and the `Control:DoorStateChangedInd` message will be sent.">sendDoorStateChangedInd()</a>.</p></td></tr>
 <tr><td rowspan="1">Await Lock Sensor</td><td rowspan="1">Is locked?</td><td><a class="ref" href="#iface-Sensing" data-tooltip="Manages and conveys the status of door-related sensors and is responsible for detecting and reporting changes in the state of door sensors and lock sensors.">Sensing</a></td><td><a class="ref" href="#iface-Sensing-msg-LockSensorInd" data-tooltip="Indicates the status of the lock sensor.">LockSensorInd</a></td><td class="cell-multiline"><p>Set <a class="ref" href="#comp-DoorController-var-lockState" data-tooltip="Detected value of the lock sensor.">lockState</a> to <a class="ref" href="#iface-Sensing-msg-LockSensorInd-param-locked" data-tooltip="Whether the door is locked.">LockSensorInd:locked</a>.<br>Call <a class="ref" href="#comp-DoorController-lfn-sendDoorLockChangedInd" data-tooltip="The door lock changed and the `Control:DoorLockChangedInd` message will be sent.">sendDoorLockChangedInd()</a>.</p></td></tr>
-<tr><td rowspan="1">Closed?</td><td rowspan="1">Open</td><td>Logical</td><td>No</td><td class="cell-multiline"><p>Call <span class="ref" data-tooltip="Start a timer that will fire `Timer:Timeout` after `timeout` elapses.">TimerHandler:setTimeout</span>(<a class="ref" href="#comp-DoorController-const-OPEN_DOOR_TIMEOUT_MS" data-tooltip="The time a door is allowed to be open.">OPEN_DOOR_TIMEOUT_MS</a>).</p></td></tr>
+<tr><td rowspan="1">Closed?</td><td rowspan="1">Open</td><td>Logical</td><td>No</td><td class="cell-multiline"><p>Call <span class="ref" data-tooltip="Start a timer that will fire `Timer:Timeout` after `timeout` elapses.">TimerHandler:setTimeout</span>(<a class="ref" href="#comp-DoorController-var-openDoorTimeout" data-tooltip="The maximum time the door is allowed to remain open, as supplied in `Control:ReleaseDoorReq`.">openDoorTimeout</a>, <a class="ref" href="#comp-DoorController-var-openDoorTimerId" data-tooltip="The timer to handle open door timeouts.">openDoorTimerId</a>).</p></td></tr>
 <tr><td rowspan="1">Closed?</td><td rowspan="1">Await Lock Sensor</td><td>Logical</td><td>Yes</td><td class="cell-multiline"><p>Call <a class="ref" href="#handler-SensorHandler-fn-enableLockSensor" data-tooltip="Enable the door lock sensor.">SensorHandler:enableLockSensor</a>(<a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a>).</p></td></tr>
 <tr><td rowspan="1">Idle</td><td rowspan="1">Standby</td><td><a class="ref" href="#iface-Sensing" data-tooltip="Manages and conveys the status of door-related sensors and is responsible for detecting and reporting changes in the state of door sensors and lock sensors.">Sensing</a></td><td><a class="ref" href="#iface-Sensing-msg-DoorDetectedInd" data-tooltip="Indicates that a door has been detected.">DoorDetectedInd</a></td><td class="cell-multiline"><p>Set <a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a> to <a class="ref" href="#iface-Sensing-msg-DoorDetectedInd-param-doorId" data-tooltip="ID of the detected door.">DoorDetectedInd:doorId</a>.<br>Send <a class="ref" href="#iface-Control-msg-DoorDetectedInd" data-tooltip="Indicates that a door has been detected.">Control:DoorDetectedInd</a> with parameter <a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a>.</p></td></tr>
 <tr><td rowspan="1">Is locked?</td><td rowspan="1">Unlocked</td><td>Logical</td><td>No</td><td class="cell-multiline"><em class="muted">—</em></td></tr>
@@ -2137,7 +2140,7 @@ code.ref-unresolved {
 <tr><td rowspan="2">Open</td><td rowspan="2">Open</td><td><a class="ref" href="#iface-Control" data-tooltip="Manages the interaction between the Device Controller and Door Controllers, including monitoring door states and executing lock/unlock commands.">Control</a></td><td><a class="ref" href="#iface-Control-msg-SetLockInd" data-tooltip="Commands to set the lock state of a door.">SetLockInd</a></td><td class="cell-multiline"><p>Send <a class="ref" href="#iface-Control-msg-ErrorInd" data-tooltip="Indicates an error related to a door.">Control:ErrorInd</a> with parameters <a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a> and &quot;Door lock cannot be changed when open&quot;.</p></td></tr>
 <tr><td>Timer</td><td>Timeout</td><td class="cell-multiline"><p>Send <a class="ref" href="#iface-Control-msg-AlarmInd" data-tooltip="Indicates an alarm condition related to a door.">Control:AlarmInd</a> with parameters <a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a> and &quot;Door open for too long&quot;.</p></td></tr>
 <tr><td rowspan="1">Open</td><td rowspan="1">Unlocked</td><td><a class="ref" href="#iface-Sensing" data-tooltip="Manages and conveys the status of door-related sensors and is responsible for detecting and reporting changes in the state of door sensors and lock sensors.">Sensing</a></td><td><a class="ref" href="#iface-Sensing-msg-DoorSensorInd" data-tooltip="Indicates the status of the door sensor.">DoorSensorInd</a></td><td class="cell-multiline"><p>Set <a class="ref" href="#comp-DoorController-var-doorState" data-tooltip="Detected value of the door sensor.">doorState</a> to <a class="ref" href="#iface-Sensing-msg-DoorSensorInd-param-open" data-tooltip="Whether the door is open.">DoorSensorInd:open</a>.<br>Call <a class="ref" href="#comp-DoorController-lfn-sendDoorStateChangedInd" data-tooltip="The door state changed and the `Control:DoorStateChangedInd` message will be sent.">sendDoorStateChangedInd()</a>.<br>Call <span class="ref" data-tooltip="Cancel a previously-started timer so it never fires.">TimerHandler:cancelTimeout</span>(<a class="ref" href="#comp-DoorController-var-openDoorTimerId" data-tooltip="The timer to handle open door timeouts.">openDoorTimerId</a>).</p></td></tr>
-<tr><td rowspan="1">Standby</td><td rowspan="1">Await Door Sensor</td><td><a class="ref" href="#iface-Control" data-tooltip="Manages the interaction between the Device Controller and Door Controllers, including monitoring door states and executing lock/unlock commands.">Control</a></td><td><a class="ref" href="#iface-Control-msg-ReleaseDoorReq" data-tooltip="Request to release a door for operation.">ReleaseDoorReq</a></td><td class="cell-multiline"><p>Call <a class="ref" href="#handler-SensorHandler-fn-enableDoorSensor" data-tooltip="Enable the door sensor.">SensorHandler:enableDoorSensor</a>(<a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a>).</p></td></tr>
+<tr><td rowspan="1">Standby</td><td rowspan="1">Await Door Sensor</td><td><a class="ref" href="#iface-Control" data-tooltip="Manages the interaction between the Device Controller and Door Controllers, including monitoring door states and executing lock/unlock commands.">Control</a></td><td><a class="ref" href="#iface-Control-msg-ReleaseDoorReq" data-tooltip="Request to release a door for operation.">ReleaseDoorReq</a></td><td class="cell-multiline"><p>Set <a class="ref" href="#comp-DoorController-var-openDoorTimeout" data-tooltip="The maximum time the door is allowed to remain open, as supplied in `Control:ReleaseDoorReq`.">openDoorTimeout</a> to <a class="ref" href="#iface-Control-msg-ReleaseDoorReq-param-timeout" data-tooltip="Maximum time the door is allowed to remain open before an alarm is raised.">ReleaseDoorReq:timeout</a>.<br>Call <a class="ref" href="#handler-SensorHandler-fn-enableDoorSensor" data-tooltip="Enable the door sensor.">SensorHandler:enableDoorSensor</a>(<a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a>).</p></td></tr>
 <tr><td rowspan="1">Unlocked</td><td rowspan="1">Locking</td><td><a class="ref" href="#iface-Control" data-tooltip="Manages the interaction between the Device Controller and Door Controllers, including monitoring door states and executing lock/unlock commands.">Control</a></td><td><a class="ref" href="#iface-Control-msg-SetLockInd" data-tooltip="Commands to set the lock state of a door.">SetLockInd</a></td><td class="cell-multiline"><p>Call <a class="ref" href="#handler-SensorHandler-fn-lock" data-tooltip="Lock the door.">SensorHandler:lock</a>(<a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a>).</p></td></tr>
 <tr><td rowspan="1">Unlocking</td><td rowspan="1">Unlocked</td><td><a class="ref" href="#iface-Sensing" data-tooltip="Manages and conveys the status of door-related sensors and is responsible for detecting and reporting changes in the state of door sensors and lock sensors.">Sensing</a></td><td><a class="ref" href="#iface-Sensing-msg-LockSensorInd" data-tooltip="Indicates the status of the lock sensor.">LockSensorInd</a></td><td class="cell-multiline"><p>Set <a class="ref" href="#comp-DoorController-var-lockState" data-tooltip="Detected value of the lock sensor.">lockState</a> to <a class="ref" href="#iface-Sensing-msg-LockSensorInd-param-locked" data-tooltip="Whether the door is locked.">LockSensorInd:locked</a>.<br>Call <a class="ref" href="#comp-DoorController-lfn-sendDoorLockChangedInd" data-tooltip="The door lock changed and the `Control:DoorLockChangedInd` message will be sent.">sendDoorLockChangedInd()</a>.</p></td></tr>
 <tr><td rowspan="1">Unlocking</td><td rowspan="1">Locked</td><td><a class="ref" href="#iface-Sensing" data-tooltip="Manages and conveys the status of door-related sensors and is responsible for detecting and reporting changes in the state of door sensors and lock sensors.">Sensing</a></td><td><a class="ref" href="#iface-Sensing-msg-UnlockFailedInd" data-tooltip="Indicates a failure in the unlocking mechanism.">UnlockFailedInd</a></td><td class="cell-multiline"><p>Send <a class="ref" href="#iface-Control-msg-ErrorInd" data-tooltip="Indicates an error related to a door.">Control:ErrorInd</a> with parameters <a class="ref" href="#comp-DoorController-var-doorId" data-tooltip="ID of the door.">doorId</a> and &quot;Unlocking failed&quot;.</p></td></tr>
@@ -2215,7 +2218,7 @@ code.ref-unresolved {
 </section>
 <footer class="spec-footer">
   <p>
-    Generated on 2026-05-06 21:24 by
+    Generated on 2026-05-10 14:54 by
     <a href="https://stadiae.com/" target="_blank" rel="noopener">Stadiæ</a>.
     The editable source is embedded in this file.
     <button type="button" id="spec-download-source" class="spec-source-btn">Download source (DCSC.json)</button>

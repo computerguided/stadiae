@@ -1153,7 +1153,7 @@ footer.foot .links a + a { margin-left: 18px; }
         <div></div>
         <div class="content">
           <p>
-            Stadi&aelig; ships with an optional MCP bridge that connects the editor to <a href="https://claude.ai/download" target="_blank" rel="noopener">Claude Desktop</a>. Once installed, Claude can read your current model, look up the schema and FCM design conventions, and apply edits you ask for in natural language &mdash; <em>"add a <code>Reconnecting</code> state to <code>ServerConnector</code> with a transition from <code>Connected</code> on <code>Connection:Disconnected</code>"</em>, <em>"describe the responsibility of each handler"</em>, <em>"refactor this state machine to handle a transient connection drop"</em>.
+            Stadi&aelig; ships with an optional MCP bridge that connects the editor to <a href="https://claude.ai/download" target="_blank" rel="noopener">Claude Desktop</a>. Once installed, Claude can read your current model, fetch the SVG of any diagram, look up the schema and FCM design conventions, and apply edits you ask for in natural language &mdash; <em>"add a <code>Reconnecting</code> state to <code>ServerConnector</code> with a transition from <code>Connected</code> on <code>Connection:Disconnected</code>"</em>, <em>"show me the device diagram"</em>, <em>"describe the responsibility of each handler"</em>, <em>"refactor this state machine to handle a transient connection drop"</em>.
           </p>
 
           <p>
@@ -1169,10 +1169,11 @@ footer.foot .links a + a { margin-left: 18px; }
 
 <span class="com">// 3. Optimistic concurrency, so user edits aren't silently overwritten.</span>
 get_model <span class="punct">→</span> <span class="punct">{</span>model<span class="punct">,</span> version<span class="punct">}</span>
-replace_model<span class="punct">(</span>model<span class="punct">,</span> expectedVersion<span class="punct">)</span> <span class="punct">→</span> reject if user edited since</pre>
+replace_model<span class="punct">(</span>model<span class="punct">,</span> expectedVersion<span class="punct">)</span> <span class="punct">→</span> reject if user edited since
+get_diagram<span class="punct">(</span>scope<span class="punct">,</span> component?<span class="punct">)</span> <span class="punct">→</span> SVG rendered by your PlantUML server</pre>
 
           <p>
-            Claude only sees what the editor exposes through three tools: read the current model, read the schema reference, replace the model with strict validation. Validation runs entirely on the editor side, so design constraints stay in one place &mdash; no separate schema file to keep in sync. Setup instructions for Linux are on GitHub: <a href="https://github.com/computerguided/stadiae/blob/main/bridge-setup-linux.md" target="_blank" rel="noopener">bridge-setup-linux.md &#8599;</a>.
+            Claude only sees what the editor exposes through four tools: read the current model, read the schema reference, fetch a diagram as SVG, replace the model with strict validation. Validation runs entirely on the editor side, so design constraints stay in one place &mdash; no separate schema file to keep in sync. Setup instructions for Linux are on GitHub: <a href="https://github.com/computerguided/stadiae/blob/main/bridge-setup-linux.md" target="_blank" rel="noopener">bridge-setup-linux.md &#8599;</a>.
           </p>
 
           <div class="callout"><b>opt-in everywhere.</b> the bridge is off by default. the editor never auto-connects on load &mdash; every session starts disconnected, and the user reconnects explicitly via <em>File &rarr; Bridge&hellip;</em>. revoking access is one click, not an uninstall.</div>

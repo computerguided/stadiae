@@ -48,11 +48,13 @@ Tool advertisement is handled by `setRequestHandler(ListToolsRequestSchema, ...)
 - `description` — prose Claude reads to decide whether and when to call the tool. This is the only thing Claude sees about the tool's purpose; it does its share of the work.
 - `inputSchema` — JSON Schema describing the tool's parameters. Empty object for tools that take none.
 
-The current catalogue contains three entries:
+The current catalogue contains five entries:
 
 - **`get_model`** — forwards to the browser; returns the user's current model as `stadiae-v4` JSON, alongside a session-local version stamp. Used whenever Claude needs to know what's actually in the editor, and as the prerequisite for any subsequent `replace_model` call (see *Optimistic concurrency* below).
 - **`get_schema`** — bridge-local; returns the `stadiae-v4` reference document. The same content is served as the `stadiae://schema` MCP resource (see *Resources* below); the tool exists as a fallback for clients that don't surface resources to the LLM automatically.
+- **`get_use_cases`** — bridge-local; returns the use-cases catalogue (HTML), a step-by-step guide to every editor operation (adding, renaming, deleting, wiring, exporting, configuring the bridge). The same content is served as the `stadiae://use-cases` MCP resource. Episodic by design: Claude is told to call it only when the user asks a "how do I…" question about editor operations, not at the start of every conversation. The split with `get_schema` is deliberate — schema describes the data model and modelling discipline, use-cases describes the editor UI; questions route to one or the other based on whether the user is asking what to model or how to operate the tool.
 - **`replace_model`** — forwards to the browser; replaces the user's model with a supplied `stadiae-v4` document after strict validation. Requires the version stamp from a prior `get_model` as `expectedVersion`; on stale-version or validation failure the call is rejected with structured per-field detail and no change is applied. Used whenever the user asks Claude to build, modify, or restructure their model.
+- **`get_diagram`** — forwards to the browser; returns an SVG rendering of one of the device's diagrams. With `scope: "device"` the response is the device-level diagram; with `scope: "component"` plus a `component` name, it is one component's state machine. Rendered clean (no selection highlight). Used when the user asks to see a diagram or when Claude wants to visually verify a layout. Read-only: does not touch the model or its version.
 
 Tool descriptions are deliberately written to do three jobs: state what is returned, give example phrasings the user might use to trigger the tool, and state what the tool does *not* do. Claude grounds its decision-making in this text; underwritten descriptions cause Claude to either skip the tool or misuse it.
 
@@ -66,8 +68,12 @@ switch (toolName) {
     // forward to browser, wrap response
   case "get_schema":
     // read the schema doc from disk, wrap as text content
+  case "get_use_cases":
+    // read the use-cases catalogue from disk, wrap as text content
   case "replace_model":
     // forward to browser with model + expectedVersion, wrap response
+  case "get_diagram":
+    // forward to browser with scope + optional component, wrap response
   default:
     return toolError(`Unknown tool: ${toolName}`);
 }
@@ -76,7 +82,7 @@ switch (toolName) {
 The dispatch model supports two kinds of tool implementations:
 
 - **Browser-forwarding tools.** The handler calls `callBrowser(method, args)` with a method name that matches a handler on the browser side, awaits the response, and wraps it as an MCP `CallToolResult`. Use this for any tool whose answer depends on the user's model state, or that mutates it. `get_model` and `replace_model` are both browser-forwarding.
-- **Bridge-local tools.** The handler computes the answer directly without forwarding. Use this for tools that report bridge-owned state — schema documents, version information, capability lists. `get_schema` is one.
+- **Bridge-local tools.** The handler computes the answer directly without forwarding. Use this for tools that report bridge-owned state — schema documents, version information, capability lists. `get_schema` and `get_use_cases` are both bridge-local.
 
 The `default` arm exists to handle the case where Claude calls a tool that isn't in the catalogue. This should not happen in normal operation — Claude only calls tools it has seen in the `ListTools` response — but defends against version skew between the advertised catalogue and the implemented dispatch (e.g. during development).
 
@@ -115,28 +121,35 @@ This is the responsibility of the `toolError(message)` helper. Every error path 
 
 ### Resources
 
-The bridge serves the `stadiae-v4` reference document as an MCP resource. Two handlers cover it:
+The bridge serves two documents as MCP resources: the `stadiae-v4` reference (schema and FCM design conventions) and the use-cases catalogue (editor-operations guide). Two handlers cover both:
 
-- `setRequestHandler(ListResourcesRequestSchema, ...)` advertises one resource with URI `stadiae://schema`, name *Stadiæ stadiae-v4 reference*, and `mimeType: "text/markdown"`.
-- `setRequestHandler(ReadResourceRequestSchema, ...)` returns the file contents when the matching URI is read.
+- `setRequestHandler(ListResourcesRequestSchema, ...)` advertises both resources. The schema has URI `stadiae://schema`, name *Stadiæ stadiae-v4 reference*, and `mimeType: "text/markdown"`. The use-cases catalogue has URI `stadiae://use-cases`, name *Stadiæ use-cases catalogue*, and `mimeType: "text/html"`.
+- `setRequestHandler(ReadResourceRequestSchema, ...)` dispatches on the requested URI and returns the matching file's contents. Unknown URIs throw, which surfaces as a protocol error on the client side.
 
-Both handlers funnel through a shared `readSchema()` helper that reads the file from disk. The `get_schema` tool calls the same helper, so the file lookup, error behaviour, and any future caching live in one place — change `readSchema()` once and the resource and tool stay in sync.
+Each document has its own helper — `readSchema()` and `readUseCases()` — that reads the file from disk. The matching tool (`get_schema`, `get_use_cases`) funnels through the same helper, so a single file-lookup path serves both surfaces. Change the helper once and the resource and the tool stay in sync.
 
-The schema document path resolves like this:
+Path resolution follows the same pattern for both:
 
-- If `STADIAE_SCHEMA_PATH` is set in the environment, the bridge uses that path verbatim (resolved to absolute).
-- Otherwise the bridge looks for `stadiae_mcp_instructions.md` in the same directory as `bridge.mjs`.
+- If `STADIAE_SCHEMA_PATH` / `STADIAE_USE_CASES_PATH` is set in the environment, the bridge uses that path verbatim (resolved to absolute).
+- Otherwise the bridge looks for the default filename (`stadiae_mcp_instructions.md` / `use-cases.html`) in the same directory as `bridge.mjs`.
 
-The file is read on every request, not cached. The doc is small (~40 KB), reads are essentially free, and not caching means edits to the file propagate to Claude without restarting the bridge — useful while iterating.
+Files are read on every request, not cached. Both docs are small (~40 KB and ~180 KB respectively), reads are essentially free, and not caching means edits propagate to Claude without restarting the bridge — useful while iterating.
 
-A startup probe (`access(SCHEMA_PATH)` once at boot) emits a stderr warning if the file is missing. The bridge does not crash — `get_model` still works without the schema — but the warning surfaces in Claude Desktop's MCP logs so the misconfiguration is visible.
+A startup probe per document (`access(...)` once at boot) emits a stderr warning if either file is missing. The bridge does not crash — every other tool keeps working — but the warning surfaces in Claude Desktop's MCP logs so the misconfiguration is visible.
 
-The reason for serving the schema both ways:
+The reason for serving each document both ways (resource and tool):
 
-- **MCP resources** are the protocol-correct delivery channel. Some clients automatically surface advertised resources to the LLM; in that case the schema reaches Claude without any explicit action.
-- **The `get_schema` tool** is the bulletproof fallback. Claude can decide to call it, and clients that don't auto-load resources still get the doc into context once Claude reaches for it.
+- **MCP resources** are the protocol-correct delivery channel. Some clients automatically surface advertised resources to the LLM; in that case the document reaches Claude without any explicit action.
+- **The matching `get_*` tool** is the bulletproof fallback. Claude can decide to call it, and clients that don't auto-load resources still get the doc into context once Claude reaches for it.
 
 Phase 1 testing surfaced a real example of why both paths matter: an early Claude Desktop build advertised the resource correctly but did not pull it into Claude's context, and the LLM produced confidently wrong content (e.g. expanding *FCM* as *Function Class Model*). Telling Claude *"Use the `get_schema` tool"* fixed the problem immediately. As Claude Desktop matures, the resource path may become reliable enough to make the tool redundant; until then, both stay.
+
+**Schema vs use-cases — the editorial split.** The two documents are deliberately separate, with non-overlapping concerns:
+
+- `stadiae://schema` describes the data model: what a valid `stadiae-v4` file looks like, the FCM identification order, the description register, the house style. It answers *"what should I model"* and *"how do I write this constraint"* questions. Always-on during modelling conversations — Claude is told to read it at the start of any conversation involving Stadiæ models.
+- `stadiae://use-cases` describes the user interface: how to add a component, where the multiplication marker lives, what the various toolbar buttons do, how to wire a handler to an interface in the editor, how to set up the bridge. It answers *"how do I…"* questions about operating the editor. Episodic by design — Claude is told to call it only when an editor-operations question comes up, not at the start of every conversation.
+
+Both are reference documentation, but they serve different stages of the user's workflow. Keeping them separate means a modelling conversation doesn't pull ~180 KB of operational instructions into context for no reason, and a "how do I add a state" conversation doesn't need the FCM design philosophy to answer it. The tool descriptions explicitly state the routing rule — *"for questions about what makes a model valid or well-designed, use `get_schema` instead"* on `get_use_cases`, and analogous wording on the schema side — so Claude can pick correctly when the user's question is on the boundary.
 
 ### Optimistic concurrency: the model version contract
 
@@ -281,9 +294,10 @@ Two values are hardcoded:
 - **Listening port** — `7531`, defined as `const PORT`. Change to relocate the listener; the browser side must agree.
 - **Browser request timeout** — `30000` ms, defined as `BROWSER_TIMEOUT_MS`. Change with care: too short and slow networks (or paused tabs) generate spurious errors; too long and a hung browser blocks tool calls for longer than the user will tolerate.
 
-One value is overridable via environment variable:
+Two values are overridable via environment variable:
 
 - **`STADIAE_SCHEMA_PATH`** — path to the `stadiae-v4` reference document served by the resource and the `get_schema` tool. Defaults to `stadiae_mcp_instructions.md` next to `bridge.mjs`. Override only for non-standard layouts.
+- **`STADIAE_USE_CASES_PATH`** — path to the use-cases catalogue served by the resource and the `get_use_cases` tool. Defaults to `use-cases.html` next to `bridge.mjs`. Override only for non-standard layouts.
 
 The port and timeout are not currently exposed as environment variables. Worth introducing if multiple users want different ports or if integration tests need shorter timeouts.
 
@@ -415,6 +429,20 @@ Possible causes:
 2. **The bridge starts before the schema file is in place.** Restart Claude Desktop after putting the file there.
 
 3. **The Claude Desktop build does not auto-surface MCP resources.** Resource auto-loading varies by client version. The `get_schema` tool exists precisely for this case — Claude can call it explicitly. If users hit this often, consider strengthening the tool's description with stronger language about calling it at the start of any model-related conversation.
+
+### Use-cases not reaching Claude
+
+Symptoms: Claude answers "how do I…" questions about the editor with generic state-machine-editor guesses, or by referencing menus, panels, or buttons that don't exist in Stadiæ.
+
+Diagnosis: ask Claude *"Use the `get_use_cases` tool to read the catalogue, then answer my previous question."* If after the explicit prompt the answer becomes correct (specific UI references that match the editor), the resource is not being auto-loaded and Claude has been working without it.
+
+Same three possible causes as for the schema, transposed:
+
+1. **The bridge does not have the use-cases file.** Check `ls /path/to/bridge/use-cases.html`. If missing, copy it next to `bridge.mjs` (or set `STADIAE_USE_CASES_PATH`).
+
+2. **The bridge starts before the use-cases file is in place.** Restart Claude Desktop after putting the file there.
+
+3. **The Claude Desktop build does not auto-surface MCP resources.** Same client-side condition as for the schema. The `get_use_cases` tool is the bulletproof fallback; Claude's tool description names common trigger phrases so it knows when to reach for it.
 
 ### A "stale answer" mystery
 

@@ -57,7 +57,7 @@ Alternatively, click the [live demo link](https://htmlpreview.github.io/?https:/
 
 ## Optional: Claude Desktop integration
 
-Stadiæ ships with an optional **MCP bridge** that connects the editor to [Claude Desktop](https://claude.ai/download). Once installed, Claude can read your current model, look up the schema and FCM design conventions, and apply edits you ask for in natural language — *"add a `Connecting` state to ServerConnector with a transition from `Idle` on `Connection:ConnectReq`"*, *"describe the responsibility of each handler"*, *"refactor this state machine to handle a transient connection drop"*. The bridge is a separate Node process; the editor itself remains a single self-contained HTML file with no external dependencies.
+Stadiæ ships with an optional **MCP bridge** that connects the editor to [Claude Desktop](https://claude.ai/download). Once installed, Claude can read your current model, fetch the SVG of any diagram (the device view or any component's state machine), look up the schema and FCM design conventions, and apply edits you ask for in natural language — *"add a `Connecting` state to ServerConnector with a transition from `Idle` on `Connection:ConnectReq`"*, *"show me the device diagram"*, *"describe the responsibility of each handler"*, *"refactor this state machine to handle a transient connection drop"*. The bridge is a separate Node process; the editor itself remains a single self-contained HTML file with no external dependencies.
 
 The bridge is **opt-in**. The editor works exactly as before whether or not the bridge is installed; nothing in the core editing experience changes.
 
