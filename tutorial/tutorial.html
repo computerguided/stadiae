@@ -1338,7 +1338,7 @@ details.json-snapshot pre {
 <li><code>Content</code> — image deliveries (<code>ContentInd</code>). Spoken between the radio and <code>UiController</code>.</li>
 <li><code>Display</code> — display-panel completion (<code>CompletedInd</code>). Spoken between <code>DisplayHandler</code> and <code>UiController</code>.</li>
 </ul>
-<p>In addition to these, every model implicitly has the built-in <code>Logical</code> and <code>Timer</code> interfaces (carrying <code>Yes</code>/<code>No</code> and <code>Timeout</code> respectively), plus the <code>TimerHandler</code> for arming timers. These don&#x27;t show on the device diagram and we don&#x27;t declare them; they&#x27;re conceptually always there, like primitive operations in a programming language.</p>
+<p>In addition to these, every model implicitly has the built-in <code>Logical</code> and <code>Timer</code> interfaces (carrying <code>Yes</code>/<code>No</code> and <code>Timeout</code> respectively), plus the <code>TimerHandler</code> for arming timers. They appear in the sidebar lists in muted italic (so transitions can reference them), but never on the device diagram, and you cannot rename, edit, or delete them; they&#x27;re conceptually always there, like primitive operations in a programming language.</p>
 </div>
 <aside class="editor-actions">
 <h4>In the editor</h4>
@@ -3568,7 +3568,7 @@ details.json-snapshot pre {
 <li><strong>Choice-points</strong> list → <strong><code>+</code></strong>.</li>
 <li><strong>Name:</strong> <code>WhiteListed</code>.</li>
 <li><strong>Question:</strong> <code>Is Server\nWhitelisted?</code> (the <code>\n</code> is a literal backslash-n so the diagram wraps the question across two lines).</li>
-<li>Confirm. A new diamond/rectangle pseudonode appears.</li>
+<li>Confirm. The choice-point appears on the canvas as a white, square-cornered rectangle labelled with the question text — visually distinct from the surrounding states, which have rounded corners and a grey fill.</li>
 </ol>
 <p><strong>Refactor the existing <code>Advertising → Connecting</code> transition.</strong> Currently we have <code>Advertising → Connecting</code> direct on <code>ConnectReq</code>. We want it to route through the choice-point first. Stadiæ has a dedicated <strong>Redirect</strong> action for this: pick the transition row, pick a new target, click <em>Redirect</em>.</p>
 <ol>
@@ -4691,7 +4691,7 @@ Call `TimerHandler:setTimeout`(`ADVERTISEMENT`, `advertiseTimerId`).</code></pre
 <div class="discussion">
 <p>One more thing: a device-wide error should halt everything. Whenever <code>Device:ErrorInd</code> arrives, regardless of current state, we cancel both timers, disable the radio, and return to <code>Uninitialized</code>.</p>
 <p>This is the <strong><code>*</code>-source pattern</strong>: a transition with <code>source: &quot;*&quot;</code> fires from any state. It&#x27;s the FCM mechanism for global error handling without having to draw an arrow from every state to the error state.</p>
-<p>We also add an <strong>ANY-message wildcard</strong> self-transition on <code>Uninitialized</code>: <code>{interface: &quot;*&quot;, name: &quot;*&quot;}</code> matches any otherwise- unhandled message in that state and silently absorbs it. This protects the component from messages that arrive before it&#x27;s ready (early radio chatter, peripheral activity from the previous run, etc.) without those messages clogging up the message queue.</p>
+<p>We also add an <strong>ANY-message wildcard</strong> self-transition on <code>Uninitialized</code>: <code>{interface: &quot;*&quot;, name: &quot;*&quot;}</code> matches any otherwise- unhandled message in that state and silently absorbs it. This protects the component from messages that arrive before it&#x27;s ready (early radio chatter, peripheral activity from the previous run, etc.) — without an explicit handler each such message would be dropped by the dispatcher with a runtime warning, which is exactly the noise the wildcard suppresses. (We come back to this dispatch model in detail in Stage 19.)</p>
 <p>That completes <code>ServerConnector</code>. Three more transitions added, eleven in total. Every state has an outgoing path for every message it could plausibly receive, and the error path catches anything that slips through.</p>
 </div>
 <aside class="editor-actions">

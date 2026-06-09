@@ -41,6 +41,7 @@ The RTC discipline determines how to write transition actions:
 
 - **Wait pattern.** Component receives request → calls `Handler:doSomething(...)` (returns immediately) → transitions to a waiting state → handles the eventual completion message in a separate transition. The waiting state's name says what the Component is waiting for: `Connecting`, `Storing`, `Loading`.
 - **Timer pattern.** To wait for time, the Component calls `TimerHandler:setTimeout(interval, timerId)`, stores the `timerId` in a state variable typed `TimerID`, and transitions to a waiting state. A `Timer:Timeout` message arrives when the timer expires; the Component handles it in a transition out of the waiting state.
+- **Timer cancellation is queue-purging.** When a Component calls `TimerHandler:cancelTimeout(timerId)`, the framework guarantees that no `Timeout` for that timer will be delivered — *even if the timer has already expired and the `Timeout` message is already in the message queue*. There is consequently no stale-timeout race: a cancelled timer can never fire. State-based discrimination of `Timer:Timeout` (interpreting a `Timeout` in state `S` as "the timer set on entering `S`") is therefore correct and idiomatic, provided every transition that leaves a waiting state without consuming its timeout cancels the corresponding timer. Do not flag this as a race condition, and do not add `timerId` choice-point discrimination to defend against it — that defends against a situation the framework already resolves.
 - **Transient-fault pattern.** A `*`-source transition with `target: "[H]"` (any source, history target) on a fault message lets the Component go through fault handling and return to the state it was in. Idiomatic for handling resets, brown-outs, transient peripheral failures.
 - **Error pattern.** A `*` source transition to a fixed error or shutdown state is the standard way to handle non-recoverable conditions. Use sparingly.
 
@@ -108,7 +109,7 @@ A small set of built-in entities is implicit in every file. Do not declare them.
 
 **Built-in handler:**
 
-- `TimerHandler` — exposes `setTimeout(timeout: Time, timerId: TimerID)` and `cancelTimeout(timerId: TimerID)`.
+- `TimerHandler` — exposes `setTimeout(timeout: Time, timerId: TimerID)` and `cancelTimeout(timerId: TimerID)`. `cancelTimeout` is queue-purging: after cancellation, the `Timeout` for that timer is guaranteed not to be delivered, even if it was already enqueued (see *Timer cancellation is queue-purging* under Idiomatic patterns).
 
 **Built-in types:**
 
